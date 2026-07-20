@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { isSalesStaff } from "@/lib/permissions";
-import { isActiveLead, isLeadVisible } from "@/lib/utils/leads";
+import { isInLeadInbox } from "@/lib/utils/leads";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -39,9 +39,7 @@ export function Sidebar() {
 
   if (!currentUser) return null;
 
-  const unassignedCount = isAdmin
-    ? leads.filter((l) => isLeadVisible(l) && !l.assignedToId && isActiveLead(l)).length
-    : 0;
+  const unassignedCount = isAdmin ? leads.filter(isInLeadInbox).length : 0;
 
   const visibleItems = isAdmin ? managerNavItems : staffNavItems;
 

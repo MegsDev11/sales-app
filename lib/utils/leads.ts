@@ -5,6 +5,15 @@ export function isLeadVisible(lead: Lead): boolean {
   return !lead.deleted;
 }
 
+export function isInLeadInbox(lead: Lead): boolean {
+  return (
+    isLeadVisible(lead) &&
+    !lead.assignedToId &&
+    isActiveLead(lead) &&
+    !lead.inboxDismissedAt
+  );
+}
+
 export function isFollowUpOverdue(lead: Lead): boolean {
   if (!lead.nextFollowUpAt) return false;
   return new Date(lead.nextFollowUpAt) < new Date();
@@ -124,7 +133,7 @@ export function getNotifications(
   const overdueFollowUps = active.filter(isFollowUpOverdue);
   const dueToday = active.filter(isFollowUpDueToday);
   const stuckLeads = active.filter((l) => isOverdue(l));
-  const unassigned = isAdmin ? leads.filter((l) => !l.deleted && !l.assignedToId && isActiveLead(l)) : [];
+  const unassigned = isAdmin ? leads.filter(isInLeadInbox) : [];
   const coldLeads = active.filter((l) => l.temperature === "cold");
 
   return { overdueFollowUps, dueToday, stuckLeads, unassigned, coldLeads };

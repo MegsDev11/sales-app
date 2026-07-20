@@ -102,6 +102,7 @@ export function leadFromRow(row: LeadRow): Lead {
     installationDate: row.installation_date ?? undefined,
     temperature: row.temperature as Lead["temperature"],
     stageHistory: row.stage_history ?? [],
+    inboxDismissedAt: row.inbox_dismissed_at ?? undefined,
   };
 }
 
@@ -138,6 +139,7 @@ export function leadToRow(lead: Lead): LeadRow {
     installation_date: lead.installationDate ?? null,
     temperature: lead.temperature,
     stage_history: lead.stageHistory,
+    inbox_dismissed_at: lead.inboxDismissedAt ?? null,
   };
 }
 
@@ -183,6 +185,9 @@ export function leadUpdatesToRow(updates: Partial<Lead>): Partial<LeadRow> {
   }
   if (updates.temperature !== undefined) row.temperature = updates.temperature;
   if (updates.stageHistory !== undefined) row.stage_history = updates.stageHistory;
+  if (updates.inboxDismissedAt !== undefined) {
+    row.inbox_dismissed_at = updates.inboxDismissedAt ?? null;
+  }
   return row;
 }
 

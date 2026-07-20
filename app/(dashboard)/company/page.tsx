@@ -13,7 +13,7 @@ import {
   getDepartmentStaff,
   getSalesStaff,
 } from "@/lib/permissions";
-import { isActiveLead, isLeadVisible } from "@/lib/utils/leads";
+import { isActiveLead, isInLeadInbox, isLeadVisible } from "@/lib/utils/leads";
 import { Building2, Kanban, Package, Network, Users, Target } from "lucide-react";
 
 export default function CompanyPage() {
@@ -34,7 +34,7 @@ export default function CompanyPage() {
   const activeSalesLeads = leads.filter(
     (l) => isLeadVisible(l) && isActiveLead(l)
   );
-  const unassigned = activeSalesLeads.filter((l) => !l.assignedToId);
+  const unassigned = activeSalesLeads.filter(isInLeadInbox);
 
   const departments = [
     {

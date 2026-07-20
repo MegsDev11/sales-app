@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useOwnerSection } from "@/lib/department-context";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { isActiveLead, isLeadVisible } from "@/lib/utils/leads";
+import { isInLeadInbox } from "@/lib/utils/leads";
 import type { OwnerSection } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import {
@@ -44,9 +44,7 @@ export function OwnerSidebar() {
   const { activeSection, setActiveSection } = useOwnerSection();
   const { leads } = useCrmStore();
 
-  const unassignedCount = leads.filter(
-    (l) => isLeadVisible(l) && !l.assignedToId && isActiveLead(l)
-  ).length;
+  const unassignedCount = leads.filter(isInLeadInbox).length;
 
   const handleSectionClick = (section: OwnerSection, href: string) => {
     setActiveSection(section);

@@ -86,6 +86,7 @@ export interface Database {
           installation_date: string | null;
           temperature: string;
           stage_history: StageHistoryEntry[];
+          inbox_dismissed_at: string | null;
         };
         Insert: {
           id: string;
@@ -119,6 +120,7 @@ export interface Database {
           installation_date?: string | null;
           temperature?: string;
           stage_history?: StageHistoryEntry[];
+          inbox_dismissed_at?: string | null;
         };
         Update: {
           id?: string;
@@ -152,6 +154,7 @@ export interface Database {
           installation_date?: string | null;
           temperature?: string;
           stage_history?: StageHistoryEntry[];
+          inbox_dismissed_at?: string | null;
         };
         Relationships: [];
       };

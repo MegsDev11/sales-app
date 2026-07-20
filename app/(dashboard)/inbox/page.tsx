@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { isActiveLead, isLeadVisible } from "@/lib/utils/leads";
+import { isActiveLead, isInLeadInbox } from "@/lib/utils/leads";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,18 +18,23 @@ import {
 } from "@/components/ui/select";
 import { getSalesStaff } from "@/lib/permissions";
 import { SERVICE_LABELS } from "@/lib/constants";
+import { X } from "lucide-react";
 
 export default function InboxPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
-  const { leads, users, reassignLead } = useCrmStore();
+  const { leads, users, reassignLead, updateLead } = useCrmStore();
 
   useEffect(() => {
     if (!isAdmin) router.replace("/board");
   }, [isAdmin, router]);
 
-  const unassigned = leads.filter((l) => isLeadVisible(l) && !l.assignedToId && isActiveLead(l));
+  const unassigned = leads.filter(isInLeadInbox);
   const salesReps = getSalesStaff(users);
+
+  const dismissFromInbox = (leadId: string) => {
+    updateLead(leadId, { inboxDismissedAt: new Date().toISOString() });
+  };
 
   const assignNext = () => {
     if (unassigned.length === 0) return;
@@ -67,8 +72,19 @@ export default function InboxPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {unassigned.map((lead) => (
             <Card key={lead.id}>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
                 <CardTitle className="text-base">{lead.clientName}</CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  title="Remove from inbox"
+                  aria-label={`Remove ${lead.clientName} from inbox`}
+                  onClick={() => dismissFromInbox(lead.id)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap gap-2 text-sm">

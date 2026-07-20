@@ -39,5 +39,6 @@ export function migrateLead(lead: Partial<Lead> & { id: string }): Lead {
     installationDate: lead.installationDate,
     temperature: lead.temperature ?? "warm",
     stageHistory: lead.stageHistory ?? createStageHistory(stage, lead.stageEnteredAt ?? now),
+    inboxDismissedAt: lead.inboxDismissedAt ?? null,
   };
 }

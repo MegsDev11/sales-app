@@ -97,6 +97,8 @@ export interface Lead {
   installationDate?: string;
   temperature: Temperature;
   stageHistory: StageHistoryEntry[];
+  /** Set when removed from Lead Inbox only — lead remains elsewhere in the CRM */
+  inboxDismissedAt?: string | null;
 }
 
 export interface Activity {
