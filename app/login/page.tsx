@@ -1,20 +1,22 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useCrmStore } from "@/lib/store/crm-store";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Shield, UserCircle } from "lucide-react";
-import type { User } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Lock } from "lucide-react";
 
 export default function LoginPage() {
-  const { users } = useCrmStore();
   const { login, currentUser, isLoading } = useAuth();
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isLoading && currentUser) {
@@ -22,8 +24,24 @@ export default function LoginPage() {
     }
   }, [currentUser, isLoading, router]);
 
-  const admins = users.filter((u) => u.role === "admin");
-  const salesReps = users.filter((u) => u.role === "sales");
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+
+    const result = await login(email, password);
+    if (result.error) setError(result.error);
+
+    setSubmitting(false);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C83733] border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
@@ -36,96 +54,68 @@ export default function LoginPage() {
           className="mx-auto mb-4 h-16 w-auto object-contain"
           priority
         />
-        <h1 className="text-2xl font-bold text-black">Sales CRM</h1>
+        <h1 className="text-2xl font-bold text-black">Staff Login</h1>
         <p className="mt-1 text-muted-foreground">
-          Select your account to continue
+          Sales team access only — accounts are created by your manager
         </p>
       </div>
 
-      <div className="w-full max-w-2xl space-y-6">
-        {users.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center">
-              <p className="font-medium text-gray-900">No team members yet</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Add your first team member in Supabase (Table Editor → team_members)
-                or ask your administrator to set up accounts.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-        <section>
-          <div className="mb-3 flex items-center gap-2">
-            <Shield className="h-4 w-4 text-[#C83733]" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Sales Manager
-            </h2>
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#C83733]/10">
+            <Lock className="h-6 w-6 text-[#C83733]" />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {admins.map((user) => (
-              <UserCard key={user.id} user={user} onSelect={login} />
-            ))}
-          </div>
-        </section>
+          <CardTitle>Sign in to Sales CRM</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium">Email</label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@megswb.co.za"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-sm font-medium">Password</label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+            )}
+            <Button
+              type="submit"
+              className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+              disabled={submitting}
+            >
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-        <section>
-          <div className="mb-3 flex items-center gap-2">
-            <UserCircle className="h-4 w-4 text-gray-500" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Sales Team
-            </h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {salesReps.map((user) => (
-              <UserCard key={user.id} user={user} onSelect={login} />
-            ))}
-          </div>
-        </section>
-          </>
-        )}
-      </div>
-
-      <p className="mt-8 text-xs text-muted-foreground">
-        Select your account to sign in
+      <p className="mt-6 text-center text-xs text-muted-foreground">
+        <Link href="/" className="text-[#C83733] hover:underline">← Back to website</Link>
+      </p>
+      <p className="mt-2 text-center text-xs text-muted-foreground">
+        Need an account? Ask your sales manager — public registration is disabled.
       </p>
     </div>
-  );
-}
-
-function UserCard({
-  user,
-  onSelect,
-}: {
-  user: User;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <Card
-      className="cursor-pointer transition-all hover:shadow-md hover:ring-2"
-      style={{ ["--tw-ring-color" as string]: user.color }}
-      onClick={() => onSelect(user.id)}
-    >
-      <CardContent className="flex items-center gap-4 p-4">
-        <Avatar
-          className="h-12 w-12"
-          style={{ boxShadow: `0 0 0 2px ${user.color}` }}
-        >
-          <AvatarFallback
-            className="font-semibold text-white"
-            style={{ backgroundColor: user.color }}
-          >
-            {user.avatarInitials}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <p className="font-semibold">{user.name}</p>
-          <p className="text-sm text-muted-foreground">{user.title}</p>
-        </div>
-        {user.role === "admin" && (
-          <Badge className="bg-[#C83733] hover:bg-[#C83733]">Admin</Badge>
-        )}
-      </CardContent>
-    </Card>
   );
 }

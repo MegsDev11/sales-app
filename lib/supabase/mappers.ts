@@ -15,12 +15,14 @@ export function userFromRow(row: TeamMemberRow): User {
   return {
     id: row.id,
     name: row.name,
+    email: row.email ?? "",
     role: row.role as User["role"],
     color: row.color,
     avatarInitials: row.avatar_initials,
     title: row.title,
     monthlyRevenueTarget: Number(row.monthly_revenue_target),
     monthlyDealsTarget: Number(row.monthly_deals_target),
+    authUserId: row.auth_user_id ?? undefined,
   };
 }
 
@@ -28,6 +30,8 @@ export function userToRow(user: User): TeamMemberRow {
   return {
     id: user.id,
     name: user.name,
+    email: user.email || null,
+    auth_user_id: user.authUserId ?? null,
     role: user.role,
     color: user.color,
     avatar_initials: user.avatarInitials,
@@ -44,6 +48,8 @@ export function userFormToRow(id: string, data: UserFormData): TeamMemberRow {
 export function userUpdatesToRow(updates: Partial<User>): Partial<TeamMemberRow> {
   const row: Partial<TeamMemberRow> = {};
   if (updates.name !== undefined) row.name = updates.name;
+  if (updates.email !== undefined) row.email = updates.email || null;
+  if (updates.authUserId !== undefined) row.auth_user_id = updates.authUserId ?? null;
   if (updates.role !== undefined) row.role = updates.role;
   if (updates.color !== undefined) row.color = updates.color;
   if (updates.avatarInitials !== undefined) row.avatar_initials = updates.avatarInitials;

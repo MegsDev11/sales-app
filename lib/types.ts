@@ -46,15 +46,21 @@ export interface StageHistoryEntry {
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   color: string;
   avatarInitials: string;
   title: string;
   monthlyRevenueTarget: number;
   monthlyDealsTarget: number;
+  authUserId?: string;
 }
 
-export type UserFormData = Omit<User, "id">;
+export type UserFormData = Omit<User, "id" | "authUserId">;
+
+export interface CreateUserPayload extends UserFormData {
+  password: string;
+}
 
 export interface Lead {
   id: string;

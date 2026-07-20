@@ -9,49 +9,116 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { AUTH_STORAGE_KEY } from "@/lib/constants";
-import { useCrmStore } from "@/lib/store/crm-store";
+import { getSupabaseAuthClient } from "@/lib/supabase/auth-client";
+import { userFromRow } from "@/lib/supabase/mappers";
 import type { User } from "@/lib/types";
 
 interface AuthContextValue {
   currentUser: User | null;
   isLoading: boolean;
-  login: (userId: string) => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<{ error?: string }>;
+  logout: () => Promise<void>;
   isAdmin: boolean;
+  accessToken: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function fetchTeamMember(authUserId: string): Promise<User | null> {
+  const supabase = getSupabaseAuthClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("*")
+    .eq("id", authUserId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return userFromRow(data);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { users } = useCrmStore();
   const router = useRouter();
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (stored) setCurrentUserId(stored);
+  const loadSession = useCallback(async () => {
+    const supabase = getSupabaseAuthClient();
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      const member = await fetchTeamMember(session.user.id);
+      setCurrentUser(member);
+      setAccessToken(session.access_token);
+    } else {
+      setCurrentUser(null);
+      setAccessToken(null);
+    }
+
     setIsLoading(false);
   }, []);
 
-  const currentUser = useMemo(
-    () => users.find((u) => u.id === currentUserId) ?? null,
-    [users, currentUserId]
-  );
+  useEffect(() => {
+    void loadSession();
+
+    const supabase = getSupabaseAuthClient();
+    if (!supabase) return;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const member = await fetchTeamMember(session.user.id);
+        setCurrentUser(member);
+        setAccessToken(session.access_token);
+      } else {
+        setCurrentUser(null);
+        setAccessToken(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [loadSession]);
 
   const login = useCallback(
-    (userId: string) => {
-      localStorage.setItem(AUTH_STORAGE_KEY, userId);
-      setCurrentUserId(userId);
-      router.push("/dashboard");
+    async (email: string, password: string) => {
+      const supabase = getSupabaseAuthClient();
+      if (!supabase) return { error: "Authentication is not configured" };
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (error) return { error: error.message };
+
+      if (data.user) {
+        const member = await fetchTeamMember(data.user.id);
+        if (!member) {
+          await supabase.auth.signOut();
+          return { error: "No staff account linked to this login. Contact your manager." };
+        }
+        setCurrentUser(member);
+        setAccessToken(data.session?.access_token ?? null);
+        router.push("/dashboard");
+      }
+
+      return {};
     },
     [router]
   );
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    setCurrentUserId(null);
+  const logout = useCallback(async () => {
+    const supabase = getSupabaseAuthClient();
+    if (supabase) await supabase.auth.signOut();
+    setCurrentUser(null);
+    setAccessToken(null);
     router.push("/");
   }, [router]);
 
@@ -62,8 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       isAdmin: currentUser?.role === "admin",
+      accessToken,
     }),
-    [currentUser, isLoading, login, logout]
+    [currentUser, isLoading, login, logout, accessToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

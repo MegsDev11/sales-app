@@ -20,6 +20,7 @@ import {
 } from "@/lib/supabase/data";
 import { leadFormToLead } from "@/lib/supabase/mappers";
 import { migrateLead } from "@/lib/utils/migrate";
+import type { CreateUserPayload, UserFormData } from "@/lib/types";
 import type {
   Activity,
   ActivityType,
@@ -29,7 +30,6 @@ import type {
   LeadStage,
   LostReason,
   User,
-  UserFormData,
 } from "@/lib/types";
 
 const EMPTY_DATA: CrmData = { users: [], leads: [], activities: [] };
@@ -48,7 +48,7 @@ interface CrmStoreContextValue {
   addActivity: (leadId: string, type: ActivityType, title: string) => void;
   reassignLead: (leadId: string, assignedToId: string | null) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
-  addUser: (data: UserFormData) => string;
+  addUser: (data: CreateUserPayload, accessToken: string) => Promise<string>;
   exportToCsv: () => void;
   importFromCsv: (csv: string) => void;
   getUserById: (id: string) => User | undefined;
@@ -62,6 +62,7 @@ function normalizeData(data: CrmData): CrmData {
   return {
     users: data.users.map((u) => ({
       ...u,
+      email: u.email ?? "",
       monthlyRevenueTarget: u.monthlyRevenueTarget ?? 100000,
       monthlyDealsTarget: u.monthlyDealsTarget ?? 5,
     })),
@@ -345,21 +346,21 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addUser = useCallback(
-    (formData: UserFormData): string => {
-      const id = `rep-${Date.now()}`;
-      const newUser: User = { id, ...formData };
-
-      setData((prev) => ({
-        ...prev,
-        users: [...prev.users, newUser],
-      }));
-
-      void upsertUser(newUser).catch((error) => {
-        setDbError(error instanceof Error ? error.message : "Add user failed");
-        void refreshFromSupabase();
+    async (formData: CreateUserPayload, accessToken: string): Promise<string> => {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(formData),
       });
 
-      return id;
+      const body = (await res.json()) as { error?: string; id?: string };
+      if (!res.ok) throw new Error(body.error ?? "Failed to create user");
+
+      await refreshFromSupabase();
+      return body.id ?? "";
     },
     [refreshFromSupabase]
   );

@@ -32,7 +32,7 @@ export function Header() {
           </AvatarFallback>
         </Avatar>
         {isAdmin && <Badge className="hidden bg-[#C83733] hover:bg-[#C83733] sm:inline-flex">Admin</Badge>}
-        <Button variant="ghost" size="icon" onClick={logout} title="Logout">
+        <Button variant="ghost" size="icon" onClick={() => void logout()} title="Logout">
           <LogOut className="h-4 w-4" />
         </Button>
       </div>
