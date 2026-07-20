@@ -12,7 +12,10 @@ import {
 import {
   fetchCrmDataFromSupabase,
   insertActivity,
+  insertTowerOutage,
   patchLead,
+  patchTower,
+  patchTowerOutage,
   patchUser,
   subscribeToCrmChanges,
   upsertLead,
@@ -29,15 +32,25 @@ import type {
   LeadFormData,
   LeadStage,
   LostReason,
+  Tower,
+  TowerOutage,
   User,
 } from "@/lib/types";
 
-const EMPTY_DATA: CrmData = { users: [], leads: [], activities: [] };
+const EMPTY_DATA: CrmData = {
+  users: [],
+  leads: [],
+  activities: [],
+  towers: [],
+  towerOutages: [],
+};
 
 interface CrmStoreContextValue {
   users: User[];
   leads: Lead[];
   activities: Activity[];
+  towers: Tower[];
+  towerOutages: TowerOutage[];
   isLoaded: boolean;
   dbError: string | null;
   updateLead: (id: string, updates: Partial<Lead>) => void;
@@ -49,11 +62,22 @@ interface CrmStoreContextValue {
   reassignLead: (leadId: string, assignedToId: string | null) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   addUser: (data: CreateUserPayload, accessToken: string) => Promise<string>;
+  createOutage: (
+    towerId: string,
+    title: string,
+    message: string,
+    affectedAreas: string[],
+    createdById: string
+  ) => void;
+  resolveOutage: (outageId: string, towerId: string) => void;
+  assignLeadTower: (leadId: string, towerId: string | null) => void;
   exportToCsv: () => void;
   importFromCsv: (csv: string) => void;
   getUserById: (id: string) => User | undefined;
   getLeadActivities: (leadId: string) => Activity[];
   getVisibleLeads: () => Lead[];
+  getTowerById: (id: string) => Tower | undefined;
+  getActiveOutages: () => TowerOutage[];
 }
 
 const CrmStoreContext = createContext<CrmStoreContextValue | null>(null);
@@ -69,6 +93,8 @@ function normalizeData(data: CrmData): CrmData {
     })),
     leads: data.leads.map((l) => migrateLead(l)),
     activities: data.activities,
+    towers: data.towers,
+    towerOutages: data.towerOutages,
   };
 }
 
@@ -366,6 +392,90 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     [refreshFromSupabase]
   );
 
+  const createOutage = useCallback(
+    (
+      towerId: string,
+      title: string,
+      message: string,
+      affectedAreas: string[],
+      createdById: string
+    ) => {
+      const now = new Date().toISOString();
+      const outageId = `outage-${Date.now()}`;
+      const outage: TowerOutage = {
+        id: outageId,
+        towerId,
+        title,
+        message,
+        affectedAreas,
+        startedAt: now,
+        createdById,
+        isPublic: true,
+      };
+
+      setData((prev) => ({
+        ...prev,
+        towerOutages: [outage, ...prev.towerOutages],
+        towers: prev.towers.map((tower) =>
+          tower.id === towerId
+            ? { ...tower, status: "offline", updatedAt: now, updatedById: createdById }
+            : tower
+        ),
+      }));
+
+      void (async () => {
+        try {
+          await insertTowerOutage(outage);
+          await patchTower(towerId, {
+            status: "offline",
+            updatedAt: now,
+            updatedById: createdById,
+          });
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Outage create failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const resolveOutage = useCallback(
+    (outageId: string, towerId: string) => {
+      const now = new Date().toISOString();
+
+      setData((prev) => ({
+        ...prev,
+        towerOutages: prev.towerOutages.map((outage) =>
+          outage.id === outageId ? { ...outage, resolvedAt: now } : outage
+        ),
+        towers: prev.towers.map((tower) =>
+          tower.id === towerId
+            ? { ...tower, status: "online", updatedAt: now }
+            : tower
+        ),
+      }));
+
+      void (async () => {
+        try {
+          await patchTowerOutage(outageId, { resolvedAt: now });
+          await patchTower(towerId, { status: "online", updatedAt: now });
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Outage resolve failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const assignLeadTower = useCallback(
+    (leadId: string, towerId: string | null) => {
+      updateLead(leadId, { towerId });
+    },
+    [updateLead]
+  );
+
   const getVisibleLeads = useCallback(
     () => data.leads.filter((l) => !l.deleted),
     [data.leads]
@@ -458,11 +568,23 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     [data.activities]
   );
 
+  const getTowerById = useCallback(
+    (id: string) => data.towers.find((t) => t.id === id),
+    [data.towers]
+  );
+
+  const getActiveOutages = useCallback(
+    () => data.towerOutages.filter((o) => !o.resolvedAt && o.isPublic),
+    [data.towerOutages]
+  );
+
   const value = useMemo(
     () => ({
       users: data.users,
       leads: data.leads,
       activities: data.activities,
+      towers: data.towers,
+      towerOutages: data.towerOutages,
       isLoaded,
       dbError,
       updateLead,
@@ -474,16 +596,22 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       reassignLead,
       updateUser,
       addUser,
+      createOutage,
+      resolveOutage,
+      assignLeadTower,
       exportToCsv,
       importFromCsv,
       getUserById,
       getLeadActivities,
       getVisibleLeads,
+      getTowerById,
+      getActiveOutages,
     }),
     [
       data, isLoaded, dbError, updateLead, addLead, deleteLead, restoreLead,
-      moveLead, addActivity, reassignLead, updateUser, addUser, exportToCsv,
-      importFromCsv, getUserById, getLeadActivities, getVisibleLeads,
+      moveLead, addActivity, reassignLead, updateUser, addUser, createOutage,
+      resolveOutage, assignLeadTower, exportToCsv, importFromCsv, getUserById,
+      getLeadActivities, getVisibleLeads, getTowerById, getActiveOutages,
     ]
   );
 

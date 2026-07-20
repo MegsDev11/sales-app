@@ -2,20 +2,48 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navLinks = [
-  { href: "#home", label: "Home" },
-  { href: "#services", label: "Services" },
-  { href: "#about", label: "About" },
-  { href: "#team", label: "Our Team" },
-  { href: "#contact", label: "Contact" },
+  { href: "/", label: "Home", section: "home" },
+  { href: "/#network-status", label: "Status", section: "network-status" },
+  { href: "/#services", label: "Services", section: "services" },
+  { href: "/#about", label: "About", section: "about" },
+  { href: "/#team", label: "Our Team", section: "team" },
+  { href: "/#contact", label: "Contact", section: "contact" },
 ];
+
+function scrollToSection(section: string) {
+  if (section === "home") {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.history.replaceState(null, "", "/");
+    return;
+  }
+
+  const target = document.getElementById(section);
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth" });
+    window.history.replaceState(null, "", `#${section}`);
+  }
+}
 
 export function SiteNav() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  function handleSectionClick(
+    e: React.MouseEvent<HTMLAnchorElement>,
+    section: string,
+  ) {
+    setOpen(false);
+    if (pathname !== "/") return;
+
+    e.preventDefault();
+    scrollToSection(section);
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b1220]/95 backdrop-blur-md">
@@ -33,13 +61,14 @@ export function SiteNav() {
 
         <nav className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => (
-            <a
-              key={link.href}
+            <Link
+              key={link.section}
               href={link.href}
+              onClick={(e) => handleSectionClick(e, link.section)}
               className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
@@ -51,7 +80,10 @@ export function SiteNav() {
             <Phone className="h-4 w-4" />
             087 820 5290
           </a>
-          <Link href="#contact">
+          <Link
+            href="/#contact"
+            onClick={(e) => handleSectionClick(e, "contact")}
+          >
             <Button
               variant="outline"
               size="sm"
@@ -81,19 +113,22 @@ export function SiteNav() {
         <div className="border-t border-white/10 bg-[#0b1220] px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3">
             {navLinks.map((link) => (
-              <a
-                key={link.href}
+              <Link
+                key={link.section}
                 href={link.href}
+                onClick={(e) => handleSectionClick(e, link.section)}
                 className="text-sm font-medium text-slate-300 hover:text-white"
-                onClick={() => setOpen(false)}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
             <a href="tel:0878205290" className="text-sm font-medium text-[#C83733]">
               087 820 5290
             </a>
-            <Link href="#contact" onClick={() => setOpen(false)}>
+            <Link
+              href="/#contact"
+              onClick={(e) => handleSectionClick(e, "contact")}
+            >
               <Button
                 variant="outline"
                 className="w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"

@@ -1,4 +1,6 @@
-export type Department = "sales" | "stock" | "coordination";
+export type Department = "sales" | "stock" | "coordination" | "support";
+
+export type TowerStatus = "online" | "offline" | "maintenance";
 
 export type UserRole = "owner" | "manager" | "staff";
 
@@ -99,6 +101,38 @@ export interface Lead {
   stageHistory: StageHistoryEntry[];
   /** Set when removed from Lead Inbox only — lead remains elsewhere in the CRM */
   inboxDismissedAt?: string | null;
+  towerId?: string | null;
+}
+
+export interface Tower {
+  id: string;
+  name: string;
+  serviceAreas: string[];
+  status: TowerStatus;
+  updatedAt: string;
+  updatedById?: string | null;
+}
+
+export interface TowerOutage {
+  id: string;
+  towerId: string;
+  title: string;
+  message: string;
+  affectedAreas: string[];
+  startedAt: string;
+  resolvedAt?: string | null;
+  createdById?: string | null;
+  isPublic: boolean;
+}
+
+export interface PublicNetworkOutage {
+  id: string;
+  towerId: string;
+  towerName: string;
+  title: string;
+  message: string;
+  affectedAreas: string[];
+  startedAt: string;
 }
 
 export interface Activity {
@@ -113,6 +147,8 @@ export interface CrmData {
   users: User[];
   leads: Lead[];
   activities: Activity[];
+  towers: Tower[];
+  towerOutages: TowerOutage[];
 }
 
 export interface StageConfig {

@@ -28,6 +28,7 @@ export async function POST() {
       await runSqlFiles(databaseUrl, [
         "supabase/migrations/002_auth.sql",
         "supabase/migrations/003_roles_departments.sql",
+        "supabase/migrations/005_support_towers.sql",
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Migration failed";

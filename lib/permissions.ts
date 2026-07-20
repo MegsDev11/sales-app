@@ -1,11 +1,12 @@
 import type { Department, User, UserRole } from "@/lib/types";
 
-export type OwnerSection = "company" | "sales" | "stock" | "coordination" | "staff";
+export type OwnerSection = "company" | "sales" | "stock" | "coordination" | "support" | "staff";
 
 const DEPARTMENT_LABELS: Record<Department, string> = {
   sales: "Sales",
   stock: "Stock",
   coordination: "Coordination",
+  support: "Support",
 };
 
 export function normalizeRoleAndDepartment(
@@ -41,8 +42,16 @@ export function isSalesManager(user: User | null | undefined): boolean {
   return isManager(user, "sales");
 }
 
+export function isSupportManager(user: User | null | undefined): boolean {
+  return isManager(user, "support");
+}
+
 export function isSalesStaff(user: User | null | undefined): boolean {
   return user?.role === "staff" && user.department === "sales";
+}
+
+export function isSupportStaff(user: User | null | undefined): boolean {
+  return user?.role === "staff" && user.department === "support";
 }
 
 export function canCreateAccounts(user: User | null | undefined): boolean {
@@ -51,6 +60,12 @@ export function canCreateAccounts(user: User | null | undefined): boolean {
 
 export function canAccessSalesAdmin(user: User | null | undefined): boolean {
   return isOwner(user) || isSalesManager(user);
+}
+
+export function canAccessSupport(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (isOwner(user)) return true;
+  return user.department === "support";
 }
 
 export function canManageUser(actor: User, target: User): boolean {
@@ -103,6 +118,7 @@ export function getDefaultTitle(role: UserRole, department: Department | null): 
 
 export function getHomeRoute(user: User): string {
   if (isOwner(user)) return "/company";
+  if (user.department === "support") return "/support";
   if (canAccessSalesAdmin(user)) return "/dashboard";
   return "/board";
 }

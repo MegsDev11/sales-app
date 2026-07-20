@@ -2,6 +2,8 @@ import type {
   Activity,
   Lead,
   LeadFormData,
+  Tower,
+  TowerOutage,
   User,
   UserFormData,
 } from "@/lib/types";
@@ -9,6 +11,8 @@ import type {
   ActivityRow,
   LeadRow,
   TeamMemberRow,
+  TowerOutageRow,
+  TowerRow,
 } from "@/lib/supabase/database.types";
 import { normalizeRoleAndDepartment } from "@/lib/permissions";
 
@@ -103,6 +107,7 @@ export function leadFromRow(row: LeadRow): Lead {
     temperature: row.temperature as Lead["temperature"],
     stageHistory: row.stage_history ?? [],
     inboxDismissedAt: row.inbox_dismissed_at ?? undefined,
+    towerId: row.tower_id ?? null,
   };
 }
 
@@ -140,6 +145,7 @@ export function leadToRow(lead: Lead): LeadRow {
     temperature: lead.temperature,
     stage_history: lead.stageHistory,
     inbox_dismissed_at: lead.inboxDismissedAt ?? null,
+    tower_id: lead.towerId ?? null,
   };
 }
 
@@ -188,6 +194,9 @@ export function leadUpdatesToRow(updates: Partial<Lead>): Partial<LeadRow> {
   if (updates.inboxDismissedAt !== undefined) {
     row.inbox_dismissed_at = updates.inboxDismissedAt ?? null;
   }
+  if (updates.towerId !== undefined) {
+    row.tower_id = updates.towerId ?? null;
+  }
   return row;
 }
 
@@ -221,4 +230,77 @@ export function activityToRow(activity: Activity): ActivityRow {
     title: activity.title,
     created_at: activity.createdAt,
   };
+}
+
+export function towerFromRow(row: TowerRow): Tower {
+  return {
+    id: row.id,
+    name: row.name,
+    serviceAreas: row.service_areas ?? [],
+    status: row.status as Tower["status"],
+    updatedAt: row.updated_at,
+    updatedById: row.updated_by_id,
+  };
+}
+
+export function towerToRow(tower: Tower): TowerRow {
+  return {
+    id: tower.id,
+    name: tower.name,
+    service_areas: tower.serviceAreas,
+    status: tower.status,
+    updated_at: tower.updatedAt,
+    updated_by_id: tower.updatedById ?? null,
+  };
+}
+
+export function towerUpdatesToRow(updates: Partial<Tower>): Partial<TowerRow> {
+  const row: Partial<TowerRow> = {};
+  if (updates.name !== undefined) row.name = updates.name;
+  if (updates.serviceAreas !== undefined) row.service_areas = updates.serviceAreas;
+  if (updates.status !== undefined) row.status = updates.status;
+  if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt;
+  if (updates.updatedById !== undefined) row.updated_by_id = updates.updatedById ?? null;
+  return row;
+}
+
+export function towerOutageFromRow(row: TowerOutageRow): TowerOutage {
+  return {
+    id: row.id,
+    towerId: row.tower_id,
+    title: row.title,
+    message: row.message,
+    affectedAreas: row.affected_areas ?? [],
+    startedAt: row.started_at,
+    resolvedAt: row.resolved_at,
+    createdById: row.created_by_id,
+    isPublic: row.is_public,
+  };
+}
+
+export function towerOutageToRow(outage: TowerOutage): TowerOutageRow {
+  return {
+    id: outage.id,
+    tower_id: outage.towerId,
+    title: outage.title,
+    message: outage.message,
+    affected_areas: outage.affectedAreas,
+    started_at: outage.startedAt,
+    resolved_at: outage.resolvedAt ?? null,
+    created_by_id: outage.createdById ?? null,
+    is_public: outage.isPublic,
+  };
+}
+
+export function towerOutageUpdatesToRow(updates: Partial<TowerOutage>): Partial<TowerOutageRow> {
+  const row: Partial<TowerOutageRow> = {};
+  if (updates.towerId !== undefined) row.tower_id = updates.towerId;
+  if (updates.title !== undefined) row.title = updates.title;
+  if (updates.message !== undefined) row.message = updates.message;
+  if (updates.affectedAreas !== undefined) row.affected_areas = updates.affectedAreas;
+  if (updates.startedAt !== undefined) row.started_at = updates.startedAt;
+  if (updates.resolvedAt !== undefined) row.resolved_at = updates.resolvedAt ?? null;
+  if (updates.createdById !== undefined) row.created_by_id = updates.createdById ?? null;
+  if (updates.isPublic !== undefined) row.is_public = updates.isPublic;
+  return row;
 }

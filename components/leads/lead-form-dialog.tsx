@@ -50,7 +50,7 @@ const defaultForm = (): LeadFormData => ({
 });
 
 export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDialogProps) {
-  const { addLead, updateLead, users } = useCrmStore();
+  const { addLead, updateLead, users, towers } = useCrmStore();
   const { currentUser, isAdmin } = useAuth();
   const [form, setForm] = useState<LeadFormData>(defaultForm());
 
@@ -168,6 +168,23 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
                 <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SERVICE_ZONES.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">Tower</label>
+              <Select
+                value={form.towerId ?? "unassigned"}
+                onValueChange={(v) => {
+                  if (typeof v === "string") set("towerId", v === "unassigned" ? null : v);
+                }}
+              >
+                <SelectTrigger className="mt-1 w-full"><SelectValue placeholder="Select tower" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">No tower assigned</SelectItem>
+                  {towers.map((tower) => (
+                    <SelectItem key={tower.id} value={tower.id}>{tower.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

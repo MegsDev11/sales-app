@@ -29,6 +29,7 @@ export function DepartmentProvider({ children }: { children: React.ReactNode }) 
       stored === "sales" ||
       stored === "stock" ||
       stored === "coordination" ||
+      stored === "support" ||
       stored === "staff"
     ) {
       setActiveSectionState(stored);

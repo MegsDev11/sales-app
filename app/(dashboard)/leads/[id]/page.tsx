@@ -39,7 +39,7 @@ import type { ActivityType } from "@/lib/types";
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { leads, getUserById, getLeadActivities, updateLead, addActivity, reassignLead, deleteLead, users } = useCrmStore();
+  const { leads, getUserById, getLeadActivities, updateLead, addActivity, reassignLead, deleteLead, users, getTowerById } = useCrmStore();
   const { currentUser, isAdmin } = useAuth();
   const [activityTitle, setActivityTitle] = useState("");
   const [activityType, setActivityType] = useState<ActivityType>("call");
@@ -142,6 +142,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <CardContent className="space-y-2 text-sm">
             <DetailRow label="Address" value={lead.address ?? "—"} />
             <DetailRow label="Zone" value={lead.serviceZone} />
+            <DetailRow
+              label="Tower"
+              value={lead.towerId ? getTowerById(lead.towerId)?.name ?? "Unknown" : "—"}
+            />
             <DetailRow label="Package" value={lead.packageTier} />
             <DetailRow label="Lead Source" value={LEAD_SOURCE_LABELS[lead.leadSource]} />
             {lead.lostReason && <DetailRow label="Lost Reason" value={LOST_REASON_LABELS[lead.lostReason]} />}

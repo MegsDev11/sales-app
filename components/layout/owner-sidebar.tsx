@@ -15,15 +15,18 @@ import {
   BarChart3,
   Inbox,
   MapPin,
+  Radio,
   Building2,
   Package,
   Network,
   UserCog,
+  Headphones,
 } from "lucide-react";
 
 const ownerSections: { id: OwnerSection; label: string; icon: typeof Building2; href: string }[] = [
   { id: "company", label: "Company", icon: Building2, href: "/company" },
   { id: "sales", label: "Sales", icon: Kanban, href: "/dashboard" },
+  { id: "support", label: "Support", icon: Headphones, href: "/support" },
   { id: "stock", label: "Stock", icon: Package, href: "/stock" },
   { id: "coordination", label: "Coordination", icon: Network, href: "/coordination" },
   { id: "staff", label: "Staff Accounts", icon: UserCog, href: "/staff" },
@@ -36,6 +39,12 @@ const salesNavItems = [
   { href: "/surveys", label: "Site Surveys", icon: MapPin },
   { href: "/team", label: "Team", icon: Users },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+];
+
+const supportNavItems = [
+  { href: "/support", label: "Overview", icon: LayoutDashboard },
+  { href: "/support/towers", label: "Towers & Outages", icon: Radio },
+  { href: "/support/clients", label: "Client Assignment", icon: Users },
 ];
 
 export function OwnerSidebar() {
@@ -52,7 +61,10 @@ export function OwnerSidebar() {
   };
 
   const salesPaths = salesNavItems.map((i) => i.href);
+  const supportPaths = supportNavItems.map((i) => i.href);
   const showSalesNav = activeSection === "sales" || salesPaths.some((p) => pathname.startsWith(p));
+  const showSupportNav =
+    activeSection === "support" || supportPaths.some((p) => pathname.startsWith(p));
 
   return (
     <aside className="hidden w-60 shrink-0 border-r bg-white lg:block">
@@ -64,7 +76,8 @@ export function OwnerSidebar() {
           const Icon = section.icon;
           const isActive =
             section.id === activeSection ||
-            (section.id === "sales" && salesPaths.some((p) => pathname.startsWith(p)));
+            (section.id === "sales" && salesPaths.some((p) => pathname.startsWith(p))) ||
+            (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p)));
           return (
             <button
               key={section.id}
@@ -111,6 +124,35 @@ export function OwnerSidebar() {
                       {unassignedCount}
                     </span>
                   )}
+                </Link>
+              );
+            })}
+          </>
+        )}
+
+        {showSupportNav && (
+          <>
+            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Support
+            </p>
+            {supportNavItems.map((item) => {
+              const isActive =
+                item.href === "/support"
+                  ? pathname === "/support"
+                  : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setActiveSection("support")}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
                 </Link>
               );
             })}

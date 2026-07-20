@@ -87,6 +87,7 @@ export interface Database {
           temperature: string;
           stage_history: StageHistoryEntry[];
           inbox_dismissed_at: string | null;
+          tower_id: string | null;
         };
         Insert: {
           id: string;
@@ -121,6 +122,7 @@ export interface Database {
           temperature?: string;
           stage_history?: StageHistoryEntry[];
           inbox_dismissed_at?: string | null;
+          tower_id?: string | null;
         };
         Update: {
           id?: string;
@@ -155,6 +157,70 @@ export interface Database {
           temperature?: string;
           stage_history?: StageHistoryEntry[];
           inbox_dismissed_at?: string | null;
+          tower_id?: string | null;
+        };
+        Relationships: [];
+      };
+      towers: {
+        Row: {
+          id: string;
+          name: string;
+          service_areas: string[];
+          status: string;
+          updated_at: string;
+          updated_by_id: string | null;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          service_areas?: string[];
+          status?: string;
+          updated_at?: string;
+          updated_by_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          service_areas?: string[];
+          status?: string;
+          updated_at?: string;
+          updated_by_id?: string | null;
+        };
+        Relationships: [];
+      };
+      tower_outages: {
+        Row: {
+          id: string;
+          tower_id: string;
+          title: string;
+          message: string;
+          affected_areas: string[];
+          started_at: string;
+          resolved_at: string | null;
+          created_by_id: string | null;
+          is_public: boolean;
+        };
+        Insert: {
+          id: string;
+          tower_id: string;
+          title: string;
+          message?: string;
+          affected_areas?: string[];
+          started_at?: string;
+          resolved_at?: string | null;
+          created_by_id?: string | null;
+          is_public?: boolean;
+        };
+        Update: {
+          id?: string;
+          tower_id?: string;
+          title?: string;
+          message?: string;
+          affected_areas?: string[];
+          started_at?: string;
+          resolved_at?: string | null;
+          created_by_id?: string | null;
+          is_public?: boolean;
         };
         Relationships: [];
       };
@@ -193,3 +259,5 @@ export interface Database {
 export type TeamMemberRow = Database["public"]["Tables"]["team_members"]["Row"];
 export type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 export type ActivityRow = Database["public"]["Tables"]["activities"]["Row"];
+export type TowerRow = Database["public"]["Tables"]["towers"]["Row"];
+export type TowerOutageRow = Database["public"]["Tables"]["tower_outages"]["Row"];

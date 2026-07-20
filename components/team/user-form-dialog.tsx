@@ -191,6 +191,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="support">Support</SelectItem>
                       <SelectItem value="stock">Stock</SelectItem>
                       <SelectItem value="coordination">Coordination</SelectItem>
                     </SelectContent>

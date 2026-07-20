@@ -3,13 +3,14 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { SiteNav } from "@/components/marketing/site-nav";
+import { getHomeRoute } from "@/lib/permissions";
+import { MarketingShell } from "@/components/marketing/marketing-shell";
 import { Hero } from "@/components/marketing/hero";
+import { NetworkStatus } from "@/components/marketing/network-status";
 import { Services } from "@/components/marketing/services";
 import { About } from "@/components/marketing/about";
 import { SalesTeam } from "@/components/marketing/sales-team";
 import { ContactForm } from "@/components/marketing/contact-form";
-import { SiteFooter } from "@/components/marketing/site-footer";
 
 export default function LandingPage() {
   const { currentUser, isLoading } = useAuth();
@@ -17,7 +18,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (!isLoading && currentUser) {
-      router.replace("/dashboard");
+      router.replace(getHomeRoute(currentUser));
     }
   }, [currentUser, isLoading, router]);
 
@@ -30,16 +31,13 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteNav />
-      <main className="flex-1">
-        <Hero />
-        <Services />
-        <About />
-        <SalesTeam />
-        <ContactForm />
-      </main>
-      <SiteFooter />
-    </div>
+    <MarketingShell>
+      <Hero />
+      <NetworkStatus />
+      <Services />
+      <About />
+      <SalesTeam />
+      <ContactForm />
+    </MarketingShell>
   );
 }
