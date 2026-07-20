@@ -1,21 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import type { PublicNetworkOutage } from "@/lib/types";
+import { usePublicNetworkStatus } from "@/lib/hooks/use-public-network-status";
 
 export function NetworkStatusBanner() {
-  const [outages, setOutages] = useState<PublicNetworkOutage[]>([]);
-
-  useEffect(() => {
-    fetch("/api/network-status")
-      .then((res) => res.json())
-      .then((data: { outages?: PublicNetworkOutage[] }) => {
-        setOutages(data.outages ?? []);
-      })
-      .catch(() => setOutages([]));
-  }, []);
+  const { outages } = usePublicNetworkStatus();
 
   if (outages.length === 0) return null;
 

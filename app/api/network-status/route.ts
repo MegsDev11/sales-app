@@ -17,7 +17,10 @@ export async function GET() {
       .select("id, name, status");
 
     if (outagesError || towersError) {
-      return NextResponse.json({ outages: [], towers: [] });
+      return NextResponse.json(
+        { outages: [], towers: [] },
+        { headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
     }
 
     const towerNames = new Map((towers ?? []).map((t) => [t.id, t.name]));
@@ -39,8 +42,18 @@ export async function GET() {
       return { id: row.id, name: row.name, status };
     });
 
-    return NextResponse.json({ outages: result, towers: publicTowers });
+    return NextResponse.json(
+      { outages: result, towers: publicTowers },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
   } catch {
-    return NextResponse.json({ outages: [], towers: [] });
+    return NextResponse.json(
+      { outages: [], towers: [] },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   }
 }

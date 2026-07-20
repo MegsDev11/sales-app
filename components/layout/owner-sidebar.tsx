@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
 import { useOwnerSection } from "@/lib/department-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { isInLeadInbox } from "@/lib/utils/leads";
@@ -21,6 +20,10 @@ import {
   Network,
   UserCog,
   Headphones,
+  ClipboardList,
+  QrCode,
+  ScanLine,
+  Boxes,
 } from "lucide-react";
 
 const ownerSections: { id: OwnerSection; label: string; icon: typeof Building2; href: string }[] = [
@@ -47,6 +50,21 @@ const supportNavItems = [
   { href: "/support/clients", label: "Client Assignment", icon: Users },
 ];
 
+const stockNavItems = [
+  { href: "/stock", label: "Overview", icon: LayoutDashboard },
+  { href: "/stock/inventory", label: "Inventory", icon: Package },
+  { href: "/stock/qr", label: "Generate QR", icon: QrCode },
+  { href: "/stock/requests", label: "Requests", icon: ClipboardList },
+  { href: "/stock/scan", label: "Scan", icon: ScanLine },
+];
+
+const coordinationNavItems = [
+  { href: "/coordination", label: "Overview", icon: LayoutDashboard },
+  { href: "/coordination/requests", label: "Pick lists", icon: ClipboardList },
+  { href: "/coordination/technicians", label: "Technicians", icon: Users },
+  { href: "/coordination/availability", label: "Availability", icon: Boxes },
+];
+
 export function OwnerSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -62,12 +80,19 @@ export function OwnerSidebar() {
 
   const salesPaths = salesNavItems.map((i) => i.href);
   const supportPaths = supportNavItems.map((i) => i.href);
+  const stockPaths = stockNavItems.map((i) => i.href);
+  const coordinationPaths = coordinationNavItems.map((i) => i.href);
   const showSalesNav = activeSection === "sales" || salesPaths.some((p) => pathname.startsWith(p));
   const showSupportNav =
     activeSection === "support" || supportPaths.some((p) => pathname.startsWith(p));
+  const showStockNav =
+    activeSection === "stock" || stockPaths.some((p) => pathname.startsWith(p));
+  const showCoordinationNav =
+    activeSection === "coordination" ||
+    coordinationPaths.some((p) => pathname.startsWith(p));
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r bg-white lg:block">
+    <aside className="hidden w-60 shrink-0 border-r bg-white print:hidden lg:block">
       <nav className="flex flex-col gap-1 p-4">
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Departments
@@ -77,7 +102,10 @@ export function OwnerSidebar() {
           const isActive =
             section.id === activeSection ||
             (section.id === "sales" && salesPaths.some((p) => pathname.startsWith(p))) ||
-            (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p)));
+            (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p))) ||
+            (section.id === "stock" && stockPaths.some((p) => pathname.startsWith(p))) ||
+            (section.id === "coordination" &&
+              coordinationPaths.some((p) => pathname.startsWith(p)));
           return (
             <button
               key={section.id}
@@ -146,6 +174,62 @@ export function OwnerSidebar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setActiveSection("support")}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </>
+        )}
+
+        {showStockNav && (
+          <>
+            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Stock
+            </p>
+            {stockNavItems.map((item) => {
+              const isActive =
+                item.href === "/stock" ? pathname === "/stock" : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setActiveSection("stock")}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </>
+        )}
+
+        {showCoordinationNav && (
+          <>
+            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Coordination
+            </p>
+            {coordinationNavItems.map((item) => {
+              const isActive =
+                item.href === "/coordination"
+                  ? pathname === "/coordination"
+                  : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setActiveSection("coordination")}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"

@@ -24,6 +24,7 @@ export interface Database {
           title: string;
           monthly_revenue_target: number;
           monthly_deals_target: number;
+          active: boolean;
         };
         Insert: {
           id: string;
@@ -37,6 +38,7 @@ export interface Database {
           title: string;
           monthly_revenue_target?: number;
           monthly_deals_target?: number;
+          active?: boolean;
         };
         Update: {
           id?: string;
@@ -50,6 +52,7 @@ export interface Database {
           title?: string;
           monthly_revenue_target?: number;
           monthly_deals_target?: number;
+          active?: boolean;
         };
         Relationships: [];
       };
@@ -224,6 +227,162 @@ export interface Database {
         };
         Relationships: [];
       };
+      stock_products: {
+        Row: {
+          id: string;
+          name: string;
+          sku: string;
+          brand_default: string;
+          notes: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          sku?: string;
+          brand_default?: string;
+          notes?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          sku?: string;
+          brand_default?: string;
+          notes?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      stock_items: {
+        Row: {
+          id: string;
+          product_id: string;
+          qr_token: string;
+          brand: string;
+          device_name: string;
+          serial_number: string;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          product_id: string;
+          qr_token: string;
+          brand?: string;
+          device_name?: string;
+          serial_number?: string;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          qr_token?: string;
+          brand?: string;
+          device_name?: string;
+          serial_number?: string;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      stock_bookings: {
+        Row: {
+          id: string;
+          item_id: string;
+          technician_id: string;
+          lead_id: string | null;
+          request_id: string | null;
+          booked_out_at: string;
+          booked_out_by: string | null;
+          returned_at: string | null;
+          notes: string;
+        };
+        Insert: {
+          id: string;
+          item_id: string;
+          technician_id: string;
+          lead_id?: string | null;
+          request_id?: string | null;
+          booked_out_at?: string;
+          booked_out_by?: string | null;
+          returned_at?: string | null;
+          notes?: string;
+        };
+        Update: {
+          id?: string;
+          item_id?: string;
+          technician_id?: string;
+          lead_id?: string | null;
+          request_id?: string | null;
+          booked_out_at?: string;
+          booked_out_by?: string | null;
+          returned_at?: string | null;
+          notes?: string;
+        };
+        Relationships: [];
+      };
+      stock_requests: {
+        Row: {
+          id: string;
+          title: string;
+          technician_id: string;
+          lead_id: string | null;
+          status: string;
+          created_by: string | null;
+          created_at: string;
+          notes: string;
+        };
+        Insert: {
+          id: string;
+          title: string;
+          technician_id: string;
+          lead_id?: string | null;
+          status?: string;
+          created_by?: string | null;
+          created_at?: string;
+          notes?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          technician_id?: string;
+          lead_id?: string | null;
+          status?: string;
+          created_by?: string | null;
+          created_at?: string;
+          notes?: string;
+        };
+        Relationships: [];
+      };
+      stock_request_lines: {
+        Row: {
+          id: string;
+          request_id: string;
+          product_id: string;
+          qty_needed: number;
+          qty_fulfilled: number;
+        };
+        Insert: {
+          id: string;
+          request_id: string;
+          product_id: string;
+          qty_needed?: number;
+          qty_fulfilled?: number;
+        };
+        Update: {
+          id?: string;
+          request_id?: string;
+          product_id?: string;
+          qty_needed?: number;
+          qty_fulfilled?: number;
+        };
+        Relationships: [];
+      };
       activities: {
         Row: {
           id: string;
@@ -248,6 +407,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      app_notifications: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          department: string | null;
+          type: string;
+          title: string;
+          body: string;
+          link: string;
+          request_id: string | null;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          user_id?: string | null;
+          department?: string | null;
+          type: string;
+          title: string;
+          body?: string;
+          link?: string;
+          request_id?: string | null;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          department?: string | null;
+          type?: string;
+          title?: string;
+          body?: string;
+          link?: string;
+          request_id?: string | null;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -261,3 +459,9 @@ export type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 export type ActivityRow = Database["public"]["Tables"]["activities"]["Row"];
 export type TowerRow = Database["public"]["Tables"]["towers"]["Row"];
 export type TowerOutageRow = Database["public"]["Tables"]["tower_outages"]["Row"];
+export type StockProductRow = Database["public"]["Tables"]["stock_products"]["Row"];
+export type StockItemRow = Database["public"]["Tables"]["stock_items"]["Row"];
+export type StockBookingRow = Database["public"]["Tables"]["stock_bookings"]["Row"];
+export type StockRequestRow = Database["public"]["Tables"]["stock_requests"]["Row"];
+export type StockRequestLineRow = Database["public"]["Tables"]["stock_request_lines"]["Row"];
+export type AppNotificationRow = Database["public"]["Tables"]["app_notifications"]["Row"];

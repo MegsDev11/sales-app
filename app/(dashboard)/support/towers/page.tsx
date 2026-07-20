@@ -15,13 +15,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Tower } from "@/lib/types";
-import { AlertTriangle, CheckCircle, Radio } from "lucide-react";
+import type { Tower, TowerStatus } from "@/lib/types";
+import { AlertTriangle, CheckCircle, Radio, Wrench } from "lucide-react";
+
+const STATUS_BADGE: Record<TowerStatus, string> = {
+  online: "bg-emerald-100 text-emerald-700",
+  offline: "bg-red-100 text-red-700",
+  maintenance: "bg-amber-100 text-amber-800",
+};
 
 export default function SupportTowersPage() {
   const { allowed, isLoading } = useSupportAccess();
   const { currentUser } = useAuth();
-  const { towers, towerOutages, createOutage, resolveOutage, getActiveOutages } = useCrmStore();
+  const {
+    towers,
+    towerOutages,
+    isLoaded,
+    dbError,
+    createOutage,
+    resolveOutage,
+    setTowerStatus,
+    getActiveOutages,
+  } = useCrmStore();
 
   const [selectedTower, setSelectedTower] = useState<Tower | null>(null);
   const [title, setTitle] = useState("");
@@ -61,14 +76,39 @@ export default function SupportTowersPage() {
     setAffectedAreas("");
   }
 
+  function handleSetStatus(tower: Tower, status: "online" | "maintenance") {
+    if (!currentUser || tower.status === status) return;
+    setTowerStatus(tower.id, status, currentUser.id);
+  }
+
   return (
     <div className="space-y-6 p-4 lg:p-6">
       <div>
         <h1 className="text-2xl font-bold">Towers & Outages</h1>
         <p className="text-sm text-muted-foreground">
-          Mark towers offline and publish affected areas to the public website
+          Set towers online, offline, or maintenance — changes appear live on the public website within
+          a few seconds.
         </p>
       </div>
+
+      {dbError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {dbError}
+        </div>
+      )}
+
+      {!isLoaded && (
+        <p className="text-sm text-muted-foreground">Loading towers…</p>
+      )}
+
+      {isLoaded && towers.length === 0 && (
+        <Card className="bg-white">
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            No towers found. Confirm the database migration has been applied and you have support
+            access.
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {towers.map((tower) => {
@@ -82,22 +122,70 @@ export default function SupportTowersPage() {
                     {tower.name}
                   </span>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      tower.status === "online"
-                        ? "bg-green-100 text-green-700"
-                        : tower.status === "offline"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-700"
-                    }`}
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${STATUS_BADGE[tower.status]}`}
                   >
                     {tower.status}
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-4 text-sm">
                 <div>
                   <p className="font-medium text-muted-foreground">Service areas</p>
                   <p>{tower.serviceAreas.join(", ")}</p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Set status
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={tower.status === "online" ? "default" : "outline"}
+                      className={
+                        tower.status === "online"
+                          ? "bg-emerald-600 hover:bg-emerald-700"
+                          : ""
+                      }
+                      disabled={!currentUser || tower.status === "online"}
+                      onClick={() => handleSetStatus(tower, "online")}
+                    >
+                      <CheckCircle className="mr-1 h-4 w-4" />
+                      Online
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={tower.status === "maintenance" ? "default" : "outline"}
+                      className={
+                        tower.status === "maintenance"
+                          ? "bg-amber-500 hover:bg-amber-600"
+                          : ""
+                      }
+                      disabled={!currentUser || tower.status === "maintenance"}
+                      onClick={() => handleSetStatus(tower, "maintenance")}
+                    >
+                      <Wrench className="mr-1 h-4 w-4" />
+                      Maintenance
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={tower.status === "offline" ? "default" : "outline"}
+                      className={
+                        tower.status === "offline"
+                          ? "bg-red-600 hover:bg-red-700"
+                          : ""
+                      }
+                      disabled={!currentUser || tower.status === "offline"}
+                      onClick={() => openOutageDialog(tower)}
+                    >
+                      <AlertTriangle className="mr-1 h-4 w-4" />
+                      Offline
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Offline publishes a public outage message. Online / Maintenance clears any
+                    active outage for this tower.
+                  </p>
                 </div>
 
                 {activeOutage && (
@@ -120,16 +208,6 @@ export default function SupportTowersPage() {
                       Mark Resolved
                     </Button>
                   </div>
-                )}
-
-                {!activeOutage && (
-                  <Button
-                    size="sm"
-                    className="bg-[#C83733] hover:bg-[#a82f2b]"
-                    onClick={() => openOutageDialog(tower)}
-                  >
-                    Report Outage
-                  </Button>
                 )}
               </CardContent>
             </Card>
@@ -162,9 +240,12 @@ export default function SupportTowersPage() {
       <Dialog open={!!selectedTower} onOpenChange={(open) => !open && setSelectedTower(null)}>
         <DialogContent className="bg-white sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Report Outage — {selectedTower?.name}</DialogTitle>
+            <DialogTitle>Mark Offline — {selectedTower?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This publishes to the landing page Network Status and the top alert banner.
+            </p>
             <div>
               <label className="mb-1 block text-sm font-medium">Public headline</label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -189,7 +270,7 @@ export default function SupportTowersPage() {
               Cancel
             </Button>
             <Button className="bg-[#C83733] hover:bg-[#a82f2b]" onClick={handleCreateOutage}>
-              Publish Outage
+              Publish Offline
             </Button>
           </DialogFooter>
         </DialogContent>

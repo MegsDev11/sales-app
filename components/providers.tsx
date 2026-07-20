@@ -1,12 +1,15 @@
 "use client";
 
-import { CrmStoreProvider } from "@/lib/store/crm-store";
 import { AuthProvider } from "@/lib/auth-context";
+import { CrmStoreProvider } from "@/lib/store/crm-store";
+import { StockStoreProvider } from "@/lib/store/stock-store";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <CrmStoreProvider>
-      <AuthProvider>{children}</AuthProvider>
-    </CrmStoreProvider>
+    <AuthProvider>
+      <CrmStoreProvider>
+        <StockStoreProvider>{children}</StockStoreProvider>
+      </CrmStoreProvider>
+    </AuthProvider>
   );
 }

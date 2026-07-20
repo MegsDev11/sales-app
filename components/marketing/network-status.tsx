@@ -3,13 +3,8 @@
 import { useEffect, useState } from "react";
 import { Activity, Clock, Phone, RadioTower } from "lucide-react";
 import { TOWER_SEED } from "@/lib/data/towers-seed";
-import type { PublicNetworkOutage, TowerStatus } from "@/lib/types";
-
-type PublicTower = {
-  id: string;
-  name: string;
-  status: TowerStatus;
-};
+import { usePublicNetworkStatus } from "@/lib/hooks/use-public-network-status";
+import type { TowerStatus } from "@/lib/types";
 
 const STATUS_STYLES: Record<
   TowerStatus,
@@ -41,61 +36,22 @@ function formatRelative(msAgo: number) {
 }
 
 export function NetworkStatus() {
-  const [towers, setTowers] = useState<PublicTower[]>(
-    TOWER_SEED.map((t) => ({ id: t.id, name: t.name, status: "online" as const }))
-  );
-  const [outages, setOutages] = useState<PublicNetworkOutage[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const { outages, towers: apiTowers, loaded, fetchedAt } = usePublicNetworkStatus();
   const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await fetch("/api/network-status");
-        const data = (await res.json()) as {
-          outages?: PublicNetworkOutage[];
-          towers?: PublicTower[];
-        };
-        if (cancelled) return;
-
-        const nextOutages = data.outages ?? [];
-        setOutages(nextOutages);
-
-        if (data.towers && data.towers.length > 0) {
-          setTowers(data.towers);
-        } else {
-          const offline = new Set(nextOutages.map((o) => o.towerId));
-          setTowers(
-            TOWER_SEED.map((t) => ({
-              id: t.id,
-              name: t.name,
-              status: offline.has(t.id) ? "offline" : "online",
-            }))
-          );
-        }
-        setFetchedAt(Date.now());
-      } catch {
-        if (!cancelled) setOutages([]);
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    }
-
-    load();
-    const poll = setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(poll);
-    };
-  }, []);
 
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
   }, []);
+
+  const towers =
+    apiTowers.length > 0
+      ? apiTowers
+      : TOWER_SEED.map((t) => ({
+          id: t.id,
+          name: t.name,
+          status: "online" as const,
+        }));
 
   const onlineCount = towers.filter((t) => t.status === "online").length;
   const hasOutages = outages.length > 0;
@@ -117,7 +73,6 @@ export function NetworkStatus() {
         <h2 className="sr-only">Network status</h2>
 
         <div className="mx-auto max-w-lg rounded-[1.75rem] border border-white/10 bg-[#0d1526]/90 p-5 shadow-[0_0_40px_rgba(56,189,248,0.08)] backdrop-blur-md sm:p-6">
-          {/* Header */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/10 text-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.25)]">
@@ -136,7 +91,6 @@ export function NetworkStatus() {
             </span>
           </div>
 
-          {/* Tower list */}
           <ul className="mt-5 divide-y divide-white/5">
             {towers.map((tower) => {
               const style = STATUS_STYLES[tower.status] ?? STATUS_STYLES.online;
@@ -166,7 +120,6 @@ export function NetworkStatus() {
             })}
           </ul>
 
-          {/* Footer metrics */}
           <div className="mt-2 grid grid-cols-2 gap-4 border-t border-white/10 pt-5">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-sky-400/30 bg-sky-400/10 text-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.35)]">

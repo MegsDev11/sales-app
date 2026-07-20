@@ -59,6 +59,8 @@ export interface User {
   monthlyRevenueTarget: number;
   monthlyDealsTarget: number;
   authUserId?: string;
+  /** Soft-active; inactive techs stay for booking history but leave pickers */
+  active?: boolean;
 }
 
 export type UserFormData = Omit<User, "id" | "authUserId">;
@@ -133,6 +135,77 @@ export interface PublicNetworkOutage {
   message: string;
   affectedAreas: string[];
   startedAt: string;
+}
+
+export type StockItemStatus = "available" | "booked_out" | "retired";
+export type StockRequestStatus = "open" | "partial" | "fulfilled" | "cancelled";
+
+export interface StockProduct {
+  id: string;
+  name: string;
+  sku: string;
+  brandDefault: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface StockItem {
+  id: string;
+  productId: string;
+  qrToken: string;
+  brand: string;
+  deviceName: string;
+  serialNumber: string;
+  status: StockItemStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockBooking {
+  id: string;
+  itemId: string;
+  technicianId: string;
+  leadId?: string | null;
+  requestId?: string | null;
+  bookedOutAt: string;
+  bookedOutBy?: string | null;
+  returnedAt?: string | null;
+  notes: string;
+}
+
+export interface StockRequestLine {
+  id: string;
+  requestId: string;
+  productId: string;
+  qtyNeeded: number;
+  qtyFulfilled: number;
+}
+
+export interface StockRequest {
+  id: string;
+  title: string;
+  technicianId: string;
+  leadId?: string | null;
+  status: StockRequestStatus;
+  createdBy?: string | null;
+  createdAt: string;
+  notes: string;
+  lines: StockRequestLine[];
+}
+
+export type AppNotificationType = "stock_request_sent" | "stock_shortfall";
+
+export interface AppNotification {
+  id: string;
+  userId?: string | null;
+  department?: Department | null;
+  type: AppNotificationType | string;
+  title: string;
+  body: string;
+  link: string;
+  requestId?: string | null;
+  readAt?: string | null;
+  createdAt: string;
 }
 
 export interface Activity {

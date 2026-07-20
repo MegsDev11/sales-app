@@ -62,7 +62,7 @@ export default function CompanyPage() {
       href: "/stock",
       manager: stockManager?.name ?? "Not assigned",
       staffCount: getDepartmentStaff(users, "stock").length,
-      stat: "Module coming soon",
+      stat: "Inventory & QR booking",
     },
     {
       id: "coordination",
@@ -71,7 +71,7 @@ export default function CompanyPage() {
       href: "/coordination",
       manager: getDepartmentManagers(users, "coordination")[0]?.name ?? "Not assigned",
       staffCount: getDepartmentStaff(users, "coordination").length,
-      stat: "Module coming soon",
+      stat: "Pick lists & techs",
     },
   ];
 

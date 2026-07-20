@@ -68,6 +68,28 @@ export function canAccessSupport(user: User | null | undefined): boolean {
   return user.department === "support";
 }
 
+export function canAccessStock(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (isOwner(user)) return true;
+  return user.department === "stock";
+}
+
+export function canAccessCoordination(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (isOwner(user)) return true;
+  return user.department === "coordination";
+}
+
+/** Stock dashboard pages (inventory, scan, fulfill). */
+export function canManageStock(user: User | null | undefined): boolean {
+  return canAccessStock(user);
+}
+
+/** Create / view stock pick lists (coordination + stock + owner). */
+export function canAccessStockRequests(user: User | null | undefined): boolean {
+  return canAccessStock(user) || canAccessCoordination(user);
+}
+
 export function canManageUser(actor: User, target: User): boolean {
   if (isOwner(actor)) return true;
   if (isSalesManager(actor) && target.role === "staff" && target.department === "sales") {
@@ -96,6 +118,16 @@ export function getDepartmentStaff(users: User[], department: Department): User[
   return users.filter((u) => u.role === "staff" && u.department === department);
 }
 
+/** Active field technicians for pick-list assignment. */
+export function getFieldTechnicians(users: User[]): User[] {
+  return users.filter(
+    (u) =>
+      u.active !== false &&
+      u.role === "staff" &&
+      (u.department === "coordination" || u.department === "stock")
+  );
+}
+
 export function getDepartmentLabel(department: Department): string {
   return DEPARTMENT_LABELS[department];
 }
@@ -119,6 +151,8 @@ export function getDefaultTitle(role: UserRole, department: Department | null): 
 export function getHomeRoute(user: User): string {
   if (isOwner(user)) return "/company";
   if (user.department === "support") return "/support";
+  if (user.department === "stock") return "/stock";
+  if (user.department === "coordination") return "/coordination";
   if (canAccessSalesAdmin(user)) return "/dashboard";
   return "/board";
 }

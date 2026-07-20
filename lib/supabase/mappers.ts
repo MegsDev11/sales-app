@@ -1,7 +1,15 @@
 import type {
   Activity,
+  AppNotification,
   Lead,
   LeadFormData,
+  StockBooking,
+  StockItem,
+  StockItemStatus,
+  StockProduct,
+  StockRequest,
+  StockRequestLine,
+  StockRequestStatus,
   Tower,
   TowerOutage,
   User,
@@ -9,7 +17,13 @@ import type {
 } from "@/lib/types";
 import type {
   ActivityRow,
+  AppNotificationRow,
   LeadRow,
+  StockBookingRow,
+  StockItemRow,
+  StockProductRow,
+  StockRequestLineRow,
+  StockRequestRow,
   TeamMemberRow,
   TowerOutageRow,
   TowerRow,
@@ -30,6 +44,7 @@ export function userFromRow(row: TeamMemberRow): User {
     monthlyRevenueTarget: Number(row.monthly_revenue_target),
     monthlyDealsTarget: Number(row.monthly_deals_target),
     authUserId: row.auth_user_id ?? undefined,
+    active: (row as TeamMemberRow & { active?: boolean }).active !== false,
   };
 }
 
@@ -46,6 +61,7 @@ export function userToRow(user: User): TeamMemberRow {
     title: user.title,
     monthly_revenue_target: user.monthlyRevenueTarget,
     monthly_deals_target: user.monthlyDealsTarget,
+    active: user.active !== false,
   };
 }
 
@@ -69,6 +85,7 @@ export function userUpdatesToRow(updates: Partial<User>): Partial<TeamMemberRow>
   if (updates.monthlyDealsTarget !== undefined) {
     row.monthly_deals_target = updates.monthlyDealsTarget;
   }
+  if (updates.active !== undefined) row.active = updates.active;
   return row;
 }
 
@@ -303,4 +320,174 @@ export function towerOutageUpdatesToRow(updates: Partial<TowerOutage>): Partial<
   if (updates.createdById !== undefined) row.created_by_id = updates.createdById ?? null;
   if (updates.isPublic !== undefined) row.is_public = updates.isPublic;
   return row;
+}
+
+export function stockProductFromRow(row: StockProductRow): StockProduct {
+  return {
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    brandDefault: row.brand_default,
+    notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+export function stockProductToRow(product: StockProduct): StockProductRow {
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    brand_default: product.brandDefault,
+    notes: product.notes,
+    created_at: product.createdAt,
+  };
+}
+
+export function stockItemFromRow(row: StockItemRow): StockItem {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    qrToken: row.qr_token,
+    brand: row.brand,
+    deviceName: row.device_name,
+    serialNumber: row.serial_number,
+    status: row.status as StockItemStatus,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function stockItemToRow(item: StockItem): StockItemRow {
+  return {
+    id: item.id,
+    product_id: item.productId,
+    qr_token: item.qrToken,
+    brand: item.brand,
+    device_name: item.deviceName,
+    serial_number: item.serialNumber,
+    status: item.status,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt,
+  };
+}
+
+export function stockItemUpdatesToRow(updates: Partial<StockItem>): Partial<StockItemRow> {
+  const row: Partial<StockItemRow> = {};
+  if (updates.productId !== undefined) row.product_id = updates.productId;
+  if (updates.qrToken !== undefined) row.qr_token = updates.qrToken;
+  if (updates.brand !== undefined) row.brand = updates.brand;
+  if (updates.deviceName !== undefined) row.device_name = updates.deviceName;
+  if (updates.serialNumber !== undefined) row.serial_number = updates.serialNumber;
+  if (updates.status !== undefined) row.status = updates.status;
+  if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt;
+  return row;
+}
+
+export function stockBookingFromRow(row: StockBookingRow): StockBooking {
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    technicianId: row.technician_id,
+    leadId: row.lead_id,
+    requestId: row.request_id,
+    bookedOutAt: row.booked_out_at,
+    bookedOutBy: row.booked_out_by,
+    returnedAt: row.returned_at,
+    notes: row.notes,
+  };
+}
+
+export function stockBookingToRow(booking: StockBooking): StockBookingRow {
+  return {
+    id: booking.id,
+    item_id: booking.itemId,
+    technician_id: booking.technicianId,
+    lead_id: booking.leadId ?? null,
+    request_id: booking.requestId ?? null,
+    booked_out_at: booking.bookedOutAt,
+    booked_out_by: booking.bookedOutBy ?? null,
+    returned_at: booking.returnedAt ?? null,
+    notes: booking.notes,
+  };
+}
+
+export function stockRequestLineFromRow(row: StockRequestLineRow): StockRequestLine {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    productId: row.product_id,
+    qtyNeeded: row.qty_needed,
+    qtyFulfilled: row.qty_fulfilled,
+  };
+}
+
+export function stockRequestLineToRow(line: StockRequestLine): StockRequestLineRow {
+  return {
+    id: line.id,
+    request_id: line.requestId,
+    product_id: line.productId,
+    qty_needed: line.qtyNeeded,
+    qty_fulfilled: line.qtyFulfilled,
+  };
+}
+
+export function stockRequestFromRow(
+  row: StockRequestRow,
+  lines: StockRequestLineRow[] = []
+): StockRequest {
+  return {
+    id: row.id,
+    title: row.title,
+    technicianId: row.technician_id,
+    leadId: row.lead_id,
+    status: row.status as StockRequestStatus,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    notes: row.notes,
+    lines: lines.map(stockRequestLineFromRow),
+  };
+}
+
+export function stockRequestToRow(request: Omit<StockRequest, "lines">): StockRequestRow {
+  return {
+    id: request.id,
+    title: request.title,
+    technician_id: request.technicianId,
+    lead_id: request.leadId ?? null,
+    status: request.status,
+    created_by: request.createdBy ?? null,
+    created_at: request.createdAt,
+    notes: request.notes,
+  };
+}
+
+export function appNotificationFromRow(row: AppNotificationRow): AppNotification {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    department: (row.department as AppNotification["department"]) ?? null,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    link: row.link,
+    requestId: row.request_id,
+    readAt: row.read_at,
+    createdAt: row.created_at,
+  };
+}
+
+export function appNotificationToRow(n: AppNotification): AppNotificationRow {
+  return {
+    id: n.id,
+    user_id: n.userId ?? null,
+    department: n.department ?? null,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    link: n.link,
+    request_id: n.requestId ?? null,
+    read_at: n.readAt ?? null,
+    created_at: n.createdAt,
+  };
 }

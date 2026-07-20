@@ -17,12 +17,14 @@ import {
   patchTower,
   patchTowerOutage,
   patchUser,
+  setTowerStatusViaApi,
   subscribeToCrmChanges,
   upsertLead,
   upsertUser,
 } from "@/lib/supabase/data";
 import { leadFormToLead } from "@/lib/supabase/mappers";
 import { migrateLead } from "@/lib/utils/migrate";
+import { useAuth } from "@/lib/auth-context";
 import type { CreateUserPayload, UserFormData } from "@/lib/types";
 import type {
   Activity,
@@ -34,6 +36,7 @@ import type {
   LostReason,
   Tower,
   TowerOutage,
+  TowerStatus,
   User,
 } from "@/lib/types";
 
@@ -70,6 +73,11 @@ interface CrmStoreContextValue {
     createdById: string
   ) => void;
   resolveOutage: (outageId: string, towerId: string) => void;
+  setTowerStatus: (
+    towerId: string,
+    status: Exclude<TowerStatus, "offline">,
+    updatedById: string
+  ) => void;
   assignLeadTower: (leadId: string, towerId: string | null) => void;
   exportToCsv: () => void;
   importFromCsv: (csv: string) => void;
@@ -99,14 +107,17 @@ function normalizeData(data: CrmData): CrmData {
 }
 
 export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
+  const { accessToken, isLoading: authLoading } = useAuth();
   const [data, setData] = useState<CrmData>(EMPTY_DATA);
   const [isLoaded, setIsLoaded] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
 
   const refreshFromSupabase = useCallback(async () => {
     try {
-      const next = await fetchCrmDataFromSupabase();
+      const next = await fetchCrmDataFromSupabase(accessTokenRef.current);
       setData(normalizeData(next));
       setDbError(null);
     } catch (error) {
@@ -117,11 +128,12 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (authLoading) return;
     let cancelled = false;
 
     async function init() {
       try {
-        const next = await fetchCrmDataFromSupabase();
+        const next = await fetchCrmDataFromSupabase(accessTokenRef.current);
         if (!cancelled) {
           setData(normalizeData(next));
           setDbError(null);
@@ -143,7 +155,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, accessToken]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -425,12 +437,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
 
       void (async () => {
         try {
-          await insertTowerOutage(outage);
-          await patchTower(towerId, {
-            status: "offline",
-            updatedAt: now,
-            updatedById: createdById,
-          });
+          await insertTowerOutage(outage, accessTokenRef.current);
         } catch (error) {
           setDbError(error instanceof Error ? error.message : "Outage create failed");
           await refreshFromSupabase();
@@ -458,10 +465,54 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
 
       void (async () => {
         try {
-          await patchTowerOutage(outageId, { resolvedAt: now });
-          await patchTower(towerId, { status: "online", updatedAt: now });
+          await patchTowerOutage(
+            outageId,
+            { resolvedAt: now },
+            accessTokenRef.current,
+            towerId
+          );
         } catch (error) {
           setDbError(error instanceof Error ? error.message : "Outage resolve failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  /** Set tower online or maintenance; clears any active outages so the landing page updates. */
+  const setTowerStatus = useCallback(
+    (towerId: string, status: Exclude<TowerStatus, "offline">, updatedById: string) => {
+      const now = new Date().toISOString();
+      let activeIds: string[] = [];
+
+      setData((prev) => {
+        activeIds = prev.towerOutages
+          .filter((o) => o.towerId === towerId && !o.resolvedAt)
+          .map((o) => o.id);
+        return {
+          ...prev,
+          towerOutages: prev.towerOutages.map((outage) =>
+            activeIds.includes(outage.id) ? { ...outage, resolvedAt: now } : outage
+          ),
+          towers: prev.towers.map((tower) =>
+            tower.id === towerId
+              ? { ...tower, status, updatedAt: now, updatedById }
+              : tower
+          ),
+        };
+      });
+
+      void (async () => {
+        try {
+          await setTowerStatusViaApi(
+            towerId,
+            status,
+            updatedById,
+            accessTokenRef.current
+          );
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Tower status update failed");
           await refreshFromSupabase();
         }
       })();
@@ -598,6 +649,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       addUser,
       createOutage,
       resolveOutage,
+      setTowerStatus,
       assignLeadTower,
       exportToCsv,
       importFromCsv,
@@ -610,7 +662,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     [
       data, isLoaded, dbError, updateLead, addLead, deleteLead, restoreLead,
       moveLead, addActivity, reassignLead, updateUser, addUser, createOutage,
-      resolveOutage, assignLeadTower, exportToCsv, importFromCsv, getUserById,
+      resolveOutage, setTowerStatus, assignLeadTower, exportToCsv, importFromCsv, getUserById,
       getLeadActivities, getVisibleLeads, getTowerById, getActiveOutages,
     ]
   );

@@ -29,6 +29,8 @@ export async function POST() {
         "supabase/migrations/002_auth.sql",
         "supabase/migrations/003_roles_departments.sql",
         "supabase/migrations/005_support_towers.sql",
+        "supabase/migrations/007_stock_inventory.sql",
+        "supabase/migrations/008_coordination_techs_alerts.sql",
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Migration failed";

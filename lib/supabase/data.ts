@@ -9,7 +9,6 @@ import {
   towerOutageFromRow,
   towerOutageToRow,
   towerOutageUpdatesToRow,
-  towerToRow,
   towerUpdatesToRow,
   userFromRow,
   userToRow,
@@ -25,30 +24,59 @@ import type {
   User,
 } from "@/lib/types";
 
-export async function fetchCrmDataFromSupabase(): Promise<CrmData> {
+export async function fetchCrmDataFromSupabase(accessToken?: string | null): Promise<CrmData> {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) throw new Error("Supabase client unavailable");
 
-  const [usersRes, leadsRes, activitiesRes, towersRes, outagesRes] = await Promise.all([
+  const [usersRes, leadsRes, activitiesRes] = await Promise.all([
     supabase.from("team_members").select("*").order("name"),
     supabase.from("leads").select("*").order("created_at", { ascending: false }),
     supabase.from("activities").select("*").order("created_at", { ascending: false }),
-    supabase.from("towers").select("*").order("name"),
-    supabase.from("tower_outages").select("*").order("started_at", { ascending: false }),
   ]);
 
   if (usersRes.error) throw usersRes.error;
   if (leadsRes.error) throw leadsRes.error;
   if (activitiesRes.error) throw activitiesRes.error;
-  if (towersRes.error) throw towersRes.error;
-  if (outagesRes.error) throw outagesRes.error;
+
+  let towers: Tower[] = [];
+  let towerOutages: TowerOutage[] = [];
+
+  if (accessToken) {
+    const res = await fetch("/api/support/towers", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const body = (await res.json()) as {
+        towers?: Tower[];
+        towerOutages?: TowerOutage[];
+      };
+      towers = body.towers ?? [];
+      towerOutages = body.towerOutages ?? [];
+    } else {
+      // Fall back to direct read (may be empty under RLS)
+      const [towersRes, outagesRes] = await Promise.all([
+        supabase.from("towers").select("*").order("name"),
+        supabase.from("tower_outages").select("*").order("started_at", { ascending: false }),
+      ]);
+      if (!towersRes.error) towers = (towersRes.data ?? []).map(towerFromRow);
+      if (!outagesRes.error) towerOutages = (outagesRes.data ?? []).map(towerOutageFromRow);
+    }
+  } else {
+    const [towersRes, outagesRes] = await Promise.all([
+      supabase.from("towers").select("*").order("name"),
+      supabase.from("tower_outages").select("*").order("started_at", { ascending: false }),
+    ]);
+    if (!towersRes.error) towers = (towersRes.data ?? []).map(towerFromRow);
+    if (!outagesRes.error) towerOutages = (outagesRes.data ?? []).map(towerOutageFromRow);
+  }
 
   return {
     users: (usersRes.data ?? []).map(userFromRow),
     leads: (leadsRes.data ?? []).map(leadFromRow),
     activities: (activitiesRes.data ?? []).map(activityFromRow),
-    towers: (towersRes.data ?? []).map(towerFromRow),
-    towerOutages: (outagesRes.data ?? []).map(towerOutageFromRow),
+    towers,
+    towerOutages,
   };
 }
 
@@ -93,7 +121,40 @@ export async function insertActivity(activity: Activity): Promise<void> {
   if (error) throw error;
 }
 
-export async function patchTower(id: string, updates: Partial<Tower>): Promise<void> {
+async function supportTowersRequest(
+  accessToken: string | null | undefined,
+  body: unknown
+): Promise<void> {
+  if (!accessToken) {
+    throw new Error("Not signed in — cannot update towers");
+  }
+  const res = await fetch("/api/support/towers", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? "Tower update failed");
+  }
+}
+
+export async function patchTower(
+  id: string,
+  updates: Partial<Tower>,
+  accessToken?: string | null
+): Promise<void> {
+  if (accessToken) {
+    await supportTowersRequest(accessToken, {
+      action: "patchTower",
+      towerId: id,
+      updates,
+    });
+    return;
+  }
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return;
   const { error } = await supabase
@@ -103,14 +164,37 @@ export async function patchTower(id: string, updates: Partial<Tower>): Promise<v
   if (error) throw error;
 }
 
-export async function insertTowerOutage(outage: TowerOutage): Promise<void> {
+export async function insertTowerOutage(
+  outage: TowerOutage,
+  accessToken?: string | null
+): Promise<void> {
+  if (accessToken) {
+    await supportTowersRequest(accessToken, {
+      action: "createOutage",
+      outage,
+    });
+    return;
+  }
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return;
   const { error } = await supabase.from("tower_outages").insert(towerOutageToRow(outage));
   if (error) throw error;
 }
 
-export async function patchTowerOutage(id: string, updates: Partial<TowerOutage>): Promise<void> {
+export async function patchTowerOutage(
+  id: string,
+  updates: Partial<TowerOutage>,
+  accessToken?: string | null,
+  towerId?: string
+): Promise<void> {
+  if (accessToken && updates.resolvedAt && towerId) {
+    await supportTowersRequest(accessToken, {
+      action: "resolveOutage",
+      outageId: id,
+      towerId,
+    });
+    return;
+  }
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return;
   const { error } = await supabase
@@ -118,6 +202,20 @@ export async function patchTowerOutage(id: string, updates: Partial<TowerOutage>
     .update(towerOutageUpdatesToRow(updates))
     .eq("id", id);
   if (error) throw error;
+}
+
+export async function setTowerStatusViaApi(
+  towerId: string,
+  status: "online" | "maintenance",
+  updatedById: string,
+  accessToken: string | null | undefined
+): Promise<void> {
+  await supportTowersRequest(accessToken, {
+    action: "setStatus",
+    towerId,
+    status,
+    updatedById,
+  });
 }
 
 export async function fetchActivePublicOutages(): Promise<PublicNetworkOutage[]> {

@@ -19,7 +19,7 @@ export function Header() {
   const homeHref = isOwner ? "/company" : "/dashboard";
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-white px-4 lg:px-6">
+    <header className="flex h-16 items-center justify-between border-b bg-white px-4 print:hidden lg:px-6">
       <Link href={homeHref} className="flex items-center gap-3">
         <Image src="/megs-logo.png" alt="MEGS" width={140} height={48} className="h-10 w-auto object-contain" priority />
       </Link>
