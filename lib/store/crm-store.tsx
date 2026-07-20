@@ -63,6 +63,7 @@ function normalizeData(data: CrmData): CrmData {
     users: data.users.map((u) => ({
       ...u,
       email: u.email ?? "",
+      department: u.department ?? null,
       monthlyRevenueTarget: u.monthlyRevenueTarget ?? 100000,
       monthlyDealsTarget: u.monthlyDealsTarget ?? 5,
     })),

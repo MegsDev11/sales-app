@@ -1,5 +1,6 @@
 "use client";
 
+import { getSalesStaff } from "@/lib/permissions";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +11,7 @@ interface RepFilterProps {
 
 export function RepFilter({ selected, onSelect }: RepFilterProps) {
   const { users } = useCrmStore();
-  const salesReps = users.filter((u) => u.role === "sales");
+  const salesReps = getSalesStaff(users);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

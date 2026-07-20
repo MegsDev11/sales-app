@@ -18,6 +18,7 @@ import {
 } from "@/lib/utils/leads";
 import { isOverdue } from "@/lib/utils/time";
 import { STAGE_LABELS, ACTIVITY_LABELS } from "@/lib/constants";
+import { getSalesStaff } from "@/lib/permissions";
 import { Target, Calendar, AlertTriangle, TrendingUp, Inbox, Kanban } from "lucide-react";
 
 export default function DashboardPage() {
@@ -40,7 +41,7 @@ export default function DashboardPage() {
     : null;
 
   if (isAdmin) {
-    const repWorkload = users.filter((u) => u.role === "sales").map((rep) => ({
+    const repWorkload = getSalesStaff(users).map((rep) => ({
       rep,
       count: active.filter((l) => l.assignedToId === rep.id).length,
       stats: getRepMonthlyStats(leads, rep.id),

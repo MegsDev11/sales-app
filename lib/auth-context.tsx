@@ -11,6 +11,12 @@ import {
 import { useRouter } from "next/navigation";
 import { getSupabaseAuthClient } from "@/lib/supabase/auth-client";
 import { userFromRow } from "@/lib/supabase/mappers";
+import {
+  canAccessSalesAdmin,
+  canCreateAccounts,
+  getHomeRoute,
+  isOwner,
+} from "@/lib/permissions";
 import type { User } from "@/lib/types";
 
 interface AuthContextValue {
@@ -18,7 +24,9 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  isOwner: boolean;
   isAdmin: boolean;
+  canCreateAccounts: boolean;
   accessToken: string | null;
 }
 
@@ -106,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setCurrentUser(member);
         setAccessToken(data.session?.access_token ?? null);
-        router.push("/dashboard");
+        router.push(getHomeRoute(member));
       }
 
       return {};
@@ -128,7 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       login,
       logout,
-      isAdmin: currentUser?.role === "admin",
+      isOwner: isOwner(currentUser),
+      isAdmin: canAccessSalesAdmin(currentUser),
+      canCreateAccounts: canCreateAccounts(currentUser),
       accessToken,
     }),
     [currentUser, isLoading, login, logout, accessToken]

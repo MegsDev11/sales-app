@@ -3,6 +3,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/config";
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@/lib/types";
 import { userFromRow } from "@/lib/supabase/mappers";
+import { isOwner } from "@/lib/permissions";
 
 export async function getAuthUserFromRequest(request: Request): Promise<User | null> {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -23,8 +24,13 @@ export async function getAuthUserFromRequest(request: Request): Promise<User | n
   return userFromRow(member);
 }
 
-export async function requireAdmin(request: Request): Promise<User | null> {
+export async function requireOwner(request: Request): Promise<User | null> {
   const user = await getAuthUserFromRequest(request);
-  if (!user || user.role !== "admin") return null;
+  if (!user || !isOwner(user)) return null;
   return user;
+}
+
+/** @deprecated Use requireOwner for account creation */
+export async function requireAdmin(request: Request): Promise<User | null> {
+  return requireOwner(request);
 }

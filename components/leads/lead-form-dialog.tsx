@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PACKAGES, SERVICE_ZONES } from "@/lib/data/packages";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { useAuth } from "@/lib/auth-context";
+import { getSalesStaff } from "@/lib/permissions";
 import type { Lead, LeadFormData } from "@/lib/types";
 import {
   Dialog,
@@ -65,7 +66,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
     }
   }, [lead, open, isAdmin, currentUser]);
 
-  const salesReps = users.filter((u) => u.role === "sales");
+  const salesReps = getSalesStaff(users);
 
   const handlePackageChange = (packageId: string) => {
     const pkg = PACKAGES.find((p) => p.id === packageId);

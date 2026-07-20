@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getSalesStaff } from "@/lib/permissions";
 import { SERVICE_LABELS } from "@/lib/constants";
 
 export default function InboxPage() {
@@ -28,7 +29,7 @@ export default function InboxPage() {
   }, [isAdmin, router]);
 
   const unassigned = leads.filter((l) => isLeadVisible(l) && !l.assignedToId && isActiveLead(l));
-  const salesReps = users.filter((u) => u.role === "sales");
+  const salesReps = getSalesStaff(users);
 
   const assignNext = () => {
     if (unassigned.length === 0) return;

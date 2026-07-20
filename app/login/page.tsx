@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getHomeRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isLoading && currentUser) {
-      router.replace("/dashboard");
+      router.replace(getHomeRoute(currentUser));
     }
   }, [currentUser, isLoading, router]);
 

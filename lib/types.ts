@@ -1,4 +1,6 @@
-export type UserRole = "admin" | "sales";
+export type Department = "sales" | "stock" | "coordination";
+
+export type UserRole = "owner" | "manager" | "staff";
 
 export type ServiceType = "fiber" | "wireless" | "both";
 
@@ -48,6 +50,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  department: Department | null;
   color: string;
   avatarInitials: string;
   title: string;

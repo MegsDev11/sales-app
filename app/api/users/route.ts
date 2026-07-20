@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { userToRow } from "@/lib/supabase/mappers";
-import type { CreateUserPayload } from "@/lib/types";
-import { requireAdmin } from "@/lib/supabase/server-auth";
-import type { TeamMemberRow } from "@/lib/supabase/database.types";
-
-function stripOptionalAuthColumns(row: TeamMemberRow): Omit<TeamMemberRow, "email" | "auth_user_id"> {
-  const { email: _email, auth_user_id: _auth, ...legacyRow } = row;
-  return legacyRow;
-}
+import type { CreateUserPayload, Department, UserRole } from "@/lib/types";
+import { requireOwner } from "@/lib/supabase/server-auth";
+import { getDefaultTitle } from "@/lib/permissions";
 
 export async function POST(request: Request) {
-  const adminUser = await requireAdmin(request);
-  if (!adminUser) {
-    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  const ownerUser = await requireOwner(request);
+  if (!ownerUser) {
+    return NextResponse.json({ error: "Unauthorized — owner access required" }, { status: 403 });
   }
 
   try {
@@ -30,12 +25,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    if (body.role === "admin") {
-      return NextResponse.json({ error: "Cannot create additional admin accounts via API" }, { status: 400 });
+    if (body.role === "owner") {
+      return NextResponse.json({ error: "Cannot create owner accounts via API" }, { status: 400 });
+    }
+
+    if (body.role !== "manager" && body.role !== "staff") {
+      return NextResponse.json({ error: "Role must be manager or staff" }, { status: 400 });
+    }
+
+    if (!body.department) {
+      return NextResponse.json({ error: "Department is required" }, { status: 400 });
     }
 
     const supabase = createSupabaseAdminClient();
     const email = body.email.trim().toLowerCase();
+    const department = body.department as Department;
+    const role = body.role as UserRole;
 
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -52,17 +57,16 @@ export async function POST(request: Request) {
       name: body.name.trim(),
       email,
       authUserId: authData.user.id,
-      role: "sales" as const,
+      role,
+      department,
       color: body.color,
       avatarInitials: body.avatarInitials.trim() || body.name.slice(0, 2).toUpperCase(),
-      title: body.title.trim() || "Sales Representative",
+      title: body.title.trim() || getDefaultTitle(role, department),
       monthlyRevenueTarget: body.monthlyRevenueTarget,
       monthlyDealsTarget: body.monthlyDealsTarget,
     };
 
-    const { error: insertError } = await supabase
-      .from("team_members")
-      .insert(stripOptionalAuthColumns(userToRow(member)));
+    const { error: insertError } = await supabase.from("team_members").insert(userToRow(member));
     if (insertError) {
       await supabase.auth.admin.deleteUser(authData.user.id);
       throw insertError;

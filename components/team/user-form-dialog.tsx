@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
-import type { User, UserFormData } from "@/lib/types";
+import { getDefaultTitle, isSalesManager } from "@/lib/permissions";
+import type { Department, User, UserFormData, UserRole } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +45,8 @@ function initialsFromName(name: string): string {
 const defaultForm = (): UserFormData => ({
   name: "",
   email: "",
-  role: "sales",
+  role: "staff",
+  department: "sales",
   color: REP_COLORS[0],
   avatarInitials: "",
   title: "Sales Representative",
@@ -60,7 +62,7 @@ interface UserFormDialogProps {
 
 export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps) {
   const { updateUser, addUser } = useCrmStore();
-  const { accessToken } = useAuth();
+  const { accessToken, canCreateAccounts } = useAuth();
   const [form, setForm] = useState<UserFormData>(defaultForm());
   const [password, setPassword] = useState("");
   const [initialsManual, setInitialsManual] = useState(false);
@@ -87,6 +89,11 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
       if (key === "name" && !initialsManual) {
         next.avatarInitials = initialsFromName(String(value));
       }
+      if ((key === "role" || key === "department") && !user) {
+        const role = key === "role" ? (value as UserRole) : next.role;
+        const dept = key === "department" ? (value as Department) : next.department;
+        next.title = getDefaultTitle(role, dept);
+      }
       return next;
     });
   };
@@ -103,7 +110,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       avatarInitials: form.avatarInitials.trim() || initialsFromName(form.name),
-      title: form.title.trim() || "Sales Representative",
+      title: form.title.trim() || getDefaultTitle(form.role, form.department),
     };
 
     try {
@@ -111,6 +118,10 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
         updateUser(user.id, payload);
         onOpenChange(false);
       } else {
+        if (!canCreateAccounts) {
+          setError("Only the owner can create login accounts");
+          return;
+        }
         if (!payload.email) {
           setError("Email is required for new accounts");
           return;
@@ -120,7 +131,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
           return;
         }
         if (!accessToken) {
-          setError("You must be signed in as admin to create accounts");
+          setError("You must be signed in as owner to create accounts");
           return;
         }
         await addUser({ ...payload, password }, accessToken);
@@ -133,13 +144,14 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
     }
   };
 
-  const isAdmin = user?.role === "admin";
+  const isSalesDept = form.department === "sales";
+  const editingManager = user ? isSalesManager(user) : false;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto bg-white sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{user ? "Edit Team Member" : "Add Sales Rep Account"}</DialogTitle>
+          <DialogTitle>{user ? "Edit Team Member" : "Create Staff Account"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
@@ -160,7 +172,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
                 type="email"
                 value={form.email}
                 onChange={(e) => set("email", e.target.value)}
-                placeholder="rep@megswb.co.za"
+                placeholder="staff@megswb.co.za"
                 required={!user}
                 disabled={Boolean(user)}
               />
@@ -169,24 +181,53 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
               )}
             </div>
             {!user && (
-              <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Initial Password *</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 8 characters — share with the rep securely"
-                  required
-                  minLength={8}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Department *</label>
+                  <Select
+                    value={form.department ?? "sales"}
+                    onValueChange={(v) => set("department", v as Department)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="stock">Stock</SelectItem>
+                      <SelectItem value="coordination">Coordination</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Role *</label>
+                  <Select
+                    value={form.role}
+                    onValueChange={(v) => set("role", v as UserRole)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manager">Department Manager</SelectItem>
+                      <SelectItem value="staff">Staff Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Initial Password *</label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min 8 characters — share securely"
+                    required
+                    minLength={8}
+                  />
+                </div>
+              </>
             )}
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Job Title</label>
               <Input
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
-                placeholder="Sales Representative"
+                placeholder={getDefaultTitle(form.role, form.department)}
               />
             </div>
             <div>
@@ -219,34 +260,36 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
                 ))}
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Monthly Revenue Target (R)</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.monthlyRevenueTarget}
-                  onChange={(e) => set("monthlyRevenueTarget", Number(e.target.value))}
-                />
+            {isSalesDept && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Monthly Revenue Target (R)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.monthlyRevenueTarget}
+                    onChange={(e) => set("monthlyRevenueTarget", Number(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">Monthly Deals Target</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.monthlyDealsTarget}
+                    onChange={(e) => set("monthlyDealsTarget", Number(e.target.value))}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Monthly Deals Target</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.monthlyDealsTarget}
-                  onChange={(e) => set("monthlyDealsTarget", Number(e.target.value))}
-                />
-              </div>
-            </div>
+            )}
             {!user && (
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Only admins can create accounts. The rep will use this email and password to sign in at /login.
+                Only the owner can create login accounts. Share credentials with the staff member securely.
               </p>
             )}
-            {isAdmin && user && (
+            {editingManager && user && (
               <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Admin account — name and title can be updated; role stays admin.
+                Department manager — name and title can be updated here.
               </p>
             )}
           </div>

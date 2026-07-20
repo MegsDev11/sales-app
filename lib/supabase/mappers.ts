@@ -10,13 +10,16 @@ import type {
   LeadRow,
   TeamMemberRow,
 } from "@/lib/supabase/database.types";
+import { normalizeRoleAndDepartment } from "@/lib/permissions";
 
 export function userFromRow(row: TeamMemberRow): User {
+  const { role, department } = normalizeRoleAndDepartment(row.role, row.department);
   return {
     id: row.id,
     name: row.name,
     email: row.email ?? "",
-    role: row.role as User["role"],
+    role,
+    department,
     color: row.color,
     avatarInitials: row.avatar_initials,
     title: row.title,
@@ -33,6 +36,7 @@ export function userToRow(user: User): TeamMemberRow {
     email: user.email || null,
     auth_user_id: user.authUserId ?? null,
     role: user.role,
+    department: user.department,
     color: user.color,
     avatar_initials: user.avatarInitials,
     title: user.title,
@@ -51,6 +55,7 @@ export function userUpdatesToRow(updates: Partial<User>): Partial<TeamMemberRow>
   if (updates.email !== undefined) row.email = updates.email || null;
   if (updates.authUserId !== undefined) row.auth_user_id = updates.authUserId ?? null;
   if (updates.role !== undefined) row.role = updates.role;
+  if (updates.department !== undefined) row.department = updates.department;
   if (updates.color !== undefined) row.color = updates.color;
   if (updates.avatarInitials !== undefined) row.avatar_initials = updates.avatarInitials;
   if (updates.title !== undefined) row.title = updates.title;

@@ -18,6 +18,7 @@ export interface Database {
           email: string | null;
           auth_user_id: string | null;
           role: string;
+          department: string | null;
           color: string;
           avatar_initials: string;
           title: string;
@@ -30,6 +31,7 @@ export interface Database {
           email?: string | null;
           auth_user_id?: string | null;
           role: string;
+          department: string | null;
           color: string;
           avatar_initials: string;
           title: string;
@@ -42,6 +44,7 @@ export interface Database {
           email?: string | null;
           auth_user_id?: string | null;
           role?: string;
+          department?: string | null;
           color?: string;
           avatar_initials?: string;
           title?: string;

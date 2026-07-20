@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { ArrowLeft, Phone, Mail, CheckSquare, MapPin, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { getSalesStaff } from "@/lib/permissions";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { ActivityTimeline } from "@/components/leads/activity-timeline";
 import { ServiceTypeBadge } from "@/components/leads/service-type-badge";
@@ -50,7 +51,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   const rep = lead.assignedToId ? getUserById(lead.assignedToId) : null;
   const activities = getLeadActivities(lead.id);
-  const salesReps = users.filter((u) => u.role === "sales");
+  const salesReps = getSalesStaff(users);
 
   const handleLogActivity = (title?: string) => {
     const t = title ?? activityTitle.trim();

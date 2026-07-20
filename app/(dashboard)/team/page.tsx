@@ -15,21 +15,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
-import { Users, Target, Clock, TrendingUp, Trophy, Pencil, UserPlus } from "lucide-react";
+import { getSalesStaff, getVisibleUsers, isSalesManager } from "@/lib/permissions";
+import { Users, Target, Clock, TrendingUp, Trophy, Pencil } from "lucide-react";
 
 export default function TeamPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, currentUser } = useAuth();
   const router = useRouter();
   const { users, leads } = useCrmStore();
   const [editUser, setEditUser] = useState<User | undefined>();
-  const [showAddUser, setShowAddUser] = useState(false);
 
   useEffect(() => {
-    if (!isAdmin) router.replace("/board");
-  }, [isAdmin, router]);
+    if (!isAdmin || !currentUser) router.replace("/board");
+  }, [isAdmin, currentUser, router]);
 
-  const salesReps = users.filter((u) => u.role === "sales");
-  const adminUser = users.find((u) => u.role === "admin");
+  const visibleUsers = currentUser ? getVisibleUsers(currentUser, users) : [];
+  const salesReps = getSalesStaff(visibleUsers);
+  const salesManager = visibleUsers.find((u) => isSalesManager(u));
 
   const teamStats = useMemo(() => {
     const activeLeads = leads.filter(
@@ -83,8 +84,8 @@ export default function TeamPage() {
             <div>
               <CardTitle className="text-base">{rep.name}</CardTitle>
               <p className="text-sm text-muted-foreground">{rep.title}</p>
-              {rep.role === "admin" && (
-                <Badge className="mt-1 bg-[#C83733] hover:bg-[#C83733]">Admin</Badge>
+              {isSalesManager(rep) && (
+                <Badge className="mt-1 bg-[#C83733] hover:bg-[#C83733]">Sales Manager</Badge>
               )}
             </div>
           </div>
@@ -146,13 +147,6 @@ export default function TeamPage() {
             Manage your sales team and monitor performance
           </p>
         </div>
-        <Button
-          className="bg-[#C83733] hover:bg-[#a82f2b]"
-          onClick={() => setShowAddUser(true)}
-        >
-          <UserPlus className="mr-1 h-4 w-4" />
-          Add Team Member
-        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -205,7 +199,7 @@ export default function TeamPage() {
       <div>
         <h2 className="mb-3 text-lg font-semibold">Team Members</h2>
         <div className="grid gap-4 md:grid-cols-2">
-          {adminUser && renderMemberCard(adminUser)}
+          {salesManager && renderMemberCard(salesManager)}
           {salesReps.map(renderMemberCard)}
         </div>
       </div>
@@ -270,14 +264,11 @@ export default function TeamPage() {
       </Card>
 
       <UserFormDialog
-        open={!!editUser || showAddUser}
+        open={!!editUser}
         onOpenChange={(open) => {
-          if (!open) {
-            setEditUser(undefined);
-            setShowAddUser(false);
-          }
+          if (!open) setEditUser(undefined);
         }}
-        user={showAddUser ? undefined : editUser}
+        user={editUser}
       />
     </div>
   );
