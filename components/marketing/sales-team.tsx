@@ -1,12 +1,7 @@
+import Image from "next/image";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-const team = [
-  { name: "Marlyna De Villiers", role: "Sales / Marketing", initials: "MD" },
-  { name: "Herman Booysen", role: "Sales Manager", initials: "HB" },
-  { name: "Wine Petzer", role: "Sales Agent", initials: "WP" },
-  { name: "Tenika Olivier", role: "After Sales Agent", initials: "TO" },
-];
+import { teamProfiles } from "@/lib/marketing/team-content";
 
 export function SalesTeam() {
   return (
@@ -20,18 +15,24 @@ export function SalesTeam() {
           </p>
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {team.map((member) => (
-            <Card key={member.name} className="border-0 text-center shadow-md">
-              <CardContent className="p-6">
-                <Avatar className="mx-auto h-20 w-20">
-                  <AvatarFallback className="bg-[#C83733] text-lg font-semibold text-white">
-                    {member.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <h3 className="mt-4 font-semibold">{member.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{member.role}</p>
-              </CardContent>
-            </Card>
+          {teamProfiles.map((member) => (
+            <Link key={member.slug} href={`/team/${member.slug}`} className="group block">
+              <Card className="overflow-hidden border-0 text-center shadow-md transition-shadow group-hover:shadow-lg">
+                <div className="relative mx-auto mt-6 h-32 w-32 overflow-hidden rounded-full ring-2 ring-[#C83733]/20 transition-all group-hover:ring-[#C83733]/40">
+                  <Image
+                    src={member.photo}
+                    alt={member.name}
+                    fill
+                    className="object-cover object-top"
+                    sizes="128px"
+                  />
+                </div>
+                <CardContent className="p-6 pt-4">
+                  <h3 className="font-semibold text-gray-900 group-hover:text-[#C83733]">{member.name}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{member.role}</p>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       </div>

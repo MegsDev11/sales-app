@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,30 +58,15 @@ export function ContactForm() {
   return (
     <section id="contact" className="py-20">
       <div className="mx-auto max-w-6xl px-4 lg:px-6">
-        <div className="grid gap-12 lg:grid-cols-2">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Contact us for more information</h2>
-            <p className="mt-4 text-muted-foreground">
-              Fill in the form and our team will get back to you. You can also reach us directly:
-            </p>
-            <dl className="mt-8 space-y-4 text-sm">
-              <div>
-                <dt className="font-semibold text-gray-900">Phone</dt>
-                <dd><a href="tel:0878205290" className="text-[#C83733] hover:underline">087 820 5290</a></dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-gray-900">Sales</dt>
-                <dd><a href="mailto:sales@megswb.co.za" className="text-[#C83733] hover:underline">sales@megswb.co.za</a></dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-gray-900">Support</dt>
-                <dd><a href="mailto:support@megswb.co.za" className="text-[#C83733] hover:underline">support@megswb.co.za</a></dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-gray-900">Address</dt>
-                <dd className="text-muted-foreground">20 Dirk van Den Berg Street, Modimolle/Nylstroom, Limpopo 0510</dd>
-              </div>
-            </dl>
+        <div className="grid items-stretch gap-8 lg:grid-cols-2 lg:gap-12">
+          <div className="relative min-h-[280px] overflow-hidden rounded-2xl shadow-lg sm:min-h-[360px] lg:min-h-0">
+            <Image
+              src="/contact/megs-truck.jpg"
+              alt="MEGS service vehicle in the field"
+              fill
+              className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
+            />
           </div>
 
           <Card className="shadow-lg">
@@ -150,6 +136,31 @@ export function ContactForm() {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        <div className="mt-12 lg:mt-16">
+          <h2 className="text-3xl font-bold text-gray-900">Contact us for more information</h2>
+          <p className="mt-4 max-w-2xl text-muted-foreground">
+            Fill in the form and our team will get back to you. You can also reach us directly:
+          </p>
+          <dl className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="font-semibold text-gray-900">Phone</dt>
+              <dd><a href="tel:0878205290" className="text-[#C83733] hover:underline">087 820 5290</a></dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-gray-900">Sales</dt>
+              <dd><a href="mailto:sales@megswb.co.za" className="text-[#C83733] hover:underline">sales@megswb.co.za</a></dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-gray-900">Support</dt>
+              <dd><a href="mailto:support@megswb.co.za" className="text-[#C83733] hover:underline">support@megswb.co.za</a></dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-gray-900">Address</dt>
+              <dd className="text-muted-foreground">20 Dirk van Den Berg Street, Modimolle/Nylstroom, Limpopo 0510</dd>
+            </div>
+          </dl>
         </div>
       </div>
     </section>
