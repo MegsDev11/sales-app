@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Phone, Radio, Shield, Wifi, Zap } from "lucide-react";
+import { ArrowRight, Phone, Radio, Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeroNetworkWidget } from "@/components/marketing/hero-network-widget";
 
 const services = [
   { label: "Fibre", href: "/services/fibre" },
@@ -36,10 +37,7 @@ export function Hero() {
               <span className="font-medium text-white/90">Limpopo&apos;s trusted connectivity partner</span>
             </div>
 
-            <p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-[#C83733]">
-              Megs Waterberg
-            </p>
-            <h1 className="mt-3 max-w-xl text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="mt-6 max-w-xl text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
               Connecting you to the{" "}
               <span className="bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">
                 world
@@ -108,27 +106,7 @@ export function Hero() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0b1220] via-[#0b1220]/20 to-transparent" />
 
-                <div className="absolute inset-x-5 top-5 rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-md">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Wifi className="h-4 w-4 text-emerald-400" />
-                      <span className="text-sm font-medium">Network status</span>
-                    </div>
-                    <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-                      Online
-                    </span>
-                  </div>
-                  <div className="mt-4 flex items-end gap-1.5">
-                    {[38, 52, 44, 68, 82, 74, 90, 64].map((height, i) => (
-                      <span
-                        key={i}
-                        className="w-2 rounded-full bg-gradient-to-t from-[#C83733] to-orange-300"
-                        style={{ height: `${height}px` }}
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-3 text-xs text-slate-300">High-speed connectivity across Modimolle &amp; surrounds</p>
-                </div>
+                <HeroNetworkWidget />
 
                 <div className="absolute inset-x-5 bottom-5 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-black/40 p-4 backdrop-blur-md">
