@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ClipboardList, LayoutDashboard, Package, QrCode, ScanLine, Truck } from "lucide-react";
+import {
+  ClipboardList,
+  Contact,
+  LayoutDashboard,
+  Package,
+  QrCode,
+  ScanLine,
+  Truck,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { canAccessStock } from "@/lib/permissions";
 
@@ -12,6 +20,7 @@ const stockNavItems = [
   { href: "/stock/inventory", label: "Inventory", icon: Package, stockOnly: true },
   { href: "/stock/booked-out", label: "Booked Out", icon: Truck, stockOnly: true },
   { href: "/stock/qr", label: "Generate QR", icon: QrCode, stockOnly: true },
+  { href: "/stock/client-qrs", label: "Client QRs", icon: Contact, stockOnly: true },
   { href: "/stock/requests", label: "Requests", icon: ClipboardList, stockOnly: false },
   { href: "/stock/scan", label: "Scan", icon: ScanLine, stockOnly: true },
 ];
@@ -68,6 +77,8 @@ export function StockMobileNav() {
         const short =
           item.href === "/stock/qr"
             ? "QR"
+            : item.href === "/stock/client-qrs"
+              ? "Clients"
             : item.href === "/stock/inventory"
               ? "Stock"
               : item.href === "/stock/booked-out"

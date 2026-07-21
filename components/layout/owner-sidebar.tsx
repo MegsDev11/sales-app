@@ -25,6 +25,7 @@ import {
   ScanLine,
   Boxes,
   Truck,
+  Contact,
 } from "lucide-react";
 
 const ownerSections: { id: OwnerSection; label: string; icon: typeof Building2; href: string }[] = [
@@ -56,6 +57,7 @@ const stockNavItems = [
   { href: "/stock/inventory", label: "Inventory", icon: Package },
   { href: "/stock/booked-out", label: "Booked Out", icon: Truck },
   { href: "/stock/qr", label: "Generate QR", icon: QrCode },
+  { href: "/stock/client-qrs", label: "Client QRs", icon: Contact },
   { href: "/stock/requests", label: "Requests", icon: ClipboardList },
   { href: "/stock/scan", label: "Scan", icon: ScanLine },
 ];
