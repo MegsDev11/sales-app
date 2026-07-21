@@ -12,9 +12,11 @@ import { useAuth } from "@/lib/auth-context";
 import type {
   StockBooking,
   StockItem,
+  StockItemVisit,
   StockProduct,
   StockQrLabel,
   StockRequest,
+  StockSundry,
 } from "@/lib/types";
 
 type StockBundle = {
@@ -23,6 +25,7 @@ type StockBundle = {
   bookings: StockBooking[];
   requests: StockRequest[];
   qrLabels: StockQrLabel[];
+  sundries: StockSundry[];
 };
 
 type StockStoreValue = StockBundle & {
@@ -35,10 +38,11 @@ type StockStoreValue = StockBundle & {
     deviceName: string;
     serialNumber: string;
     clientName?: string;
+    clientAddress?: string;
     clientPppoe?: string;
     wifiName?: string;
     wifiPassword?: string;
-  }) => Promise<StockItem | null>;
+  }) => Promise<{ item: StockItem | null; clientPin?: string }>;
   updateItem: (
     itemId: string,
     updates: {
@@ -46,6 +50,7 @@ type StockStoreValue = StockBundle & {
       deviceName?: string;
       serialNumber?: string;
       clientName?: string;
+      clientAddress?: string;
       clientPppoe?: string;
       wifiName?: string;
       wifiPassword?: string;
@@ -73,6 +78,7 @@ type StockStoreValue = StockBundle & {
     details?: {
       serialNumber?: string;
       clientName?: string;
+      clientAddress?: string;
       clientPppoe?: string;
       wifiName?: string;
       wifiPassword?: string;
@@ -89,6 +95,16 @@ type StockStoreValue = StockBundle & {
     serialNumber?: string
   ) => Promise<StockItem | null>;
   returnByQr: (qrToken: string) => Promise<StockItem | null>;
+  regenerateClientPin: (itemId: string) => Promise<string>;
+  getItemVisits: (itemId: string) => Promise<StockItemVisit[]>;
+  createSundry: (input: {
+    name: string;
+    unitLabel: string;
+    quantity: number;
+    notes?: string;
+  }) => Promise<void>;
+  adjustSundry: (sundryId: string, change: number) => Promise<void>;
+  deleteSundry: (sundryId: string) => Promise<void>;
   productCounts: (productId: string) => {
     total: number;
     available: number;
@@ -102,6 +118,7 @@ const EMPTY: StockBundle = {
   bookings: [],
   requests: [],
   qrLabels: [],
+  sundries: [],
 };
 
 const StockStoreContext = createContext<StockStoreValue | null>(null);
@@ -113,13 +130,14 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState<string | null>(null);
 
   const applyBundle = useCallback((body: Record<string, unknown>) => {
-    setData({
-      products: (body.products as StockProduct[]) ?? [],
-      items: (body.items as StockItem[]) ?? [],
-      bookings: (body.bookings as StockBooking[]) ?? [],
-      requests: (body.requests as StockRequest[]) ?? [],
-      qrLabels: (body.qrLabels as StockQrLabel[]) ?? [],
-    });
+    setData((prev) => ({
+      products: (body.products as StockProduct[] | undefined) ?? prev.products,
+      items: (body.items as StockItem[] | undefined) ?? prev.items,
+      bookings: (body.bookings as StockBooking[] | undefined) ?? prev.bookings,
+      requests: (body.requests as StockRequest[] | undefined) ?? prev.requests,
+      qrLabels: (body.qrLabels as StockQrLabel[] | undefined) ?? prev.qrLabels,
+      sundries: (body.sundries as StockSundry[] | undefined) ?? prev.sundries,
+    }));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -177,7 +195,10 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       refresh,
       createItem: async (input) => {
         const result = await post({ action: "createItem", ...input });
-        return (result.item as StockItem) ?? null;
+        return {
+          item: (result.item as StockItem) ?? null,
+          clientPin: result.clientPin as string | undefined,
+        };
       },
       updateItem: async (itemId, updates) => {
         await post({ action: "updateItem", itemId, ...updates });
@@ -214,6 +235,23 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       returnByQr: async (qrToken) => {
         const result = await post({ action: "returnByQr", qrToken });
         return (result.item as StockItem) ?? null;
+      },
+      regenerateClientPin: async (itemId) => {
+        const result = await post({ action: "regenerateClientPin", itemId });
+        return result.clientPin as string;
+      },
+      getItemVisits: async (itemId) => {
+        const result = await post({ action: "getItemVisits", itemId });
+        return (result.visits as StockItemVisit[]) ?? [];
+      },
+      createSundry: async (input) => {
+        await post({ action: "createSundry", ...input });
+      },
+      adjustSundry: async (sundryId, change) => {
+        await post({ action: "adjustSundry", sundryId, change });
+      },
+      deleteSundry: async (sundryId) => {
+        await post({ action: "deleteSundry", sundryId });
       },
       productCounts: (productId) => {
         const units = data.items.filter((i) => i.productId === productId);

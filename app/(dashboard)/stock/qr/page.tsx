@@ -94,6 +94,7 @@ export default function StockQrPage() {
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [clientName, setClientName] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
   const [clientPppoe, setClientPppoe] = useState("");
   const [wifiName, setWifiName] = useState("");
   const [wifiPassword, setWifiPassword] = useState("");
@@ -167,7 +168,7 @@ export default function StockQrPage() {
     setBusy(true);
     setMsg("");
     try {
-      const item = await createItem({
+      const { item } = await createItem({
         productId: stockProductId,
         brand: stockBrand,
         deviceName: stockDeviceName,
@@ -197,12 +198,13 @@ export default function StockQrPage() {
     setBusy(true);
     setMsg("");
     try {
-      const item = await createItem({
+      const { item, clientPin } = await createItem({
         productId,
         brand,
         deviceName,
         serialNumber,
         clientName,
+        clientAddress,
         clientPppoe,
         wifiName,
         wifiPassword,
@@ -216,10 +218,15 @@ export default function StockQrPage() {
       setDeviceName("");
       setSerialNumber("");
       setClientName("");
+      setClientAddress("");
       setClientPppoe("");
       setWifiName("");
       setWifiPassword("");
-      setMsg("Unit created — QR ready below.");
+      setMsg(
+        clientPin
+          ? `Unit created — client PIN: ${clientPin} (give this to the client for QR access)`
+          : "Unit created — QR ready below."
+      );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Create failed");
     } finally {
@@ -506,6 +513,14 @@ export default function StockQrPage() {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Client name"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="font-medium">Client address</label>
+              <Input
+                value={clientAddress}
+                onChange={(e) => setClientAddress(e.target.value)}
+                placeholder="Street, town"
               />
             </div>
             <div className="space-y-1 sm:col-span-2">

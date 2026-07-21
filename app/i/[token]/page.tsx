@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { useAuth } from "@/lib/auth-context";
-import { canAccessStock } from "@/lib/permissions";
 import type { StockBooking, StockItem, StockProduct } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QrPortalPanel } from "@/components/stock/qr-portal-panel";
 
 type PublicPayload = {
   item: StockItem;
@@ -20,28 +19,20 @@ type PublicPayload = {
 export default function PublicStockItemPage() {
   const params = useParams<{ token: string }>();
   const token = params?.token;
-  const { currentUser, accessToken, isLoading: authLoading } = useAuth();
 
   const [data, setData] = useState<PublicPayload | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!token || authLoading) return;
-    const headers: HeadersInit = {};
-    if (accessToken && canAccessStock(currentUser)) {
-      headers.Authorization = `Bearer ${accessToken}`;
-    }
-    fetch(`/api/stock/item/${encodeURIComponent(token)}`, {
-      cache: "no-store",
-      headers,
-    })
+    if (!token) return;
+    fetch(`/api/stock/item/${encodeURIComponent(token)}`, { cache: "no-store" })
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error ?? "Not found");
         setData(body as PublicPayload);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
-  }, [token, accessToken, authLoading, currentUser]);
+  }, [token]);
 
   if (error) {
     return (
@@ -63,10 +54,10 @@ export default function PublicStockItemPage() {
     );
   }
 
-  if (!data) {
+  if (!data || !token) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b1220] text-sm text-white/60">
-        Loading stock item…
+        Loading…
       </div>
     );
   }
@@ -107,25 +98,11 @@ export default function PublicStockItemPage() {
                 <span className="text-muted-foreground">Client:</span> {item.clientName}
               </p>
             ) : null}
-            {item.clientPppoe ? (
+            {item.clientAddress ? (
               <p>
-                <span className="text-muted-foreground">Client PPPoE:</span> {item.clientPppoe}
+                <span className="text-muted-foreground">Address:</span> {item.clientAddress}
               </p>
             ) : null}
-            {item.wifiName ? (
-              <p>
-                <span className="text-muted-foreground">WiFi name:</span> {item.wifiName}
-              </p>
-            ) : null}
-            {item.wifiPassword ? (
-              <p>
-                <span className="text-muted-foreground">WiFi password:</span> {item.wifiPassword}
-              </p>
-            ) : null}
-            <p>
-              <span className="text-muted-foreground">Status:</span>{" "}
-              <span className="font-semibold capitalize">{item.status.replace("_", " ")}</span>
-            </p>
             {booking && (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
                 <p className="font-semibold">Booked out</p>
@@ -136,8 +113,13 @@ export default function PublicStockItemPage() {
                 </p>
               </div>
             )}
+            <p className="text-xs text-muted-foreground">
+              Sign in below to view connection details, log work, or contact support.
+            </p>
           </CardContent>
         </Card>
+
+        <QrPortalPanel token={token} />
       </div>
     </div>
   );

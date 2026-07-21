@@ -4,13 +4,16 @@ import type {
   Lead,
   LeadFormData,
   StockBooking,
+  ClientSupportRequest,
   StockItem,
   StockItemStatus,
+  StockItemVisit,
   StockProduct,
   StockQrLabel,
   StockRequest,
   StockRequestLine,
   StockRequestStatus,
+  StockSundry,
   Tower,
   TowerOutage,
   User,
@@ -19,13 +22,16 @@ import type {
 import type {
   ActivityRow,
   AppNotificationRow,
+  ClientSupportRequestRow,
   LeadRow,
   StockBookingRow,
   StockItemRow,
+  StockItemVisitRow,
   StockProductRow,
   StockQrLabelRow,
   StockRequestLineRow,
   StockRequestRow,
+  StockSundryRow,
   TeamMemberRow,
   TowerOutageRow,
   TowerRow,
@@ -47,6 +53,8 @@ export function userFromRow(row: TeamMemberRow): User {
     monthlyDealsTarget: Number(row.monthly_deals_target),
     authUserId: row.auth_user_id ?? undefined,
     active: (row as TeamMemberRow & { active?: boolean }).active !== false,
+    hasAccessCode: Boolean(row.access_code_hash),
+    accessCodeUpdatedAt: row.access_code_updated_at,
   };
 }
 
@@ -64,6 +72,9 @@ export function userToRow(user: User): TeamMemberRow {
     monthly_revenue_target: user.monthlyRevenueTarget,
     monthly_deals_target: user.monthlyDealsTarget,
     active: user.active !== false,
+    access_code_hash: null,
+    access_code_ciphertext: null,
+    access_code_updated_at: null,
   };
 }
 
@@ -346,6 +357,30 @@ export function stockProductToRow(product: StockProduct): StockProductRow {
   };
 }
 
+export function stockSundryFromRow(row: StockSundryRow): StockSundry {
+  return {
+    id: row.id,
+    name: row.name,
+    unitLabel: row.unit_label,
+    quantity: row.quantity,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function stockSundryToRow(sundry: StockSundry): StockSundryRow {
+  return {
+    id: sundry.id,
+    name: sundry.name,
+    unit_label: sundry.unitLabel,
+    quantity: sundry.quantity,
+    notes: sundry.notes,
+    created_at: sundry.createdAt,
+    updated_at: sundry.updatedAt,
+  };
+}
+
 export function stockItemFromRow(row: StockItemRow): StockItem {
   return {
     id: row.id,
@@ -355,12 +390,15 @@ export function stockItemFromRow(row: StockItemRow): StockItem {
     deviceName: row.device_name,
     serialNumber: row.serial_number,
     clientName: row.client_name ?? "",
+    clientAddress: row.client_address ?? "",
     clientPppoe: row.client_pppoe ?? "",
     wifiName: row.wifi_name ?? "",
     wifiPassword: row.wifi_password ?? "",
     status: row.status as StockItemStatus,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    hasClientPin: Boolean(row.client_pin_hash),
+    clientPinUpdatedAt: row.client_pin_updated_at,
   };
 }
 
@@ -373,12 +411,16 @@ export function stockItemToRow(item: StockItem): StockItemRow {
     device_name: item.deviceName,
     serial_number: item.serialNumber,
     client_name: item.clientName,
+    client_address: item.clientAddress,
     client_pppoe: item.clientPppoe,
     wifi_name: item.wifiName,
     wifi_password: item.wifiPassword,
     status: item.status,
     created_at: item.createdAt,
     updated_at: item.updatedAt,
+    client_pin_hash: null,
+    client_pin_ciphertext: null,
+    client_pin_updated_at: item.clientPinUpdatedAt ?? null,
   };
 }
 
@@ -390,6 +432,7 @@ export function stockItemUpdatesToRow(updates: Partial<StockItem>): Partial<Stoc
   if (updates.deviceName !== undefined) row.device_name = updates.deviceName;
   if (updates.serialNumber !== undefined) row.serial_number = updates.serialNumber;
   if (updates.clientName !== undefined) row.client_name = updates.clientName;
+  if (updates.clientAddress !== undefined) row.client_address = updates.clientAddress;
   if (updates.clientPppoe !== undefined) row.client_pppoe = updates.clientPppoe;
   if (updates.wifiName !== undefined) row.wifi_name = updates.wifiName;
   if (updates.wifiPassword !== undefined) row.wifi_password = updates.wifiPassword;
@@ -531,5 +574,63 @@ export function appNotificationToRow(n: AppNotification): AppNotificationRow {
     request_id: n.requestId ?? null,
     read_at: n.readAt ?? null,
     created_at: n.createdAt,
+  };
+}
+
+export function stockItemVisitFromRow(
+  row: StockItemVisitRow,
+  technicianName?: string
+): StockItemVisit {
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    technicianId: row.technician_id,
+    technicianName,
+    workNotes: row.work_notes,
+    submittedAt: row.submitted_at,
+  };
+}
+
+export function stockItemVisitToRow(visit: StockItemVisit): StockItemVisitRow {
+  return {
+    id: visit.id,
+    item_id: visit.itemId,
+    technician_id: visit.technicianId,
+    work_notes: visit.workNotes,
+    submitted_at: visit.submittedAt,
+  };
+}
+
+export function clientSupportRequestFromRow(
+  row: ClientSupportRequestRow,
+  extras?: Partial<ClientSupportRequest>
+): ClientSupportRequest {
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    category: row.category as ClientSupportRequest["category"],
+    description: row.description,
+    status: row.status as ClientSupportRequest["status"],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    resolvedAt: row.resolved_at,
+    updatedById: row.updated_by_id,
+    ...extras,
+  };
+}
+
+export function clientSupportRequestToRow(
+  request: ClientSupportRequest
+): ClientSupportRequestRow {
+  return {
+    id: request.id,
+    item_id: request.itemId,
+    category: request.category,
+    description: request.description,
+    status: request.status,
+    created_at: request.createdAt,
+    updated_at: request.updatedAt,
+    resolved_at: request.resolvedAt ?? null,
+    updated_by_id: request.updatedById ?? null,
   };
 }

@@ -25,7 +25,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Download, QrCode, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Minus,
+  PackagePlus,
+  Plus,
+  QrCode,
+  Trash2,
+} from "lucide-react";
 
 const stockDateFormatter = new Intl.DateTimeFormat("en-ZA", {
   dateStyle: "medium",
@@ -217,17 +226,35 @@ export default function StockInventoryPage() {
 function StockInventoryPageInner() {
   const { allowed, isLoading } = useStockAccess();
   const searchParams = useSearchParams();
-  const { products, items, bookings, productCounts, createItem, isLoaded, error } =
-    useStockStore();
+  const {
+    products,
+    items,
+    bookings,
+    sundries,
+    productCounts,
+    createItem,
+    createSundry,
+    adjustSundry,
+    deleteSundry,
+    isLoaded,
+    error,
+  } = useStockStore();
   const { users, getVisibleLeads } = useCrmStore();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [addOpen, setAddOpen] = useState(false);
+  const [sundryOpen, setSundryOpen] = useState(false);
   const [productId, setProductId] = useState("");
   const [brand, setBrand] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<StockItem | null>(null);
+  const [sundryName, setSundryName] = useState("");
+  const [sundryUnit, setSundryUnit] = useState("each");
+  const [sundryQuantity, setSundryQuantity] = useState("1");
+  const [sundryNotes, setSundryNotes] = useState("");
+  const [sundryAdjustments, setSundryAdjustments] = useState<Record<string, string>>({});
+  const [sundryMsg, setSundryMsg] = useState("");
 
   const activeBookingByItem = useMemo(
     () =>
@@ -282,6 +309,64 @@ function StockInventoryPageInner() {
     }
   }
 
+  async function handleAddSundry() {
+    const quantity = Math.floor(Number(sundryQuantity));
+    if (!sundryName.trim() || !Number.isFinite(quantity) || quantity < 0) {
+      setSundryMsg("Enter a name and valid starting quantity");
+      return;
+    }
+    setBusy(true);
+    setSundryMsg("");
+    try {
+      await createSundry({
+        name: sundryName.trim(),
+        unitLabel: sundryUnit,
+        quantity,
+        notes: sundryNotes.trim(),
+      });
+      setSundryOpen(false);
+      setSundryName("");
+      setSundryUnit("each");
+      setSundryQuantity("1");
+      setSundryNotes("");
+    } catch (e) {
+      setSundryMsg(e instanceof Error ? e.message : "Could not add sundry");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAdjustSundry(sundryId: string, direction: 1 | -1) {
+    const amount = Math.floor(Number(sundryAdjustments[sundryId] || "1"));
+    if (!Number.isFinite(amount) || amount < 1) {
+      setSundryMsg("Enter an adjustment of at least 1");
+      return;
+    }
+    setBusy(true);
+    setSundryMsg("");
+    try {
+      await adjustSundry(sundryId, amount * direction);
+      setSundryAdjustments((prev) => ({ ...prev, [sundryId]: "1" }));
+    } catch (e) {
+      setSundryMsg(e instanceof Error ? e.message : "Quantity update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteSundry(sundryId: string, name: string) {
+    if (!window.confirm(`Remove ${name} from sundries?`)) return;
+    setBusy(true);
+    setSundryMsg("");
+    try {
+      await deleteSundry(sundryId);
+    } catch (e) {
+      setSundryMsg(e instanceof Error ? e.message : "Remove failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6 p-4 lg:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -291,15 +376,27 @@ function StockInventoryPageInner() {
             Products and units with editable QR-backed details
           </p>
         </div>
-        <Button
-          className="bg-[#C83733] hover:bg-[#a82f2b]"
-          onClick={() => {
-            setProductId(products[0]?.id ?? "");
-            setAddOpen(true);
-          }}
-        >
-          Add unit
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSundryMsg("");
+              setSundryOpen(true);
+            }}
+          >
+            <PackagePlus className="mr-1 h-4 w-4" />
+            Add sundry
+          </Button>
+          <Button
+            className="bg-[#C83733] hover:bg-[#a82f2b]"
+            onClick={() => {
+              setProductId(products[0]?.id ?? "");
+              setAddOpen(true);
+            }}
+          >
+            Add unit
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -307,6 +404,88 @@ function StockInventoryPageInner() {
           {error}
         </div>
       )}
+
+      <Card className="bg-white">
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Sundries and consumables</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Quantity-based stock such as RJ45 connectors, clips, U-bolts, cable ties, trunking,
+            conduit, and lugs.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2 border-t pt-3">
+          {(sundries ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No sundries yet. Use Add sundry to record consumable stock.
+            </p>
+          ) : (
+            (sundries ?? []).map((sundry) => (
+              <div
+                key={sundry.id}
+                className="flex flex-col gap-3 rounded-lg border px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium">{sundry.name}</p>
+                  <p className="text-sm">
+                    <span className="text-2xl font-bold">{sundry.quantity}</span>{" "}
+                    <span className="text-muted-foreground">{sundry.unitLabel}</span>
+                  </p>
+                  {sundry.notes ? (
+                    <p className="text-xs text-muted-foreground">{sundry.notes}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    className="w-20"
+                    type="number"
+                    min={1}
+                    value={sundryAdjustments[sundry.id] ?? "1"}
+                    onChange={(e) =>
+                      setSundryAdjustments((prev) => ({
+                        ...prev,
+                        [sundry.id]: e.target.value,
+                      }))
+                    }
+                    aria-label={`Quantity adjustment for ${sundry.name}`}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || sundry.quantity === 0}
+                    onClick={() => void handleAdjustSundry(sundry.id, -1)}
+                  >
+                    <Minus className="mr-1 h-4 w-4" />
+                    Use
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void handleAdjustSundry(sundry.id, 1)}
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="text-red-600"
+                    disabled={busy}
+                    onClick={() => void handleDeleteSundry(sundry.id, sundry.name)}
+                    aria-label={`Remove ${sundry.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+          {sundryMsg && <p className="text-sm text-[#C83733]">{sundryMsg}</p>}
+        </CardContent>
+      </Card>
 
       {!isLoaded ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -467,6 +646,70 @@ function StockInventoryPageInner() {
               onClick={() => void handleAdd()}
             >
               Add to inventory
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sundryOpen} onOpenChange={setSundryOpen}>
+        <DialogContent className="bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add sundry or consumable</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="space-y-1">
+              <label className="font-medium">Item name</label>
+              <Input
+                value={sundryName}
+                onChange={(e) => setSundryName(e.target.value)}
+                placeholder="RJ45 connectors"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium">Counted as</label>
+              <Select value={sundryUnit} onValueChange={(v) => v && setSundryUnit(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="each">Each</SelectItem>
+                  <SelectItem value="packets">Packets</SelectItem>
+                  <SelectItem value="boxes">Boxes</SelectItem>
+                  <SelectItem value="metres">Metres</SelectItem>
+                  <SelectItem value="rolls">Rolls</SelectItem>
+                  <SelectItem value="lengths">Lengths</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium">Starting quantity</label>
+              <Input
+                type="number"
+                min={0}
+                value={sundryQuantity}
+                onChange={(e) => setSundryQuantity(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium">Notes (optional)</label>
+              <Input
+                value={sundryNotes}
+                onChange={(e) => setSundryNotes(e.target.value)}
+                placeholder="Box size, specification, or location"
+              />
+            </div>
+            {sundryMsg && <p className="text-sm text-[#C83733]">{sundryMsg}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSundryOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              disabled={busy || !sundryName.trim()}
+              onClick={() => void handleAddSundry()}
+            >
+              Add sundry
             </Button>
           </DialogFooter>
         </DialogContent>

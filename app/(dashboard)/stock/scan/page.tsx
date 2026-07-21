@@ -35,6 +35,7 @@ export default function StockScanPage() {
 
   const [lookupRaw, setLookupRaw] = useState("");
   const [lookupError, setLookupError] = useState("");
+  const [lookupSearched, setLookupSearched] = useState(false);
 
   const [returnRaw, setReturnRaw] = useState("");
   const [returnMsg, setReturnMsg] = useState("");
@@ -76,6 +77,32 @@ export default function StockScanPage() {
     ? items.find((i) => i.qrToken === intakeToken) ?? null
     : null;
 
+  const lookupResults = useMemo(() => {
+    const query = lookupRaw.trim().toLowerCase();
+    if (!query) return [];
+    const token = extractStockQrToken(lookupRaw).toLowerCase();
+    return items.filter((item) => {
+      const product = productMap.get(item.productId);
+      return [
+        item.qrToken,
+        item.serialNumber,
+        item.brand,
+        item.deviceName,
+        item.clientName,
+        item.clientAddress,
+        item.clientPppoe,
+        item.wifiName,
+        product?.name,
+        product?.sku,
+      ]
+        .filter(Boolean)
+        .some((value) => {
+          const normalized = String(value).toLowerCase();
+          return normalized.includes(query) || normalized === token;
+        });
+    });
+  }, [lookupRaw, items, productMap]);
+
   if (isLoading || !allowed) return null;
 
   function pushLog(kind: SessionEntry["kind"], label: string) {
@@ -86,24 +113,22 @@ export default function StockScanPage() {
   }
 
   function goLookup() {
-    const token = extractStockQrToken(lookupRaw);
-    if (!token) {
-      setLookupError("Enter a QR token or sticker URL");
+    const query = lookupRaw.trim();
+    if (!query) {
+      setLookupError("Scan a QR or enter a serial, client, device, or address");
       return;
     }
+    setLookupSearched(true);
     setLookupError("");
-    const item = items.find((i) => i.qrToken === token);
-    if (item) {
-      router.push(`/stock/inventory?item=${item.id}`);
-      return;
-    }
+    if (lookupResults.length > 0) return;
+    const token = extractStockQrToken(query);
     const pending = qrLabels.find((l) => l.qrToken === token && !l.claimedAt);
     if (pending) {
       setIntakeRaw(token);
       setLookupError("This is a pending label — use Book new stock in below.");
       return;
     }
-    router.push(`/i/${token}`);
+    setLookupError("No stock found in inventory or booked-out stock.");
   }
 
   async function handleReturn() {
@@ -344,24 +369,106 @@ export default function StockScanPage() {
 
       <Card className="bg-white">
         <CardHeader>
-          <CardTitle className="text-base">Look up unit</CardTitle>
+          <CardTitle className="text-base">Find stock location</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Open a registered unit in inventory, or the public sticker page.
+            Search inventory and booked-out stock by QR, serial, product, client, or address.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           <Input
             value={lookupRaw}
-            onChange={(e) => setLookupRaw(e.target.value)}
-            placeholder="https://…/i/stk_… or stk_…"
+            onChange={(e) => {
+              setLookupRaw(e.target.value);
+              setLookupSearched(false);
+              setLookupError("");
+            }}
+            placeholder="Scan QR or enter serial, client, product…"
             onKeyDown={(e) => {
               if (e.key === "Enter") goLookup();
             }}
           />
-          <BarcodeScanner label="Scan to look up" onResult={(text) => setLookupRaw(text)} />
+          <BarcodeScanner
+            label="Scan to look up"
+            onResult={(text) => {
+              setLookupRaw(text);
+              setLookupSearched(false);
+              setLookupError("");
+            }}
+          />
           {lookupError && <p className="text-sm text-red-600">{lookupError}</p>}
+          {lookupSearched && lookupResults.length > 0 && (
+            <div className="space-y-2">
+              {lookupResults.map((item) => {
+                const booking =
+                  bookings.find((entry) => entry.itemId === item.id && !entry.returnedAt) ?? null;
+                const tech = booking
+                  ? users.find((user) => user.id === booking.technicianId)
+                  : null;
+                const lead = booking?.leadId
+                  ? getVisibleLeads().find((entry) => entry.id === booking.leadId)
+                  : null;
+                const client = item.clientName || lead?.clientName;
+                return (
+                  <div key={item.id} className="rounded-lg border bg-gray-50 p-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">{describeItem(item).title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {describeItem(item).detail || "No serial details"}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${
+                          item.status === "booked_out"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {item.status === "booked_out" ? "Booked out" : "At office"}
+                      </span>
+                    </div>
+                    {item.status === "booked_out" ? (
+                      <div className="mt-2 space-y-1 text-xs">
+                        <p>
+                          <span className="text-muted-foreground">Client:</span>{" "}
+                          {client || "Not linked"}
+                        </p>
+                        <p>
+                          <span className="text-muted-foreground">Address:</span>{" "}
+                          {item.clientAddress || lead?.address || "Not recorded"}
+                        </p>
+                        <p>
+                          <span className="text-muted-foreground">Technician:</span>{" "}
+                          {tech?.name || "Unknown technician"}
+                        </p>
+                        {booking && (
+                          <p>
+                            <span className="text-muted-foreground">Booked out:</span>{" "}
+                            {new Date(booking.bookedOutAt).toLocaleString("en-ZA")}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-emerald-700">
+                        This unit is available in office inventory.
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => router.push(`/stock/inventory?item=${item.id}`)}
+                    >
+                      Open inventory details
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <Button className="w-full bg-[#C83733] hover:bg-[#a82f2b]" onClick={goLookup}>
-            Open unit
+            Search stock
           </Button>
         </CardContent>
       </Card>

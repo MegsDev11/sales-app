@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Radio, Users } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Radio, Users } from "lucide-react";
 
 const supportNavItems = [
   { href: "/support", label: "Overview", icon: LayoutDashboard },
+  { href: "/support/requests", label: "Client Requests", icon: MessageSquare },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
 ];

@@ -62,6 +62,7 @@ export default function StockRequestsPage() {
   const [scanToken, setScanToken] = useState("");
   const [allocSerial, setAllocSerial] = useState("");
   const [allocClientName, setAllocClientName] = useState("");
+  const [allocClientAddress, setAllocClientAddress] = useState("");
   const [allocPppoe, setAllocPppoe] = useState("");
   const [allocWifiName, setAllocWifiName] = useState("");
   const [allocWifiPassword, setAllocWifiPassword] = useState("");
@@ -98,6 +99,7 @@ export default function StockRequestsPage() {
   useEffect(() => {
     if (!scannedItem) return;
     setAllocSerial(scannedItem.serialNumber ?? "");
+    setAllocClientAddress(scannedItem.clientAddress ?? "");
     setAllocPppoe(scannedItem.clientPppoe ?? "");
     setAllocWifiName(scannedItem.wifiName ?? "");
     setAllocWifiPassword(scannedItem.wifiPassword ?? "");
@@ -114,6 +116,7 @@ export default function StockRequestsPage() {
     setScanToken("");
     setAllocSerial("");
     setAllocClientName("");
+    setAllocClientAddress("");
     setAllocPppoe("");
     setAllocWifiName("");
     setAllocWifiPassword("");
@@ -160,6 +163,7 @@ export default function StockRequestsPage() {
       await fulfillScan(fulfillId, extractStockQrToken(scanToken), {
         serialNumber: allocSerial,
         clientName: allocClientName,
+        clientAddress: allocClientAddress,
         clientPppoe: allocPppoe,
         wifiName: allocWifiName,
         wifiPassword: allocWifiPassword,
@@ -576,6 +580,14 @@ export default function StockRequestsPage() {
                 <Input
                   value={allocClientName}
                   onChange={(e) => setAllocClientName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium">Client address</label>
+                <Input
+                  value={allocClientAddress}
+                  onChange={(e) => setAllocClientAddress(e.target.value)}
+                  placeholder="Street, town"
                 />
               </div>
               <div className="space-y-1">

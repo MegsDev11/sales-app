@@ -16,19 +16,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Printer } from "lucide-react";
-import { EditUnitDialog, QrPreviewCard } from "@/components/stock/qr-unit-cards";
+import { EditUnitDialog, QrPreviewCard, VisitHistoryDialog } from "@/components/stock/qr-unit-cards";
 
 function isClientUnit(item: StockItem) {
-  return Boolean(item.clientName || item.clientPppoe || item.wifiName || item.wifiPassword);
+  return Boolean(
+    item.clientName || item.clientAddress || item.clientPppoe || item.wifiName || item.wifiPassword
+  );
 }
 
 export default function ClientQrsPage() {
   const { allowed, isLoading } = useStockAccess();
-  const { products, items, isLoaded, error } = useStockStore();
+  const { products, items, isLoaded, error, regenerateClientPin } = useStockStore();
 
   const [query, setQuery] = useState("");
   const [filterProduct, setFilterProduct] = useState("all");
   const [editing, setEditing] = useState<StockItem | null>(null);
+  const [visitItem, setVisitItem] = useState<StockItem | null>(null);
+  const [pinMsgs, setPinMsgs] = useState<Record<string, string>>({});
+  const [busyPin, setBusyPin] = useState<string | null>(null);
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
@@ -43,6 +48,7 @@ export default function ClientQrsPage() {
       const product = productMap.get(item.productId);
       const hay = [
         item.clientName,
+        item.clientAddress,
         item.clientPppoe,
         item.wifiName,
         item.brand,
@@ -60,6 +66,25 @@ export default function ClientQrsPage() {
   }, [items, query, filterProduct, productMap]);
 
   if (isLoading || !allowed) return null;
+
+  async function handleRegeneratePin(item: StockItem) {
+    if (!window.confirm("Generate a new client PIN? The old PIN will stop working.")) return;
+    setBusyPin(item.id);
+    try {
+      const pin = await regenerateClientPin(item.id);
+      setPinMsgs((prev) => ({
+        ...prev,
+        [item.id]: `New client PIN: ${pin} — give this to the client`,
+      }));
+    } catch (e) {
+      setPinMsgs((prev) => ({
+        ...prev,
+        [item.id]: e instanceof Error ? e.message : "PIN reset failed",
+      }));
+    } finally {
+      setBusyPin(null);
+    }
+  }
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
@@ -146,6 +171,9 @@ export default function ClientQrsPage() {
               item={item}
               product={productMap.get(item.productId)}
               onEdit={setEditing}
+              onShowVisits={setVisitItem}
+              onRegeneratePin={busyPin === item.id ? undefined : handleRegeneratePin}
+              clientPinMsg={pinMsgs[item.id]}
             />
           ))}
         </div>
@@ -156,6 +184,15 @@ export default function ClientQrsPage() {
         productName={products.find((p) => p.id === editingLive?.productId)?.name ?? "Unit"}
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
+      />
+
+      <VisitHistoryDialog
+        item={visitItem}
+        productName={
+          products.find((p) => p.id === visitItem?.productId)?.name ?? "Unit"
+        }
+        open={!!visitItem}
+        onOpenChange={(open) => !open && setVisitItem(null)}
       />
     </div>
   );

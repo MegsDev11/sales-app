@@ -25,6 +25,9 @@ export interface Database {
           monthly_revenue_target: number;
           monthly_deals_target: number;
           active: boolean;
+          access_code_hash: string | null;
+          access_code_ciphertext: string | null;
+          access_code_updated_at: string | null;
         };
         Insert: {
           id: string;
@@ -39,6 +42,9 @@ export interface Database {
           monthly_revenue_target?: number;
           monthly_deals_target?: number;
           active?: boolean;
+          access_code_hash?: string | null;
+          access_code_ciphertext?: string | null;
+          access_code_updated_at?: string | null;
         };
         Update: {
           id?: string;
@@ -53,6 +59,9 @@ export interface Database {
           monthly_revenue_target?: number;
           monthly_deals_target?: number;
           active?: boolean;
+          access_code_hash?: string | null;
+          access_code_ciphertext?: string | null;
+          access_code_updated_at?: string | null;
         };
         Relationships: [];
       };
@@ -254,6 +263,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      stock_sundries: {
+        Row: {
+          id: string;
+          name: string;
+          unit_label: string;
+          quantity: number;
+          notes: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          unit_label?: string;
+          quantity?: number;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          unit_label?: string;
+          quantity?: number;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       stock_items: {
         Row: {
           id: string;
@@ -263,12 +302,16 @@ export interface Database {
           device_name: string;
           serial_number: string;
           client_name: string;
+          client_address: string;
           client_pppoe: string;
           wifi_name: string;
           wifi_password: string;
           status: string;
           created_at: string;
           updated_at: string;
+          client_pin_hash: string | null;
+          client_pin_ciphertext: string | null;
+          client_pin_updated_at: string | null;
         };
         Insert: {
           id: string;
@@ -278,12 +321,16 @@ export interface Database {
           device_name?: string;
           serial_number?: string;
           client_name?: string;
+          client_address?: string;
           client_pppoe?: string;
           wifi_name?: string;
           wifi_password?: string;
           status?: string;
           created_at?: string;
           updated_at?: string;
+          client_pin_hash?: string | null;
+          client_pin_ciphertext?: string | null;
+          client_pin_updated_at?: string | null;
         };
         Update: {
           id?: string;
@@ -293,12 +340,16 @@ export interface Database {
           device_name?: string;
           serial_number?: string;
           client_name?: string;
+          client_address?: string;
           client_pppoe?: string;
           wifi_name?: string;
           wifi_password?: string;
           status?: string;
           created_at?: string;
           updated_at?: string;
+          client_pin_hash?: string | null;
+          client_pin_ciphertext?: string | null;
+          client_pin_updated_at?: string | null;
         };
         Relationships: [];
       };
@@ -431,6 +482,99 @@ export interface Database {
         };
         Relationships: [];
       };
+      stock_item_visits: {
+        Row: {
+          id: string;
+          item_id: string;
+          technician_id: string;
+          work_notes: string;
+          submitted_at: string;
+        };
+        Insert: {
+          id: string;
+          item_id: string;
+          technician_id: string;
+          work_notes?: string;
+          submitted_at?: string;
+        };
+        Update: {
+          id?: string;
+          item_id?: string;
+          technician_id?: string;
+          work_notes?: string;
+          submitted_at?: string;
+        };
+        Relationships: [];
+      };
+      client_support_requests: {
+        Row: {
+          id: string;
+          item_id: string;
+          category: string;
+          description: string;
+          status: string;
+          created_at: string;
+          updated_at: string;
+          resolved_at: string | null;
+          updated_by_id: string | null;
+        };
+        Insert: {
+          id: string;
+          item_id: string;
+          category?: string;
+          description?: string;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+          resolved_at?: string | null;
+          updated_by_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          item_id?: string;
+          category?: string;
+          description?: string;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+          resolved_at?: string | null;
+          updated_by_id?: string | null;
+        };
+        Relationships: [];
+      };
+      qr_portal_sessions: {
+        Row: {
+          id: string;
+          stock_item_id: string;
+          qr_token: string;
+          role: string;
+          technician_id: string | null;
+          session_token_hash: string;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          stock_item_id: string;
+          qr_token: string;
+          role: string;
+          technician_id?: string | null;
+          session_token_hash: string;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          stock_item_id?: string;
+          qr_token?: string;
+          role?: string;
+          technician_id?: string | null;
+          session_token_hash?: string;
+          expires_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       activities: {
         Row: {
           id: string;
@@ -523,9 +667,14 @@ export type ActivityRow = Database["public"]["Tables"]["activities"]["Row"];
 export type TowerRow = Database["public"]["Tables"]["towers"]["Row"];
 export type TowerOutageRow = Database["public"]["Tables"]["tower_outages"]["Row"];
 export type StockProductRow = Database["public"]["Tables"]["stock_products"]["Row"];
+export type StockSundryRow = Database["public"]["Tables"]["stock_sundries"]["Row"];
 export type StockItemRow = Database["public"]["Tables"]["stock_items"]["Row"];
 export type StockBookingRow = Database["public"]["Tables"]["stock_bookings"]["Row"];
 export type StockRequestRow = Database["public"]["Tables"]["stock_requests"]["Row"];
 export type StockRequestLineRow = Database["public"]["Tables"]["stock_request_lines"]["Row"];
 export type StockQrLabelRow = Database["public"]["Tables"]["stock_qr_labels"]["Row"];
+export type StockItemVisitRow = Database["public"]["Tables"]["stock_item_visits"]["Row"];
+export type ClientSupportRequestRow =
+  Database["public"]["Tables"]["client_support_requests"]["Row"];
+export type QrPortalSessionRow = Database["public"]["Tables"]["qr_portal_sessions"]["Row"];
 export type AppNotificationRow = Database["public"]["Tables"]["app_notifications"]["Row"];

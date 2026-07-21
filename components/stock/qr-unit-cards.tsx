@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { stockItemPublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
 import { useStockStore } from "@/lib/store/stock-store";
-import type { StockItem, StockProduct } from "@/lib/types";
+import type { StockItem, StockItemVisit, StockProduct } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, Pencil, Trash2 } from "lucide-react";
+import { Download, History, KeyRound, Pencil, Trash2 } from "lucide-react";
 
 export function EditUnitDialog({
   item,
@@ -32,6 +32,7 @@ export function EditUnitDialog({
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [clientName, setClientName] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
   const [clientPppoe, setClientPppoe] = useState("");
   const [wifiName, setWifiName] = useState("");
   const [wifiPassword, setWifiPassword] = useState("");
@@ -44,6 +45,7 @@ export function EditUnitDialog({
       setDeviceName(item.deviceName);
       setSerialNumber(item.serialNumber);
       setClientName(item.clientName ?? "");
+      setClientAddress(item.clientAddress ?? "");
       setClientPppoe(item.clientPppoe ?? "");
       setWifiName(item.wifiName ?? "");
       setWifiPassword(item.wifiPassword ?? "");
@@ -62,6 +64,7 @@ export function EditUnitDialog({
         deviceName,
         serialNumber,
         clientName,
+        clientAddress,
         clientPppoe,
         wifiName,
         wifiPassword,
@@ -115,6 +118,14 @@ export function EditUnitDialog({
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
               placeholder="Client name"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="font-medium">Client address</label>
+            <Input
+              value={clientAddress}
+              onChange={(e) => setClientAddress(e.target.value)}
+              placeholder="Street, town"
             />
           </div>
           <div className="space-y-1">
@@ -173,14 +184,85 @@ export function EditUnitDialog({
   );
 }
 
+export function VisitHistoryDialog({
+  item,
+  productName,
+  open,
+  onOpenChange,
+}: {
+  item: StockItem | null;
+  productName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { getItemVisits } = useStockStore();
+  const [visits, setVisits] = useState<StockItemVisit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    if (!open || !item) return;
+    setLoading(true);
+    setMsg("");
+    void getItemVisits(item.id)
+      .then(setVisits)
+      .catch((e) => setMsg(e instanceof Error ? e.message : "Failed to load visits"))
+      .finally(() => setLoading(false));
+  }, [open, item, getItemVisits]);
+
+  if (!item) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto bg-white sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            Visit history — {productName}
+            {item.clientName ? ` · ${item.clientName}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          {loading ? (
+            <p className="text-muted-foreground">Loading…</p>
+          ) : visits.length === 0 ? (
+            <p className="text-muted-foreground">No technician visits logged yet.</p>
+          ) : (
+            visits.map((visit) => (
+              <div key={visit.id} className="rounded-lg border p-3">
+                <p className="font-medium">{visit.technicianName ?? "Technician"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(visit.submittedAt).toLocaleString("en-ZA")}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap">{visit.workNotes}</p>
+              </div>
+            ))
+          )}
+          {msg && <p className="text-[#C83733]">{msg}</p>}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function QrPreviewCard({
   item,
   product,
   onEdit,
+  onShowVisits,
+  onRegeneratePin,
+  clientPinMsg,
 }: {
   item: StockItem;
   product: StockProduct | undefined;
   onEdit: (item: StockItem) => void;
+  onShowVisits?: (item: StockItem) => void;
+  onRegeneratePin?: (item: StockItem) => void;
+  clientPinMsg?: string;
 }) {
   const url = stockItemPublicUrl(item.qrToken);
   const qr = useQrDataUrl(url);
@@ -220,6 +302,11 @@ export function QrPreviewCard({
               <span className="text-muted-foreground">Client:</span> {item.clientName}
             </p>
           ) : null}
+          {item.clientAddress ? (
+            <p>
+              <span className="text-muted-foreground">Address:</span> {item.clientAddress}
+            </p>
+          ) : null}
           {item.clientPppoe ? (
             <p>
               <span className="text-muted-foreground">Client PPPoE:</span> {item.clientPppoe}
@@ -234,6 +321,27 @@ export function QrPreviewCard({
             <span className="text-muted-foreground">Status:</span>{" "}
             {item.status.replace("_", " ")}
           </p>
+          {item.hasClientPin !== undefined && (
+            <p>
+              <span className="text-muted-foreground">Client PIN:</span>{" "}
+              {item.clientPin ? (
+                <span className="font-mono text-base font-bold tracking-[0.2em] text-[#C83733]">
+                  {item.clientPin}
+                </span>
+              ) : item.hasClientPin ? (
+                <span className="text-xs text-amber-700">
+                  Hidden legacy code — select New PIN
+                </span>
+              ) : (
+                "Not set"
+              )}
+            </p>
+          )}
+          {clientPinMsg ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+              {clientPinMsg}
+            </p>
+          ) : null}
           <p className="break-all text-xs text-muted-foreground print:hidden">{url}</p>
           <div className="flex flex-wrap gap-2 pt-2 print:hidden">
             {qr && (
@@ -243,6 +351,18 @@ export function QrPreviewCard({
                   Download
                 </Button>
               </a>
+            )}
+            {onShowVisits && (
+              <Button type="button" size="sm" variant="outline" onClick={() => onShowVisits(item)}>
+                <History className="mr-1 h-4 w-4" />
+                Visits
+              </Button>
+            )}
+            {onRegeneratePin && (
+              <Button type="button" size="sm" variant="outline" onClick={() => onRegeneratePin(item)}>
+                <KeyRound className="mr-1 h-4 w-4" />
+                New PIN
+              </Button>
             )}
             <Button type="button" size="sm" variant="outline" onClick={() => onEdit(item)}>
               <Pencil className="mr-1 h-4 w-4" />

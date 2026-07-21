@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireCoordinationAccess } from "@/lib/supabase/server-auth";
 import { userFromRow } from "@/lib/supabase/mappers";
+import {
+  decryptPortalCode,
+  encryptPortalCode,
+  generateFourDigitCode,
+  hashPortalCode,
+} from "@/lib/portal-auth";
 import type { User } from "@/lib/types";
 
 const TECH_COLORS = ["#0EA5E9", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6"];
@@ -11,6 +17,20 @@ function initialsFromName(name: string) {
   if (parts.length === 0) return "T";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+async function generateUniqueAccessCode(supabase: ReturnType<typeof createSupabaseAdminClient>) {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const code = generateFourDigitCode();
+    const hash = hashPortalCode(code);
+    const { data } = await supabase
+      .from("team_members")
+      .select("id")
+      .eq("access_code_hash", hash)
+      .maybeSingle();
+    if (!data) return { code, hash };
+  }
+  throw new Error("Could not generate a unique access code");
 }
 
 export async function GET(request: Request) {
@@ -29,7 +49,28 @@ export async function GET(request: Request) {
       .order("name");
     if (error) throw error;
 
-    const techs = (data ?? []).map(userFromRow);
+    const techs: User[] = [];
+    for (const row of data ?? []) {
+      let accessCode = decryptPortalCode(row.access_code_ciphertext);
+      if (!accessCode || !/^\d{4}$/.test(accessCode)) {
+        const generated = await generateUniqueAccessCode(supabase);
+        const updatedAt = new Date().toISOString();
+        const { error: upgradeError } = await supabase
+          .from("team_members")
+          .update({
+            access_code_hash: generated.hash,
+            access_code_ciphertext: encryptPortalCode(generated.code),
+            access_code_updated_at: updatedAt,
+          })
+          .eq("id", row.id);
+        if (!upgradeError) accessCode = generated.code;
+      }
+      techs.push({
+        ...userFromRow(row),
+        hasAccessCode: Boolean(accessCode) || Boolean(row.access_code_hash),
+        accessCode,
+      });
+    }
     return NextResponse.json(
       { technicians: techs },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -48,7 +89,12 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
-      action: "create" | "deactivate" | "reactivate";
+      action:
+        | "create"
+        | "deactivate"
+        | "reactivate"
+        | "generateAccessCode"
+        | "revokeAccessCode";
       name?: string;
       title?: string;
       technicianId?: string;
@@ -141,6 +187,48 @@ export async function POST(request: Request) {
       if (error) throw error;
 
       return NextResponse.json({ ok: true });
+    }
+
+    if (body.action === "generateAccessCode" || body.action === "revokeAccessCode") {
+      if (!body.technicianId) {
+        return NextResponse.json({ error: "technicianId required" }, { status: 400 });
+      }
+
+      const { data: existing, error: findError } = await supabase
+        .from("team_members")
+        .select("*")
+        .eq("id", body.technicianId)
+        .maybeSingle();
+      if (findError) throw findError;
+      if (!existing) {
+        return NextResponse.json({ error: "Technician not found" }, { status: 404 });
+      }
+
+      const now = new Date().toISOString();
+      if (body.action === "revokeAccessCode") {
+        const { error } = await supabase
+          .from("team_members")
+          .update({
+            access_code_hash: null,
+            access_code_ciphertext: null,
+            access_code_updated_at: now,
+          })
+          .eq("id", body.technicianId);
+        if (error) throw error;
+        return NextResponse.json({ ok: true });
+      }
+
+      const { code, hash } = await generateUniqueAccessCode(supabase);
+      const { error } = await supabase
+        .from("team_members")
+        .update({
+          access_code_hash: hash,
+          access_code_ciphertext: encryptPortalCode(code),
+          access_code_updated_at: now,
+        })
+        .eq("id", body.technicianId);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, accessCode: code });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

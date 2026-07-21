@@ -61,6 +61,11 @@ export interface User {
   authUserId?: string;
   /** Soft-active; inactive techs stay for booking history but leave pickers */
   active?: boolean;
+  /** Whether a QR portal access code is configured (hash never exposed) */
+  hasAccessCode?: boolean;
+  accessCodeUpdatedAt?: string | null;
+  /** Decrypted only by authorized coordination APIs. */
+  accessCode?: string;
 }
 
 export type UserFormData = Omit<User, "id" | "authUserId">;
@@ -157,12 +162,69 @@ export interface StockItem {
   deviceName: string;
   serialNumber: string;
   clientName: string;
+  clientAddress: string;
   clientPppoe: string;
   wifiName: string;
   wifiPassword: string;
   status: StockItemStatus;
   createdAt: string;
   updatedAt: string;
+  /** Whether a client portal PIN is configured (hash never exposed) */
+  hasClientPin?: boolean;
+  clientPinUpdatedAt?: string | null;
+  /** Decrypted only for authenticated stock users. */
+  clientPin?: string;
+}
+
+export interface StockSundry {
+  id: string;
+  name: string;
+  unitLabel: string;
+  quantity: number;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type QrPortalRole = "client" | "technician";
+
+export type ClientSupportRequestStatus =
+  | "new"
+  | "checked"
+  | "site_survey_needed"
+  | "resolved";
+
+export type ClientSupportRequestCategory =
+  | "slow_internet"
+  | "no_internet"
+  | "quote"
+  | "other";
+
+export interface StockItemVisit {
+  id: string;
+  itemId: string;
+  technicianId: string;
+  technicianName?: string;
+  workNotes: string;
+  submittedAt: string;
+}
+
+export interface ClientSupportRequest {
+  id: string;
+  itemId: string;
+  category: ClientSupportRequestCategory;
+  description: string;
+  status: ClientSupportRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+  updatedById?: string | null;
+  /** Populated on support inbox list */
+  clientName?: string;
+  clientAddress?: string;
+  productName?: string;
+  deviceLabel?: string;
+  qrToken?: string;
 }
 
 /** Preprinted QR sticker that has not yet been claimed into inventory. */
@@ -210,7 +272,10 @@ export interface StockRequest {
   lines: StockRequestLine[];
 }
 
-export type AppNotificationType = "stock_request_sent" | "stock_shortfall";
+export type AppNotificationType =
+  | "stock_request_sent"
+  | "stock_shortfall"
+  | "client_support_request";
 
 export interface AppNotification {
   id: string;

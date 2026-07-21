@@ -12,6 +12,7 @@ function stripClientSecrets(item: StockItem): StockItem {
   return {
     ...item,
     clientName: "",
+    clientAddress: "",
     clientPppoe: "",
     wifiName: "",
     wifiPassword: "",

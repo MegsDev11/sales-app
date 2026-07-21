@@ -14,6 +14,7 @@ import {
   BarChart3,
   Inbox,
   MapPin,
+  MessageSquare,
   Radio,
   Building2,
   Package,
@@ -48,6 +49,7 @@ const salesNavItems = [
 
 const supportNavItems = [
   { href: "/support", label: "Overview", icon: LayoutDashboard },
+  { href: "/support/requests", label: "Client Requests", icon: MessageSquare },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
 ];

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus } from "lucide-react";
+import { KeyRound, UserPlus } from "lucide-react";
 
 export default function CoordinationTechniciansPage() {
   const { allowed, isLoading } = useCoordinationAccess();
@@ -21,6 +21,7 @@ export default function CoordinationTechniciansPage() {
   const [msg, setMsg] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [codeMsgs, setCodeMsgs] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -72,6 +73,37 @@ export default function CoordinationTechniciansPage() {
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Add failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAccessCode(tech: User, revoke = false) {
+    if (
+      !revoke &&
+      !window.confirm(
+        `Generate a new QR access code for ${tech.name}? Any previous code will stop working.`
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    try {
+      const data = await postAction({
+        action: revoke ? "revokeAccessCode" : "generateAccessCode",
+        technicianId: tech.id,
+      });
+      if (!revoke && data.accessCode) {
+        setCodeMsgs((prev) => ({
+          ...prev,
+          [tech.id]: `Access code for ${tech.name}: ${data.accessCode as string}`,
+        }));
+      }
+      setMsg(revoke ? "Access code revoked" : "Access code generated — shown on card");
+      await load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Code update failed");
     } finally {
       setBusy(false);
     }
@@ -168,22 +200,67 @@ export default function CoordinationTechniciansPage() {
                           Field only
                         </Badge>
                       )}
+                      {tech.hasAccessCode ? (
+                        <Badge variant="outline" className="mt-1 ml-1 text-[10px]">
+                          QR code set
+                        </Badge>
+                      ) : null}
+                      {tech.accessCode ? (
+                        <p className="mt-2 font-mono text-lg font-bold tracking-[0.25em] text-[#C83733]">
+                          {tech.accessCode}
+                        </p>
+                      ) : tech.hasAccessCode ? (
+                        <p className="mt-2 max-w-36 text-[10px] text-amber-700">
+                          Existing code is hidden. Select New code to create a visible 4-digit code.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void handleToggle(tech, false)}
-                  >
-                    Remove
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void handleAccessCode(tech)}
+                    >
+                      <KeyRound className="mr-1 h-3 w-3" />
+                      {tech.hasAccessCode ? "New code" : "Set code"}
+                    </Button>
+                    {tech.hasAccessCode && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs text-muted-foreground"
+                        disabled={busy}
+                        onClick={() => void handleAccessCode(tech, true)}
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void handleToggle(tech, false)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </div>
+
+      {Object.entries(codeMsgs).map(([techId, text]) => (
+        <div
+          key={techId}
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          {text}
+        </div>
+      ))}
 
       <div className="space-y-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => setShowInactive((v) => !v)}>

@@ -24,6 +24,14 @@ async function probe(name, path) {
 await probe("009: stock_items.client_pppoe/wifi columns", "stock_items?select=id,client_pppoe,wifi_name,wifi_password&limit=1");
 await probe("010: stock_items.client_name column", "stock_items?select=id,client_name&limit=1");
 await probe("011: stock_qr_labels table", "stock_qr_labels?select=id&limit=1");
+await probe("012: stock_items.client_address column", "stock_items?select=id,client_address&limit=1");
+await probe("013: stock_item_visits table", "stock_item_visits?select=id&limit=1");
+await probe("013: client_support_requests table", "client_support_requests?select=id&limit=1");
+await probe("014: stock_sundries table", "stock_sundries?select=id&limit=1");
+await probe(
+  "015: recoverable four-digit portal codes",
+  "stock_items?select=id,client_pin_ciphertext&limit=1"
+);
 
 async function probeRpc(name, fn, args) {
   const res = await fetch(`${url}/rest/v1/rpc/${fn}`, {
