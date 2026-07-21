@@ -259,7 +259,11 @@ export default function CoordinationRequestsPage() {
               <label className="font-medium">Technician</label>
               <Select value={techId} onValueChange={(v) => v && setTechId(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select tech" />
+                  <SelectValue>
+                    {(value) =>
+                      value ? techs.find((t) => t.id === value)?.name ?? "Select tech" : "Select tech"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {techs.map((t) => (
@@ -278,7 +282,13 @@ export default function CoordinationRequestsPage() {
                 onValueChange={(v) => setLeadId(v === "__none" ? "" : (v ?? ""))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Client" />
+                  <SelectValue>
+                    {(value) =>
+                      value === "__none" || !value
+                        ? "Client"
+                        : leads.find((lead) => lead.id === value)?.clientName ?? "Client"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">No client</SelectItem>
@@ -310,7 +320,13 @@ export default function CoordinationRequestsPage() {
                         }}
                       >
                         <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Product" />
+                          <SelectValue>
+                            {(value) =>
+                              value
+                                ? products.find((p) => p.id === value)?.name ?? "Product"
+                                : "Product"
+                            }
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {products.map((p) => {

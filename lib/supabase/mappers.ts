@@ -7,6 +7,7 @@ import type {
   StockItem,
   StockItemStatus,
   StockProduct,
+  StockQrLabel,
   StockRequest,
   StockRequestLine,
   StockRequestStatus,
@@ -22,6 +23,7 @@ import type {
   StockBookingRow,
   StockItemRow,
   StockProductRow,
+  StockQrLabelRow,
   StockRequestLineRow,
   StockRequestRow,
   TeamMemberRow,
@@ -352,6 +354,10 @@ export function stockItemFromRow(row: StockItemRow): StockItem {
     brand: row.brand,
     deviceName: row.device_name,
     serialNumber: row.serial_number,
+    clientName: row.client_name ?? "",
+    clientPppoe: row.client_pppoe ?? "",
+    wifiName: row.wifi_name ?? "",
+    wifiPassword: row.wifi_password ?? "",
     status: row.status as StockItemStatus,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -366,6 +372,10 @@ export function stockItemToRow(item: StockItem): StockItemRow {
     brand: item.brand,
     device_name: item.deviceName,
     serial_number: item.serialNumber,
+    client_name: item.clientName,
+    client_pppoe: item.clientPppoe,
+    wifi_name: item.wifiName,
+    wifi_password: item.wifiPassword,
     status: item.status,
     created_at: item.createdAt,
     updated_at: item.updatedAt,
@@ -379,9 +389,41 @@ export function stockItemUpdatesToRow(updates: Partial<StockItem>): Partial<Stoc
   if (updates.brand !== undefined) row.brand = updates.brand;
   if (updates.deviceName !== undefined) row.device_name = updates.deviceName;
   if (updates.serialNumber !== undefined) row.serial_number = updates.serialNumber;
+  if (updates.clientName !== undefined) row.client_name = updates.clientName;
+  if (updates.clientPppoe !== undefined) row.client_pppoe = updates.clientPppoe;
+  if (updates.wifiName !== undefined) row.wifi_name = updates.wifiName;
+  if (updates.wifiPassword !== undefined) row.wifi_password = updates.wifiPassword;
   if (updates.status !== undefined) row.status = updates.status;
   if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt;
   return row;
+}
+
+export function stockQrLabelFromRow(row: StockQrLabelRow): StockQrLabel {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    productId: row.product_id,
+    qrToken: row.qr_token,
+    brand: row.brand,
+    deviceName: row.device_name,
+    createdAt: row.created_at,
+    claimedAt: row.claimed_at,
+    claimedItemId: row.claimed_item_id,
+  };
+}
+
+export function stockQrLabelToRow(label: StockQrLabel): StockQrLabelRow {
+  return {
+    id: label.id,
+    batch_id: label.batchId,
+    product_id: label.productId,
+    qr_token: label.qrToken,
+    brand: label.brand,
+    device_name: label.deviceName,
+    created_at: label.createdAt,
+    claimed_at: label.claimedAt ?? null,
+    claimed_item_id: label.claimedItemId ?? null,
+  };
 }
 
 export function stockBookingFromRow(row: StockBookingRow): StockBooking {

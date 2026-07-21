@@ -70,7 +70,7 @@ export function StockMobileNav() {
             : item.href === "/stock/inventory"
               ? "Stock"
               : item.href === "/stock/requests"
-                ? "Reqs"
+                ? "Tech Stock List"
                 : item.label;
         return (
           <Link

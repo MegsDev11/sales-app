@@ -13,6 +13,7 @@ import type {
   StockBooking,
   StockItem,
   StockProduct,
+  StockQrLabel,
   StockRequest,
 } from "@/lib/types";
 
@@ -21,6 +22,7 @@ type StockBundle = {
   items: StockItem[];
   bookings: StockBooking[];
   requests: StockRequest[];
+  qrLabels: StockQrLabel[];
 };
 
 type StockStoreValue = StockBundle & {
@@ -32,11 +34,24 @@ type StockStoreValue = StockBundle & {
     brand: string;
     deviceName: string;
     serialNumber: string;
+    clientName?: string;
+    clientPppoe?: string;
+    wifiName?: string;
+    wifiPassword?: string;
   }) => Promise<StockItem | null>;
   updateItem: (
     itemId: string,
-    updates: { brand?: string; deviceName?: string; serialNumber?: string }
+    updates: {
+      brand?: string;
+      deviceName?: string;
+      serialNumber?: string;
+      clientName?: string;
+      clientPppoe?: string;
+      wifiName?: string;
+      wifiPassword?: string;
+    }
   ) => Promise<void>;
+  deleteItem: (itemId: string) => Promise<void>;
   bookOut: (input: {
     itemId: string;
     technicianId: string;
@@ -52,7 +67,28 @@ type StockStoreValue = StockBundle & {
     lines: { productId: string; qtyNeeded: number }[];
   }) => Promise<void>;
   cancelRequest: (requestId: string) => Promise<void>;
-  fulfillScan: (requestId: string, qrToken: string) => Promise<void>;
+  fulfillScan: (
+    requestId: string,
+    qrToken: string,
+    details?: {
+      serialNumber?: string;
+      clientName?: string;
+      clientPppoe?: string;
+      wifiName?: string;
+      wifiPassword?: string;
+    }
+  ) => Promise<void>;
+  createQrLabelBatch: (input: {
+    productId: string;
+    brand?: string;
+    deviceName?: string;
+    quantity: number;
+  }) => Promise<{ batchId: string; labels: StockQrLabel[] }>;
+  claimQrLabel: (
+    qrToken: string,
+    serialNumber?: string
+  ) => Promise<StockItem | null>;
+  returnByQr: (qrToken: string) => Promise<StockItem | null>;
   productCounts: (productId: string) => {
     total: number;
     available: number;
@@ -65,6 +101,7 @@ const EMPTY: StockBundle = {
   items: [],
   bookings: [],
   requests: [],
+  qrLabels: [],
 };
 
 const StockStoreContext = createContext<StockStoreValue | null>(null);
@@ -74,6 +111,16 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
   const [data, setData] = useState<StockBundle>(EMPTY);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const applyBundle = useCallback((body: Record<string, unknown>) => {
+    setData({
+      products: (body.products as StockProduct[]) ?? [],
+      items: (body.items as StockItem[]) ?? [],
+      bookings: (body.bookings as StockBooking[]) ?? [],
+      requests: (body.requests as StockRequest[]) ?? [],
+      qrLabels: (body.qrLabels as StockQrLabel[]) ?? [],
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!accessToken) {
@@ -88,19 +135,14 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to load stock");
-      setData({
-        products: body.products ?? [],
-        items: body.items ?? [],
-        bookings: body.bookings ?? [],
-        requests: body.requests ?? [],
-      });
+      applyBundle(body);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stock");
     } finally {
       setIsLoaded(true);
     }
-  }, [accessToken]);
+  }, [accessToken, applyBundle]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -120,16 +162,11 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Stock action failed");
-      setData({
-        products: data.products ?? [],
-        items: data.items ?? [],
-        bookings: data.bookings ?? [],
-        requests: data.requests ?? [],
-      });
+      applyBundle(data);
       setError(null);
       return data;
     },
-    [accessToken]
+    [accessToken, applyBundle]
   );
 
   const value = useMemo<StockStoreValue>(
@@ -145,6 +182,9 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       updateItem: async (itemId, updates) => {
         await post({ action: "updateItem", itemId, ...updates });
       },
+      deleteItem: async (itemId) => {
+        await post({ action: "deleteItem", itemId });
+      },
       bookOut: async (input) => {
         await post({ action: "bookOut", ...input });
       },
@@ -157,8 +197,23 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       cancelRequest: async (requestId) => {
         await post({ action: "cancelRequest", requestId });
       },
-      fulfillScan: async (requestId, qrToken) => {
-        await post({ action: "fulfillScan", requestId, qrToken });
+      fulfillScan: async (requestId, qrToken, details) => {
+        await post({ action: "fulfillScan", requestId, qrToken, ...details });
+      },
+      createQrLabelBatch: async (input) => {
+        const result = await post({ action: "createQrLabelBatch", ...input });
+        return {
+          batchId: (result.batchId as string) ?? "",
+          labels: (result.labels as StockQrLabel[]) ?? [],
+        };
+      },
+      claimQrLabel: async (qrToken, serialNumber) => {
+        const result = await post({ action: "claimQrLabel", qrToken, serialNumber });
+        return (result.item as StockItem) ?? null;
+      },
+      returnByQr: async (qrToken) => {
+        const result = await post({ action: "returnByQr", qrToken });
+        return (result.item as StockItem) ?? null;
       },
       productCounts: (productId) => {
         const units = data.items.filter((i) => i.productId === productId);

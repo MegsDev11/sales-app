@@ -7,6 +7,7 @@ import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { stockItemPublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
+import { getFieldTechnicians } from "@/lib/permissions";
 import type { StockItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,17 @@ import {
 } from "@/components/ui/select";
 import { ChevronDown, ChevronRight, Download, QrCode } from "lucide-react";
 
+const stockDateFormatter = new Intl.DateTimeFormat("en-ZA", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Africa/Johannesburg",
+});
+
+function formatStockDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : stockDateFormatter.format(date);
+}
+
 function ItemDetailDialog({
   item,
   productName,
@@ -43,6 +55,10 @@ function ItemDetailDialog({
   const [brand, setBrand] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientPppoe, setClientPppoe] = useState("");
+  const [wifiName, setWifiName] = useState("");
+  const [wifiPassword, setWifiPassword] = useState("");
   const [techId, setTechId] = useState("");
   const [leadId, setLeadId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -51,16 +67,7 @@ function ItemDetailDialog({
   const url = item ? stockItemPublicUrl(item.qrToken) : null;
   const qr = useQrDataUrl(url);
 
-  const techs = useMemo(
-    () =>
-      users.filter(
-        (u) =>
-          u.department === "coordination" ||
-          u.department === "stock" ||
-          u.role === "staff"
-      ),
-    [users]
-  );
+  const techs = useMemo(() => getFieldTechnicians(users), [users]);
   const leads = getVisibleLeads().filter((l) => !l.deleted).slice(0, 200);
 
   useEffect(() => {
@@ -68,6 +75,10 @@ function ItemDetailDialog({
       setBrand(item.brand);
       setDeviceName(item.deviceName);
       setSerialNumber(item.serialNumber);
+      setClientName(item.clientName ?? "");
+      setClientPppoe(item.clientPppoe ?? "");
+      setWifiName(item.wifiName ?? "");
+      setWifiPassword(item.wifiPassword ?? "");
       setMsg("");
       setTechId("");
       setLeadId("");
@@ -80,7 +91,15 @@ function ItemDetailDialog({
     setSaving(true);
     setMsg("");
     try {
-      await updateItem(item!.id, { brand, deviceName, serialNumber });
+      await updateItem(item!.id, {
+        brand,
+        deviceName,
+        serialNumber,
+        clientName,
+        clientPppoe,
+        wifiName,
+        wifiPassword,
+      });
       setMsg("Saved — QR stickers still work; scan shows updated details.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Save failed");
@@ -164,6 +183,38 @@ function ItemDetailDialog({
             <label className="font-medium">Serial number</label>
             <Input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
           </div>
+          <div className="space-y-2">
+            <label className="font-medium">Client name</label>
+            <Input
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="Client name"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="font-medium">Client PPPoE</label>
+            <Input
+              value={clientPppoe}
+              onChange={(e) => setClientPppoe(e.target.value)}
+              placeholder="client@megs"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="font-medium">WiFi name</label>
+            <Input
+              value={wifiName}
+              onChange={(e) => setWifiName(e.target.value)}
+              placeholder="SSID"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="font-medium">WiFi password</label>
+            <Input
+              value={wifiPassword}
+              onChange={(e) => setWifiPassword(e.target.value)}
+              placeholder="WiFi password"
+            />
+          </div>
           <p className="text-xs text-muted-foreground">
             Status: <span className="font-semibold capitalize">{item.status.replace("_", " ")}</span>
           </p>
@@ -174,7 +225,11 @@ function ItemDetailDialog({
               <p className="font-medium">Book out</p>
               <Select value={techId} onValueChange={(v) => v && setTechId(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Technician" />
+                  <SelectValue>
+                    {(value) =>
+                      value ? techs.find((t) => t.id === value)?.name ?? "Technician" : "Technician"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {techs.map((t) => (
@@ -187,7 +242,13 @@ function ItemDetailDialog({
               </Select>
               <Select value={leadId || "__none"} onValueChange={(v) => setLeadId(v === "__none" ? "" : (v ?? ""))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Client (optional)" />
+                  <SelectValue>
+                    {(value) =>
+                      value === "__none"
+                        ? "Client"
+                        : leads.find((lead) => lead.id === value)?.clientName ?? "Client"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">No client</SelectItem>
@@ -245,7 +306,9 @@ export default function StockInventoryPage() {
 function StockInventoryPageInner() {
   const { allowed, isLoading } = useStockAccess();
   const searchParams = useSearchParams();
-  const { products, items, productCounts, createItem, isLoaded, error } = useStockStore();
+  const { products, items, bookings, productCounts, createItem, isLoaded, error } =
+    useStockStore();
+  const { users, getVisibleLeads } = useCrmStore();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [productId, setProductId] = useState("");
@@ -254,6 +317,29 @@ function StockInventoryPageInner() {
   const [serialNumber, setSerialNumber] = useState("");
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<StockItem | null>(null);
+
+  const activeBookingByItem = useMemo(
+    () =>
+      new Map(
+        bookings
+          .filter((booking) => !booking.returnedAt)
+          .map((booking) => [booking.itemId, booking])
+      ),
+    [bookings]
+  );
+  const technicianNameById = useMemo(
+    () => new Map(users.map((user) => [user.id, user.name])),
+    [users]
+  );
+  const clientNameById = useMemo(
+    () =>
+      new Map(
+        getVisibleLeads()
+          .filter((lead) => !lead.deleted)
+          .map((lead) => [lead.id, lead.clientName])
+      ),
+    [getVisibleLeads]
+  );
 
   useEffect(() => {
     const itemId = searchParams.get("item");
@@ -270,12 +356,16 @@ function StockInventoryPageInner() {
     if (!productId) return;
     setBusy(true);
     try {
-      const item = await createItem({ productId, brand, deviceName, serialNumber });
+      await createItem({
+        productId,
+        brand,
+        deviceName,
+        serialNumber,
+      });
       setAddOpen(false);
       setBrand("");
       setDeviceName("");
       setSerialNumber("");
-      if (item) setSelected(item);
     } finally {
       setBusy(false);
     }
@@ -354,31 +444,53 @@ function StockInventoryPageInner() {
                     {units.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No units yet.</p>
                     ) : (
-                      units.map((unit) => (
-                        <div
-                          key={unit.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
-                        >
-                          <div>
-                            <p className="font-medium">
-                              {unit.brand || product.brandDefault || "—"}{" "}
-                              {unit.deviceName || product.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              SN: {unit.serialNumber || "—"} ·{" "}
-                              <span className="capitalize">{unit.status.replace("_", " ")}</span>
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelected(unit)}
+                      units.map((unit) => {
+                        const booking = activeBookingByItem.get(unit.id);
+                        const technicianName = booking
+                          ? technicianNameById.get(booking.technicianId)
+                          : null;
+                        const clientName = booking?.leadId
+                          ? clientNameById.get(booking.leadId)
+                          : null;
+
+                        return (
+                          <div
+                            key={unit.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
                           >
-                            <QrCode className="mr-1 h-4 w-4" />
-                            QR / Edit
-                          </Button>
-                        </div>
-                      ))
+                            <div>
+                              <p className="font-medium">
+                                {unit.brand || product.brandDefault || "—"}{" "}
+                                {unit.deviceName || product.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                SN: {unit.serialNumber || "—"} ·{" "}
+                                <span className="capitalize">{unit.status.replace("_", " ")}</span>
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Booked in: {formatStockDate(unit.createdAt)}
+                              </p>
+                              {unit.status === "booked_out" && booking && (
+                                <div className="mt-1 space-y-0.5 text-xs text-amber-700">
+                                  <p>
+                                    Tech: {technicianName ?? "Unknown technician"}
+                                    {clientName ? ` · Client: ${clientName}` : ""}
+                                  </p>
+                                  <p>Booked out: {formatStockDate(booking.bookedOutAt)}</p>
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelected(unit)}
+                            >
+                              <QrCode className="mr-1 h-4 w-4" />
+                              QR / Edit
+                            </Button>
+                          </div>
+                        );
+                      })
                     )}
                   </CardContent>
                 )}
@@ -398,7 +510,11 @@ function StockInventoryPageInner() {
               <label className="font-medium">Product</label>
               <Select value={productId} onValueChange={(v) => v && setProductId(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Product" />
+                  <SelectValue>
+                    {(value) =>
+                      value ? products.find((p) => p.id === value)?.name ?? "Product" : "Product"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
@@ -439,7 +555,7 @@ function StockInventoryPageInner() {
               disabled={busy || !productId}
               onClick={() => void handleAdd()}
             >
-              Create + QR
+              Add to inventory
             </Button>
           </DialogFooter>
         </DialogContent>

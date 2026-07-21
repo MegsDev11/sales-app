@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { canAccessStock } from "@/lib/permissions";
+import { canAccessStock, getFieldTechnicians } from "@/lib/permissions";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import type { StockBooking, StockItem, StockProduct } from "@/lib/types";
@@ -42,20 +42,35 @@ export default function PublicStockItemPage() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    if (!token) return;
-    fetch(`/api/stock/item/${encodeURIComponent(token)}`, { cache: "no-store" })
+    if (!token || authLoading) return;
+    const headers: HeadersInit = {};
+    if (accessToken && canAccessStock(currentUser)) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+    fetch(`/api/stock/item/${encodeURIComponent(token)}`, {
+      cache: "no-store",
+      headers,
+    })
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error ?? "Not found");
         setData(body as PublicPayload);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
-  }, [token]);
+  }, [token, accessToken, authLoading, currentUser]);
 
-  const techs = users.filter(
-    (u) => u.department === "coordination" || u.department === "stock" || u.role === "staff"
-  );
+  const techs = getFieldTechnicians(users);
   const leads = getVisibleLeads().filter((l) => !l.deleted).slice(0, 200);
+
+  async function reloadItem() {
+    const headers: HeadersInit = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const res = await fetch(`/api/stock/item/${encodeURIComponent(token!)}`, {
+      cache: "no-store",
+      headers,
+    });
+    setData(await res.json());
+  }
 
   async function handleBookOut() {
     if (!data || !techId) return;
@@ -68,10 +83,7 @@ export default function PublicStockItemPage() {
         leadId: leadId || null,
       });
       await refresh();
-      const res = await fetch(`/api/stock/item/${encodeURIComponent(token!)}`, {
-        cache: "no-store",
-      });
-      setData(await res.json());
+      await reloadItem();
       setMsg("Booked out");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed");
@@ -85,10 +97,7 @@ export default function PublicStockItemPage() {
     setBusy(true);
     try {
       await returnItem(data.item.id);
-      const res = await fetch(`/api/stock/item/${encodeURIComponent(token!)}`, {
-        cache: "no-store",
-      });
-      setData(await res.json());
+      await reloadItem();
       setMsg("Returned");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed");
@@ -142,6 +151,26 @@ export default function PublicStockItemPage() {
           <p>
             <span className="text-muted-foreground">Serial:</span> {item.serialNumber || "—"}
           </p>
+          {item.clientName ? (
+            <p>
+              <span className="text-muted-foreground">Client:</span> {item.clientName}
+            </p>
+          ) : null}
+          {item.clientPppoe ? (
+            <p>
+              <span className="text-muted-foreground">Client PPPoE:</span> {item.clientPppoe}
+            </p>
+          ) : null}
+          {item.wifiName ? (
+            <p>
+              <span className="text-muted-foreground">WiFi name:</span> {item.wifiName}
+            </p>
+          ) : null}
+          {item.wifiPassword ? (
+            <p>
+              <span className="text-muted-foreground">WiFi password:</span> {item.wifiPassword}
+            </p>
+          ) : null}
           <p>
             <span className="text-muted-foreground">Status:</span>{" "}
             <span className="font-semibold capitalize">{item.status.replace("_", " ")}</span>
@@ -169,7 +198,13 @@ export default function PublicStockItemPage() {
               <>
                 <Select value={techId} onValueChange={(v) => v && setTechId(v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Technician" />
+                    <SelectValue>
+                      {(value) =>
+                        value
+                          ? techs.find((t) => t.id === value)?.name ?? "Technician"
+                          : "Technician"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {techs.map((t) => (
@@ -184,7 +219,13 @@ export default function PublicStockItemPage() {
                   onValueChange={(v) => setLeadId(v === "__none" ? "" : (v ?? ""))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Client (optional)" />
+                    <SelectValue>
+                      {(value) =>
+                        value === "__none"
+                          ? "Client"
+                          : leads.find((lead) => lead.id === value)?.clientName ?? "Client"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">No client</SelectItem>

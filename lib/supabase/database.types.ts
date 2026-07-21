@@ -262,6 +262,10 @@ export interface Database {
           brand: string;
           device_name: string;
           serial_number: string;
+          client_name: string;
+          client_pppoe: string;
+          wifi_name: string;
+          wifi_password: string;
           status: string;
           created_at: string;
           updated_at: string;
@@ -273,6 +277,10 @@ export interface Database {
           brand?: string;
           device_name?: string;
           serial_number?: string;
+          client_name?: string;
+          client_pppoe?: string;
+          wifi_name?: string;
+          wifi_password?: string;
           status?: string;
           created_at?: string;
           updated_at?: string;
@@ -284,6 +292,10 @@ export interface Database {
           brand?: string;
           device_name?: string;
           serial_number?: string;
+          client_name?: string;
+          client_pppoe?: string;
+          wifi_name?: string;
+          wifi_password?: string;
           status?: string;
           created_at?: string;
           updated_at?: string;
@@ -383,6 +395,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      stock_qr_labels: {
+        Row: {
+          id: string;
+          batch_id: string;
+          product_id: string;
+          qr_token: string;
+          brand: string;
+          device_name: string;
+          created_at: string;
+          claimed_at: string | null;
+          claimed_item_id: string | null;
+        };
+        Insert: {
+          id: string;
+          batch_id: string;
+          product_id: string;
+          qr_token: string;
+          brand?: string;
+          device_name?: string;
+          created_at?: string;
+          claimed_at?: string | null;
+          claimed_item_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          product_id?: string;
+          qr_token?: string;
+          brand?: string;
+          device_name?: string;
+          created_at?: string;
+          claimed_at?: string | null;
+          claimed_item_id?: string | null;
+        };
+        Relationships: [];
+      };
       activities: {
         Row: {
           id: string;
@@ -448,7 +496,22 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      claim_stock_qr_label: {
+        Args: {
+          p_qr_token: string;
+          p_serial_number?: string;
+          p_item_id?: string;
+        };
+        Returns: Json;
+      };
+      return_stock_item_by_qr: {
+        Args: {
+          p_qr_token: string;
+        };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
@@ -464,4 +527,5 @@ export type StockItemRow = Database["public"]["Tables"]["stock_items"]["Row"];
 export type StockBookingRow = Database["public"]["Tables"]["stock_bookings"]["Row"];
 export type StockRequestRow = Database["public"]["Tables"]["stock_requests"]["Row"];
 export type StockRequestLineRow = Database["public"]["Tables"]["stock_request_lines"]["Row"];
+export type StockQrLabelRow = Database["public"]["Tables"]["stock_qr_labels"]["Row"];
 export type AppNotificationRow = Database["public"]["Tables"]["app_notifications"]["Row"];

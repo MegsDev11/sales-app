@@ -13,11 +13,13 @@ import {
   stockItemToRow,
   stockItemUpdatesToRow,
   stockProductFromRow,
+  stockQrLabelFromRow,
+  stockQrLabelToRow,
   stockRequestFromRow,
   stockRequestLineToRow,
   stockRequestToRow,
 } from "@/lib/supabase/mappers";
-import type { AppNotification, StockItem, StockRequest, StockRequestLine } from "@/lib/types";
+import type { AppNotification, StockItem, StockQrLabel, StockRequest, StockRequestLine } from "@/lib/types";
 import { extractStockQrToken } from "@/lib/stock-qr-token";
 
 function makeToken() {
@@ -26,12 +28,13 @@ function makeToken() {
 
 async function loadStockBundle() {
   const supabase = createSupabaseAdminClient();
-  const [productsRes, itemsRes, bookingsRes, requestsRes, linesRes] = await Promise.all([
+  const [productsRes, itemsRes, bookingsRes, requestsRes, linesRes, labelsRes] = await Promise.all([
     supabase.from("stock_products").select("*").order("name"),
     supabase.from("stock_items").select("*").order("created_at", { ascending: false }),
     supabase.from("stock_bookings").select("*").order("booked_out_at", { ascending: false }),
     supabase.from("stock_requests").select("*").order("created_at", { ascending: false }),
     supabase.from("stock_request_lines").select("*"),
+    supabase.from("stock_qr_labels").select("*").order("created_at", { ascending: false }),
   ]);
 
   if (productsRes.error) throw productsRes.error;
@@ -39,6 +42,10 @@ async function loadStockBundle() {
   if (bookingsRes.error) throw bookingsRes.error;
   if (requestsRes.error) throw requestsRes.error;
   if (linesRes.error) throw linesRes.error;
+  // Labels table may not exist until migration 011 is applied.
+  if (labelsRes.error && !/stock_qr_labels|does not exist|schema cache/i.test(labelsRes.error.message)) {
+    throw labelsRes.error;
+  }
 
   const linesByRequest = new Map<string, typeof linesRes.data>();
   for (const line of linesRes.data ?? []) {
@@ -54,6 +61,7 @@ async function loadStockBundle() {
     requests: (requestsRes.data ?? []).map((row) =>
       stockRequestFromRow(row, linesByRequest.get(row.id) ?? [])
     ),
+    qrLabels: labelsRes.error ? [] : (labelsRes.data ?? []).map(stockQrLabelFromRow),
   };
 }
 
@@ -81,6 +89,10 @@ type StockAction =
       brand: string;
       deviceName: string;
       serialNumber: string;
+      clientName?: string;
+      clientPppoe?: string;
+      wifiName?: string;
+      wifiPassword?: string;
     }
   | {
       action: "updateItem";
@@ -88,7 +100,15 @@ type StockAction =
       brand?: string;
       deviceName?: string;
       serialNumber?: string;
+      clientName?: string;
+      clientPppoe?: string;
+      wifiName?: string;
+      wifiPassword?: string;
       status?: StockItem["status"];
+    }
+  | {
+      action: "deleteItem";
+      itemId: string;
     }
   | {
       action: "bookOut";
@@ -117,6 +137,27 @@ type StockAction =
   | {
       action: "fulfillScan";
       requestId: string;
+      qrToken: string;
+      serialNumber?: string;
+      clientName?: string;
+      clientPppoe?: string;
+      wifiName?: string;
+      wifiPassword?: string;
+    }
+  | {
+      action: "createQrLabelBatch";
+      productId: string;
+      brand?: string;
+      deviceName?: string;
+      quantity: number;
+    }
+  | {
+      action: "claimQrLabel";
+      qrToken: string;
+      serialNumber?: string;
+    }
+  | {
+      action: "returnByQr";
       qrToken: string;
     };
 
@@ -275,6 +316,10 @@ export async function POST(request: Request) {
         brand: body.brand.trim(),
         deviceName: body.deviceName.trim(),
         serialNumber: body.serialNumber.trim(),
+        clientName: body.clientName?.trim() ?? "",
+        clientPppoe: body.clientPppoe?.trim() ?? "",
+        wifiName: body.wifiName?.trim() ?? "",
+        wifiPassword: body.wifiPassword?.trim() ?? "",
         status: "available",
         createdAt: now,
         updatedAt: now,
@@ -289,10 +334,33 @@ export async function POST(request: Request) {
         brand: body.brand,
         deviceName: body.deviceName,
         serialNumber: body.serialNumber,
+        clientName: body.clientName,
+        clientPppoe: body.clientPppoe,
+        wifiName: body.wifiName,
+        wifiPassword: body.wifiPassword,
         status: body.status,
         updatedAt: now,
       });
       const { error } = await supabase.from("stock_items").update(updates).eq("id", body.itemId);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, ...(await loadStockBundle()) });
+    }
+
+    if (body.action === "deleteItem") {
+      const { data: itemRow, error: itemError } = await supabase
+        .from("stock_items")
+        .select("id, status")
+        .eq("id", body.itemId)
+        .maybeSingle();
+      if (itemError) throw itemError;
+      if (!itemRow) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      if (itemRow.status === "booked_out") {
+        return NextResponse.json(
+          { error: "Return the unit before deleting it" },
+          { status: 400 }
+        );
+      }
+      const { error } = await supabase.from("stock_items").delete().eq("id", body.itemId);
       if (error) throw error;
       return NextResponse.json({ ok: true, ...(await loadStockBundle()) });
     }
@@ -398,6 +466,22 @@ export async function POST(request: Request) {
         );
       }
 
+      // Save any device/client details captured during allocation.
+      const detailUpdates = stockItemUpdatesToRow({
+        serialNumber: body.serialNumber?.trim() || undefined,
+        clientName: body.clientName?.trim() || undefined,
+        clientPppoe: body.clientPppoe?.trim() || undefined,
+        wifiName: body.wifiName?.trim() || undefined,
+        wifiPassword: body.wifiPassword?.trim() || undefined,
+      });
+      if (Object.keys(detailUpdates).length > 0) {
+        const { error: detailError } = await supabase
+          .from("stock_items")
+          .update({ ...detailUpdates, updated_at: now })
+          .eq("id", itemRow.id);
+        if (detailError) throw detailError;
+      }
+
       const bookingId = `sbook-${Date.now()}`;
       const { error: bookingError } = await supabase.from("stock_bookings").insert(
         stockBookingToRow({
@@ -440,6 +524,91 @@ export async function POST(request: Request) {
       if (statusError) throw statusError;
 
       return NextResponse.json({ ok: true, ...(await loadStockBundle()) });
+    }
+
+    if (body.action === "createQrLabelBatch") {
+      const qty = Math.floor(Number(body.quantity));
+      if (!body.productId || !Number.isFinite(qty) || qty < 1 || qty > 200) {
+        return NextResponse.json(
+          { error: "Product and quantity (1–200) required" },
+          { status: 400 }
+        );
+      }
+      const { data: product, error: productError } = await supabase
+        .from("stock_products")
+        .select("id")
+        .eq("id", body.productId)
+        .maybeSingle();
+      if (productError) throw productError;
+      if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+
+      const batchId = `sbatch-${Date.now()}`;
+      const labels: StockQrLabel[] = Array.from({ length: qty }, (_, i) => ({
+        id: `slabel-${Date.now()}-${i}`,
+        batchId,
+        productId: body.productId,
+        qrToken: makeToken(),
+        brand: body.brand?.trim() ?? "",
+        deviceName: body.deviceName?.trim() ?? "",
+        createdAt: now,
+        claimedAt: null,
+        claimedItemId: null,
+      }));
+
+      const { error } = await supabase.from("stock_qr_labels").insert(labels.map(stockQrLabelToRow));
+      if (error) throw error;
+
+      return NextResponse.json({
+        ok: true,
+        batchId,
+        labels,
+        ...(await loadStockBundle()),
+      });
+    }
+
+    if (body.action === "claimQrLabel") {
+      const qrToken = extractStockQrToken(body.qrToken);
+      if (!qrToken) {
+        return NextResponse.json({ error: "QR token required" }, { status: 400 });
+      }
+      const itemId = `sitem-${Date.now()}`;
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("claim_stock_qr_label", {
+        p_qr_token: qrToken,
+        p_serial_number: body.serialNumber?.trim() ?? "",
+        p_item_id: itemId,
+      });
+      if (rpcError) throw rpcError;
+      const result = rpcResult as { ok?: boolean; error?: string; item_id?: string } | null;
+      if (!result?.ok) {
+        return NextResponse.json(
+          { error: result?.error ?? "Could not claim QR label" },
+          { status: 400 }
+        );
+      }
+      const bundle = await loadStockBundle();
+      const item = bundle.items.find((i) => i.id === result.item_id) ?? null;
+      return NextResponse.json({ ok: true, item, ...(bundle) });
+    }
+
+    if (body.action === "returnByQr") {
+      const qrToken = extractStockQrToken(body.qrToken);
+      if (!qrToken) {
+        return NextResponse.json({ error: "QR token required" }, { status: 400 });
+      }
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("return_stock_item_by_qr", {
+        p_qr_token: qrToken,
+      });
+      if (rpcError) throw rpcError;
+      const result = rpcResult as { ok?: boolean; error?: string; item_id?: string } | null;
+      if (!result?.ok) {
+        return NextResponse.json(
+          { error: result?.error ?? "Could not return unit" },
+          { status: 400 }
+        );
+      }
+      const bundle = await loadStockBundle();
+      const item = bundle.items.find((i) => i.id === result.item_id) ?? null;
+      return NextResponse.json({ ok: true, item, ...(bundle) });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

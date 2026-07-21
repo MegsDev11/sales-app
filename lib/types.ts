@@ -156,9 +156,26 @@ export interface StockItem {
   brand: string;
   deviceName: string;
   serialNumber: string;
+  clientName: string;
+  clientPppoe: string;
+  wifiName: string;
+  wifiPassword: string;
   status: StockItemStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Preprinted QR sticker that has not yet been claimed into inventory. */
+export interface StockQrLabel {
+  id: string;
+  batchId: string;
+  productId: string;
+  qrToken: string;
+  brand: string;
+  deviceName: string;
+  createdAt: string;
+  claimedAt?: string | null;
+  claimedItemId?: string | null;
 }
 
 export interface StockBooking {

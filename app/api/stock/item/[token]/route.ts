@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { requireStockAccess } from "@/lib/supabase/server-auth";
 import {
   stockBookingFromRow,
   stockItemFromRow,
   stockProductFromRow,
 } from "@/lib/supabase/mappers";
+import type { StockItem } from "@/lib/types";
+
+function stripClientSecrets(item: StockItem): StockItem {
+  return {
+    ...item,
+    clientName: "",
+    clientPppoe: "",
+    wifiName: "",
+    wifiPassword: "",
+  };
+}
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ token: string }> }
 ) {
   try {
     const { token } = await context.params;
     const supabase = createSupabaseAdminClient();
+    const stockUser = await requireStockAccess(request);
 
     const { data: itemRow, error } = await supabase
       .from("stock_items")
@@ -57,9 +70,11 @@ export async function GET(
       clientName = lead?.client_name ?? null;
     }
 
+    const item = stockItemFromRow(itemRow);
+
     return NextResponse.json(
       {
-        item: stockItemFromRow(itemRow),
+        item: stockUser ? item : stripClientSecrets(item),
         product: productRow ? stockProductFromRow(productRow) : null,
         booking: bookingRow ? stockBookingFromRow(bookingRow) : null,
         technicianName,
