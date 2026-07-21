@@ -7,7 +7,6 @@ import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { stockItemPublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { getFieldTechnicians } from "@/lib/permissions";
 import type { StockItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Download, QrCode } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, QrCode, Trash2 } from "lucide-react";
 
 const stockDateFormatter = new Intl.DateTimeFormat("en-ZA", {
   dateStyle: "medium",
@@ -50,38 +49,22 @@ function ItemDetailDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { updateItem, bookOut, returnItem } = useStockStore();
-  const { users, getVisibleLeads } = useCrmStore();
+  const { updateItem, deleteItem, returnItem } = useStockStore();
   const [brand, setBrand] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientPppoe, setClientPppoe] = useState("");
-  const [wifiName, setWifiName] = useState("");
-  const [wifiPassword, setWifiPassword] = useState("");
-  const [techId, setTechId] = useState("");
-  const [leadId, setLeadId] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
   const url = item ? stockItemPublicUrl(item.qrToken) : null;
   const qr = useQrDataUrl(url);
 
-  const techs = useMemo(() => getFieldTechnicians(users), [users]);
-  const leads = getVisibleLeads().filter((l) => !l.deleted).slice(0, 200);
-
   useEffect(() => {
     if (item) {
       setBrand(item.brand);
       setDeviceName(item.deviceName);
       setSerialNumber(item.serialNumber);
-      setClientName(item.clientName ?? "");
-      setClientPppoe(item.clientPppoe ?? "");
-      setWifiName(item.wifiName ?? "");
-      setWifiPassword(item.wifiPassword ?? "");
       setMsg("");
-      setTechId("");
-      setLeadId("");
     }
   }, [item]);
 
@@ -95,35 +78,10 @@ function ItemDetailDialog({
         brand,
         deviceName,
         serialNumber,
-        clientName,
-        clientPppoe,
-        wifiName,
-        wifiPassword,
       });
       setMsg("Saved — QR stickers still work; scan shows updated details.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleBookOut() {
-    if (!techId) {
-      setMsg("Select a technician");
-      return;
-    }
-    setSaving(true);
-    try {
-      await bookOut({
-        itemId: item!.id,
-        technicianId: techId,
-        leadId: leadId || null,
-      });
-      setMsg("Booked out");
-      onOpenChange(false);
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Book out failed");
     } finally {
       setSaving(false);
     }
@@ -137,6 +95,26 @@ function ItemDetailDialog({
       onOpenChange(false);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Return failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (
+      !window.confirm(
+        "Remove this unit from stock? Its QR sticker will stop working. Use this only if the unit was added by mistake."
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    try {
+      await deleteItem(item!.id);
+      onOpenChange(false);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setSaving(false);
     }
@@ -183,93 +161,14 @@ function ItemDetailDialog({
             <label className="font-medium">Serial number</label>
             <Input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <label className="font-medium">Client name</label>
-            <Input
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              placeholder="Client name"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="font-medium">Client PPPoE</label>
-            <Input
-              value={clientPppoe}
-              onChange={(e) => setClientPppoe(e.target.value)}
-              placeholder="client@megs"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="font-medium">WiFi name</label>
-            <Input
-              value={wifiName}
-              onChange={(e) => setWifiName(e.target.value)}
-              placeholder="SSID"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="font-medium">WiFi password</label>
-            <Input
-              value={wifiPassword}
-              onChange={(e) => setWifiPassword(e.target.value)}
-              placeholder="WiFi password"
-            />
-          </div>
           <p className="text-xs text-muted-foreground">
             Status: <span className="font-semibold capitalize">{item.status.replace("_", " ")}</span>
           </p>
+          <p className="text-xs text-muted-foreground">
+            Book-outs happen from Tech Stock List or Scan — client and WiFi details are captured
+            when the unit is allocated.
+          </p>
           {msg && <p className="text-sm text-[#C83733]">{msg}</p>}
-
-          {item.status === "available" && (
-            <div className="space-y-2 rounded-lg border p-3">
-              <p className="font-medium">Book out</p>
-              <Select value={techId} onValueChange={(v) => v && setTechId(v)}>
-                <SelectTrigger>
-                  <SelectValue>
-                    {(value) =>
-                      value ? techs.find((t) => t.id === value)?.name ?? "Technician" : "Technician"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {techs.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                      {t.department ? ` (${t.department})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={leadId || "__none"} onValueChange={(v) => setLeadId(v === "__none" ? "" : (v ?? ""))}>
-                <SelectTrigger>
-                  <SelectValue>
-                    {(value) =>
-                      value === "__none"
-                        ? "Client"
-                        : leads.find((lead) => lead.id === value)?.clientName ?? "Client"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">No client</SelectItem>
-                  {leads.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.clientName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                size="sm"
-                className="bg-[#C83733] hover:bg-[#a82f2b]"
-                disabled={saving}
-                onClick={() => void handleBookOut()}
-              >
-                Book out
-              </Button>
-            </div>
-          )}
 
           {item.status === "booked_out" && (
             <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void handleReturn()}>
@@ -277,18 +176,30 @@ function ItemDetailDialog({
             </Button>
           )}
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
+        <DialogFooter className="gap-2 sm:justify-between">
           <Button
             type="button"
-            className="bg-[#C83733] hover:bg-[#a82f2b]"
-            disabled={saving}
-            onClick={() => void handleSave()}
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={saving || item.status === "booked_out"}
+            onClick={() => void handleDelete()}
           >
-            Save details
+            <Trash2 className="mr-1 h-4 w-4" />
+            Remove unit
           </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              disabled={saving}
+              onClick={() => void handleSave()}
+            >
+              Save details
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
