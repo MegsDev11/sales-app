@@ -32,9 +32,11 @@ export default function CoordinationRequestsPage() {
   const { accessToken } = useAuth();
   const {
     products,
+    sundries,
     requests,
     createRequest,
     cancelRequest,
+    updateRequestLines,
     productCounts,
     isLoaded,
     error,
@@ -66,6 +68,10 @@ export default function CoordinationRequestsPage() {
     if (apiTechs.length > 0) return apiTechs;
     return getFieldTechnicians(users);
   }, [apiTechs, users]);
+  const seniorTechs = useMemo(
+    () => techs.filter((tech) => tech.technicianLevel === "senior"),
+    [techs]
+  );
   const leads = getVisibleLeads().filter((l) => !l.deleted).slice(0, 200);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -73,30 +79,92 @@ export default function CoordinationRequestsPage() {
   const [techId, setTechId] = useState("");
   const [leadId, setLeadId] = useState("");
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<{ productId: string; qtyNeeded: number }[]>([
-    { productId: "", qtyNeeded: 1 },
+  const [lines, setLines] = useState<{ target: string; qtyNeeded: number }[]>([
+    { target: "", qtyNeeded: 1 },
   ]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [editRequestId, setEditRequestId] = useState<string | null>(null);
+  const [editLines, setEditLines] = useState<
+    { id?: string; target: string; qtyNeeded: number; qtyFulfilled: number }[]
+  >([]);
+  const [editMsg, setEditMsg] = useState("");
+
+  const editingRequest = useMemo(
+    () => requests.find((r) => r.id === editRequestId) ?? null,
+    [requests, editRequestId]
+  );
+
+  // Line targets are encoded as "product:{id}" or "sundry:{id}" so one select covers both.
+  const decodeTarget = useCallback((target: string) => {
+    if (target.startsWith("sundry:")) return { sundryId: target.slice(7) };
+    if (target.startsWith("product:")) return { productId: target.slice(8) };
+    return {};
+  }, []);
+
+  const targetName = useCallback(
+    (target: string) => {
+      const { productId, sundryId } = decodeTarget(target);
+      if (sundryId) {
+        const sundry = sundries.find((s) => s.id === sundryId);
+        return sundry ? `${sundry.name} (sundry)` : "Sundry";
+      }
+      if (productId) {
+        return products.find((p) => p.id === productId)?.name ?? "Product";
+      }
+      return "Product or sundry";
+    },
+    [decodeTarget, products, sundries]
+  );
+
+  const targetAvailable = useCallback(
+    (target: string) => {
+      const { productId, sundryId } = decodeTarget(target);
+      if (sundryId) return sundries.find((s) => s.id === sundryId)?.quantity ?? 0;
+      if (productId) return productCounts(productId).available;
+      return null;
+    },
+    [decodeTarget, sundries, productCounts]
+  );
 
   const lineWarnings = useMemo(() => {
     return lines.map((line) => {
-      if (!line.productId) return null;
-      const available = productCounts(line.productId).available;
+      const available = targetAvailable(line.target);
+      if (available === null) return null;
       if (line.qtyNeeded > available) {
         return `Need ${line.qtyNeeded}, only ${available} available`;
       }
       return null;
     });
-  }, [lines, productCounts]);
+  }, [lines, targetAvailable]);
 
   const hasShortfall = lineWarnings.some(Boolean);
 
   if (isLoading || !allowed) return null;
 
+  function lineTargetOptions() {
+    return (
+      <SelectContent>
+        {products.map((p) => {
+          const avail = productCounts(p.id).available;
+          return (
+            <SelectItem key={p.id} value={`product:${p.id}`}>
+              {p.name} (avail {avail})
+            </SelectItem>
+          );
+        })}
+        {sundries.map((s) => (
+          <SelectItem key={s.id} value={`sundry:${s.id}`}>
+            {s.name} — sundry (avail {s.quantity} {s.unitLabel})
+          </SelectItem>
+        ))}
+      </SelectContent>
+    );
+  }
+
   async function handleCreate() {
-    if (!title.trim() || !techId || lines.some((l) => !l.productId || l.qtyNeeded < 1)) {
-      setMsg("Fill title, technician, and at least one product line");
+    if (!title.trim() || !techId || lines.some((l) => !l.target || l.qtyNeeded < 1)) {
+      setMsg("Fill title, senior technician, and at least one stock line");
       return;
     }
     setBusy(true);
@@ -107,14 +175,16 @@ export default function CoordinationRequestsPage() {
         technicianId: techId,
         leadId: leadId || null,
         notes,
-        lines: lines.filter((l) => l.productId),
+        lines: lines
+          .filter((l) => l.target)
+          .map((l) => ({ ...decodeTarget(l.target), qtyNeeded: l.qtyNeeded })),
       });
       setCreateOpen(false);
       setTitle("");
       setTechId("");
       setLeadId("");
       setNotes("");
-      setLines([{ productId: products[0]?.id ?? "", qtyNeeded: 1 }]);
+      setLines([{ target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 }]);
       setMsg(
         hasShortfall
           ? "Sent to Stock with shortfall warning — Stock was notified."
@@ -122,6 +192,51 @@ export default function CoordinationRequestsPage() {
       );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEdit(requestId: string) {
+    const req = requests.find((r) => r.id === requestId);
+    if (!req) return;
+    setEditLines(
+      req.lines.map((line) => ({
+        id: line.id,
+        target: line.sundryId ? `sundry:${line.sundryId}` : `product:${line.productId}`,
+        qtyNeeded: line.qtyNeeded,
+        qtyFulfilled: line.qtyFulfilled,
+      }))
+    );
+    setEditMsg("");
+    setEditRequestId(requestId);
+  }
+
+  async function handleSaveEdit() {
+    if (!editRequestId) return;
+    if (editLines.length === 0) {
+      setEditMsg("Keep at least one line, or cancel the whole pick list instead.");
+      return;
+    }
+    if (editLines.some((l) => !l.target || l.qtyNeeded < 1)) {
+      setEditMsg("Every line needs a product or sundry and a quantity of at least 1.");
+      return;
+    }
+    setBusy(true);
+    setEditMsg("");
+    try {
+      await updateRequestLines(
+        editRequestId,
+        editLines.map((l) => ({
+          id: l.id,
+          ...decodeTarget(l.target),
+          qtyNeeded: l.qtyNeeded,
+        }))
+      );
+      setEditRequestId(null);
+      setMsg("Pick list updated — Stock sees the changes immediately.");
+    } catch (e) {
+      setEditMsg(e instanceof Error ? e.message : "Update failed");
     } finally {
       setBusy(false);
     }
@@ -143,7 +258,9 @@ export default function CoordinationRequestsPage() {
           <Button
             className="bg-[#C83733] hover:bg-[#a82f2b]"
             onClick={() => {
-              setLines([{ productId: products[0]?.id ?? "", qtyNeeded: 1 }]);
+              setLines([
+                { target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 },
+              ]);
               setCreateOpen(true);
             }}
           >
@@ -165,6 +282,15 @@ export default function CoordinationRequestsPage() {
             Add a tech
           </Link>{" "}
           before sending pick lists.
+        </div>
+      )}
+      {techs.length > 0 && seniorTechs.length === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No senior technicians are available. Mark a wireless or fiber technician as Senior on the{" "}
+          <Link href="/coordination/technicians" className="font-medium underline">
+            Technicians page
+          </Link>{" "}
+          before creating a pick list.
         </div>
       )}
 
@@ -205,8 +331,10 @@ export default function CoordinationRequestsPage() {
                   {req.notes ? <p className="text-muted-foreground">{req.notes}</p> : null}
                   <ul className="space-y-1">
                     {req.lines.map((line) => {
-                      const product = products.find((p) => p.id === line.productId);
-                      const available = productCounts(line.productId).available;
+                      const target = line.sundryId
+                        ? `sundry:${line.sundryId}`
+                        : `product:${line.productId}`;
+                      const available = targetAvailable(target) ?? 0;
                       const remaining = Math.max(0, line.qtyNeeded - line.qtyFulfilled);
                       const short = remaining > available && open;
                       return (
@@ -216,7 +344,7 @@ export default function CoordinationRequestsPage() {
                             short ? "border-red-200 bg-red-50" : ""
                           }`}
                         >
-                          <span>{product?.name ?? line.productId}</span>
+                          <span>{targetName(target)}</span>
                           <span>
                             {line.qtyFulfilled}/{line.qtyNeeded}
                             {short ? (
@@ -230,9 +358,18 @@ export default function CoordinationRequestsPage() {
                     })}
                   </ul>
                   {open && (
-                    <Button size="sm" variant="outline" onClick={() => void cancelRequest(req.id)}>
-                      Cancel
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(req.id)}>
+                        Edit lines
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void cancelRequest(req.id)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -240,6 +377,121 @@ export default function CoordinationRequestsPage() {
           })}
         </div>
       )}
+
+      <Dialog open={!!editRequestId} onOpenChange={(open) => !open && setEditRequestId(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto bg-white sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Edit pick list{editingRequest ? ` — ${editingRequest.title}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-xs text-muted-foreground">
+              Add or remove stock lines, or change quantities. Lines that already have units
+              booked out cannot be removed or reduced below what was fulfilled.
+            </p>
+            <div className="space-y-2">
+              {editLines.map((line, idx) => {
+                const locked = line.qtyFulfilled > 0;
+                const available = targetAvailable(line.target);
+                return (
+                  <div key={line.id ?? `new-${idx}`} className="space-y-1">
+                    <div className="flex gap-2">
+                      <Select
+                        value={line.target}
+                        onValueChange={(v) => {
+                          if (!v || locked) return;
+                          setEditLines((prev) =>
+                            prev.map((l, i) => (i === idx ? { ...l, target: v } : l))
+                          );
+                        }}
+                      >
+                        <SelectTrigger className="flex-1" disabled={locked}>
+                          <SelectValue>
+                            {(value) =>
+                              typeof value === "string" && value
+                                ? targetName(value)
+                                : "Product or sundry"
+                            }
+                          </SelectValue>
+                        </SelectTrigger>
+                        {lineTargetOptions()}
+                      </Select>
+                      <Input
+                        type="number"
+                        min={Math.max(1, line.qtyFulfilled)}
+                        className="w-20"
+                        value={line.qtyNeeded}
+                        onChange={(e) =>
+                          setEditLines((prev) =>
+                            prev.map((l, i) =>
+                              i === idx
+                                ? {
+                                    ...l,
+                                    qtyNeeded: Math.max(
+                                      Math.max(1, l.qtyFulfilled),
+                                      Number(e.target.value) || 1
+                                    ),
+                                  }
+                                : l
+                            )
+                          )
+                        }
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-600"
+                        disabled={locked}
+                        onClick={() =>
+                          setEditLines((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {locked ? `Fulfilled ${line.qtyFulfilled} — line locked. ` : ""}
+                      {available !== null ? `Available: ${available}` : ""}
+                    </p>
+                  </div>
+                );
+              })}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setEditLines((prev) => [
+                    ...prev,
+                    {
+                      target: products[0] ? `product:${products[0].id}` : "",
+                      qtyNeeded: 1,
+                      qtyFulfilled: 0,
+                    },
+                  ])
+                }
+              >
+                Add line
+              </Button>
+            </div>
+            {editMsg && <p className="text-sm text-[#C83733]">{editMsg}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRequestId(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              disabled={busy}
+              onClick={() => void handleSaveEdit()}
+            >
+              Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto bg-white sm:max-w-lg">
@@ -256,19 +508,21 @@ export default function CoordinationRequestsPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Technician</label>
+              <label className="font-medium">Senior technician</label>
               <Select value={techId} onValueChange={(v) => v && setTechId(v)}>
                 <SelectTrigger>
                   <SelectValue>
                     {(value) =>
-                      value ? techs.find((t) => t.id === value)?.name ?? "Select tech" : "Select tech"
+                      value
+                        ? seniorTechs.find((t) => t.id === value)?.name ?? "Select senior tech"
+                        : "Select senior tech"
                     }
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {techs.map((t) => (
+                  {seniorTechs.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.name}
+                      {t.name} — Senior
                       {t.title ? ` — ${t.title}` : ""}
                     </SelectItem>
                   ))}
@@ -303,41 +557,30 @@ export default function CoordinationRequestsPage() {
             <div className="space-y-2">
               <label className="font-medium">Stock lines</label>
               {lines.map((line, idx) => {
-                const available = line.productId
-                  ? productCounts(line.productId).available
-                  : null;
+                const available = targetAvailable(line.target);
                 const warn = lineWarnings[idx];
                 return (
                   <div key={idx} className="space-y-1">
                     <div className="flex gap-2">
                       <Select
-                        value={line.productId}
+                        value={line.target}
                         onValueChange={(v) => {
                           if (!v) return;
                           setLines((prev) =>
-                            prev.map((l, i) => (i === idx ? { ...l, productId: v } : l))
+                            prev.map((l, i) => (i === idx ? { ...l, target: v } : l))
                           );
                         }}
                       >
                         <SelectTrigger className="flex-1">
                           <SelectValue>
                             {(value) =>
-                              value
-                                ? products.find((p) => p.id === value)?.name ?? "Product"
-                                : "Product"
+                              typeof value === "string" && value
+                                ? targetName(value)
+                                : "Product or sundry"
                             }
                           </SelectValue>
                         </SelectTrigger>
-                        <SelectContent>
-                          {products.map((p) => {
-                            const avail = productCounts(p.id).available;
-                            return (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name} (avail {avail})
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
+                        {lineTargetOptions()}
                       </Select>
                       <Input
                         type="number"
@@ -369,7 +612,7 @@ export default function CoordinationRequestsPage() {
                 onClick={() =>
                   setLines((prev) => [
                     ...prev,
-                    { productId: products[0]?.id ?? "", qtyNeeded: 1 },
+                    { target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 },
                   ])
                 }
               >
@@ -393,7 +636,7 @@ export default function CoordinationRequestsPage() {
             </Button>
             <Button
               className="bg-[#C83733] hover:bg-[#a82f2b]"
-              disabled={busy || techs.length === 0}
+              disabled={busy || seniorTechs.length === 0}
               onClick={() => void handleCreate()}
             >
               Send to Stock

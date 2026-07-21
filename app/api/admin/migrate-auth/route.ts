@@ -38,6 +38,8 @@ export async function POST() {
         "supabase/migrations/013_client_qr_portal.sql",
         "supabase/migrations/014_stock_sundries.sql",
         "supabase/migrations/015_four_digit_portal_codes.sql",
+        "supabase/migrations/016_technician_profiles.sql",
+        "supabase/migrations/017_pick_list_sundries.sql",
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Migration failed";

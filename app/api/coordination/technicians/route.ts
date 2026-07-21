@@ -91,12 +91,17 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       action:
         | "create"
+        | "update"
         | "deactivate"
         | "reactivate"
         | "generateAccessCode"
         | "revokeAccessCode";
       name?: string;
       title?: string;
+      technicianLevel?: "junior" | "senior";
+      phone?: string;
+      email?: string;
+      idNumber?: string;
       technicianId?: string;
     };
 
@@ -112,7 +117,7 @@ export async function POST(request: Request) {
       const tech: User = {
         id,
         name,
-        email: "",
+        email: body.email?.trim() ?? "",
         role: "staff",
         department: "coordination",
         color: TECH_COLORS[Math.floor(Math.random() * TECH_COLORS.length)],
@@ -121,12 +126,15 @@ export async function POST(request: Request) {
         monthlyRevenueTarget: 0,
         monthlyDealsTarget: 0,
         active: true,
+        technicianLevel: body.technicianLevel ?? "junior",
+        phone: body.phone?.trim() ?? "",
+        idNumber: body.idNumber?.trim() ?? "",
       };
 
       const { error } = await supabase.from("team_members").insert({
         id: tech.id,
         name: tech.name,
-        email: null,
+        email: body.email?.trim() || null,
         auth_user_id: null,
         role: tech.role,
         department: tech.department,
@@ -136,6 +144,9 @@ export async function POST(request: Request) {
         monthly_revenue_target: 0,
         monthly_deals_target: 0,
         active: true,
+        technician_level: tech.technicianLevel,
+        phone: tech.phone || null,
+        id_number: tech.idNumber || null,
       });
       if (error) {
         // Fallback if migration 008 (active column) not applied yet
@@ -160,6 +171,42 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ ok: true, technician: tech });
+    }
+
+    if (body.action === "update") {
+      if (!body.technicianId) {
+        return NextResponse.json({ error: "technicianId required" }, { status: 400 });
+      }
+      const name = body.name?.trim();
+      if (!name) {
+        return NextResponse.json({ error: "Name is required" }, { status: 400 });
+      }
+
+      const { data: existing, error: findError } = await supabase
+        .from("team_members")
+        .select("*")
+        .eq("id", body.technicianId)
+        .maybeSingle();
+      if (findError) throw findError;
+      if (!existing) {
+        return NextResponse.json({ error: "Technician not found" }, { status: 404 });
+      }
+
+      const { error } = await supabase
+        .from("team_members")
+        .update({
+          name,
+          title: body.title?.trim() || existing.title || "Field technician",
+          avatar_initials: initialsFromName(name),
+          technician_level: body.technicianLevel ?? existing.technician_level ?? "junior",
+          phone: body.phone?.trim() || null,
+          email: body.email?.trim() || null,
+          id_number: body.idNumber?.trim() || null,
+        })
+        .eq("id", body.technicianId);
+      if (error) throw error;
+
+      return NextResponse.json({ ok: true });
     }
 
     if (body.action === "deactivate" || body.action === "reactivate") {

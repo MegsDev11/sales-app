@@ -55,6 +55,12 @@ export function userFromRow(row: TeamMemberRow): User {
     active: (row as TeamMemberRow & { active?: boolean }).active !== false,
     hasAccessCode: Boolean(row.access_code_hash),
     accessCodeUpdatedAt: row.access_code_updated_at,
+    technicianLevel:
+      row.technician_level === "senior" || row.technician_level === "junior"
+        ? row.technician_level
+        : undefined,
+    phone: row.phone ?? "",
+    idNumber: row.id_number ?? "",
   };
 }
 
@@ -75,6 +81,9 @@ export function userToRow(user: User): TeamMemberRow {
     access_code_hash: null,
     access_code_ciphertext: null,
     access_code_updated_at: null,
+    technician_level: user.technicianLevel ?? null,
+    phone: user.phone || null,
+    id_number: user.idNumber || null,
   };
 }
 
@@ -92,6 +101,11 @@ export function userUpdatesToRow(updates: Partial<User>): Partial<TeamMemberRow>
   if (updates.color !== undefined) row.color = updates.color;
   if (updates.avatarInitials !== undefined) row.avatar_initials = updates.avatarInitials;
   if (updates.title !== undefined) row.title = updates.title;
+  if (updates.technicianLevel !== undefined) {
+    row.technician_level = updates.technicianLevel;
+  }
+  if (updates.phone !== undefined) row.phone = updates.phone || null;
+  if (updates.idNumber !== undefined) row.id_number = updates.idNumber || null;
   if (updates.monthlyRevenueTarget !== undefined) {
     row.monthly_revenue_target = updates.monthlyRevenueTarget;
   }
@@ -501,7 +515,8 @@ export function stockRequestLineFromRow(row: StockRequestLineRow): StockRequestL
   return {
     id: row.id,
     requestId: row.request_id,
-    productId: row.product_id,
+    productId: row.product_id ?? "",
+    sundryId: (row as StockRequestLineRow & { sundry_id?: string | null }).sundry_id ?? null,
     qtyNeeded: row.qty_needed,
     qtyFulfilled: row.qty_fulfilled,
   };
@@ -511,10 +526,12 @@ export function stockRequestLineToRow(line: StockRequestLine): StockRequestLineR
   return {
     id: line.id,
     request_id: line.requestId,
-    product_id: line.productId,
+    product_id: line.productId || null,
+    // Omitted when null so inserts still work before migration 017 adds the column.
+    ...(line.sundryId ? { sundry_id: line.sundryId } : {}),
     qty_needed: line.qtyNeeded,
     qty_fulfilled: line.qtyFulfilled,
-  };
+  } as StockRequestLineRow;
 }
 
 export function stockRequestFromRow(

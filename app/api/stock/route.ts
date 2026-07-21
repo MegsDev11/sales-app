@@ -197,11 +197,22 @@ type StockAction =
       technicianId: string;
       leadId?: string | null;
       notes?: string;
-      lines: { productId: string; qtyNeeded: number }[];
+      lines: { productId?: string; sundryId?: string; qtyNeeded: number }[];
     }
   | {
       action: "cancelRequest";
       requestId: string;
+    }
+  | {
+      action: "updateRequestLines";
+      requestId: string;
+      lines: { id?: string; productId?: string; sundryId?: string; qtyNeeded: number }[];
+    }
+  | {
+      action: "issueSundryLine";
+      requestId: string;
+      lineId: string;
+      quantity?: number;
     }
   | {
       action: "fulfillScan";
@@ -277,16 +288,155 @@ export async function POST(request: Request) {
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();
 
-    if (body.action === "createRequest" || body.action === "cancelRequest") {
+    if (
+      body.action === "createRequest" ||
+      body.action === "cancelRequest" ||
+      body.action === "updateRequestLines"
+    ) {
       const user = await requireStockRequestsAccess(request);
       if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+
+      if (body.action === "updateRequestLines") {
+        if (!body.requestId || !Array.isArray(body.lines) || body.lines.length === 0) {
+          return NextResponse.json(
+            { error: "requestId and at least one line are required" },
+            { status: 400 }
+          );
+        }
+        if (
+          body.lines.some(
+            (line) =>
+              (!line.productId && !line.sundryId) || Math.floor(line.qtyNeeded) < 1
+          )
+        ) {
+          return NextResponse.json(
+            { error: "Every line needs a product or sundry and a quantity of at least 1" },
+            { status: 400 }
+          );
+        }
+
+        const { data: requestRow, error: reqError } = await supabase
+          .from("stock_requests")
+          .select("*")
+          .eq("id", body.requestId)
+          .maybeSingle();
+        if (reqError) throw reqError;
+        if (!requestRow) {
+          return NextResponse.json({ error: "Request not found" }, { status: 404 });
+        }
+        if (requestRow.status === "fulfilled" || requestRow.status === "cancelled") {
+          return NextResponse.json(
+            { error: "This pick list is closed and can no longer be edited" },
+            { status: 400 }
+          );
+        }
+
+        const { data: existingLines, error: linesError } = await supabase
+          .from("stock_request_lines")
+          .select("*")
+          .eq("request_id", body.requestId);
+        if (linesError) throw linesError;
+
+        const keptIds = new Set(
+          body.lines.map((line) => line.id).filter((id): id is string => Boolean(id))
+        );
+        const removedLines = (existingLines ?? []).filter((l) => !keptIds.has(l.id));
+        const blockedRemoval = removedLines.find((l) => l.qty_fulfilled > 0);
+        if (blockedRemoval) {
+          return NextResponse.json(
+            {
+              error:
+                "A line with already booked-out stock cannot be removed. Return the units first.",
+            },
+            { status: 400 }
+          );
+        }
+
+        for (const removed of removedLines) {
+          const { error: deleteError } = await supabase
+            .from("stock_request_lines")
+            .delete()
+            .eq("id", removed.id);
+          if (deleteError) throw deleteError;
+        }
+
+        const finalLines: { qty_needed: number; qty_fulfilled: number }[] = [];
+        for (const [index, line] of body.lines.entries()) {
+          const existing = line.id
+            ? (existingLines ?? []).find((l) => l.id === line.id)
+            : undefined;
+          const fulfilled = existing?.qty_fulfilled ?? 0;
+          // Never shrink below what was already booked out against this line.
+          const qtyNeeded = Math.max(Math.floor(line.qtyNeeded), Math.max(1, fulfilled));
+
+          if (existing) {
+            const targetUpdates =
+              fulfilled > 0
+                ? {}
+                : line.sundryId
+                  ? { product_id: null, sundry_id: line.sundryId }
+                  : {
+                      product_id: line.productId ?? null,
+                      // Only clear sundry_id when it was set (keeps pre-017 compatibility).
+                      ...(existing.sundry_id ? { sundry_id: null } : {}),
+                    };
+            const { error: updateError } = await supabase
+              .from("stock_request_lines")
+              .update({ ...targetUpdates, qty_needed: qtyNeeded })
+              .eq("id", existing.id);
+            if (updateError) throw updateError;
+          } else {
+            const { error: insertError } = await supabase.from("stock_request_lines").insert(
+              stockRequestLineToRow({
+                id: `sline-${Date.now()}-${index}`,
+                requestId: body.requestId,
+                productId: line.sundryId ? "" : line.productId ?? "",
+                sundryId: line.sundryId ?? null,
+                qtyNeeded,
+                qtyFulfilled: 0,
+              })
+            );
+            if (insertError) throw insertError;
+          }
+          finalLines.push({ qty_needed: qtyNeeded, qty_fulfilled: fulfilled });
+        }
+
+        const allDone = finalLines.every((l) => l.qty_fulfilled >= l.qty_needed);
+        const anyDone = finalLines.some((l) => l.qty_fulfilled > 0);
+        const nextStatus = allDone ? "fulfilled" : anyDone ? "partial" : "open";
+        if (nextStatus !== requestRow.status) {
+          const { error: statusError } = await supabase
+            .from("stock_requests")
+            .update({ status: nextStatus })
+            .eq("id", body.requestId);
+          if (statusError) throw statusError;
+        }
+
+        return NextResponse.json({ ok: true, ...(await loadStockBundle()) });
       }
 
       if (body.action === "createRequest") {
         if (!body.title.trim() || !body.technicianId || !body.lines?.length) {
           return NextResponse.json({ error: "Title, technician, and lines required" }, { status: 400 });
         }
+        const { data: techRow, error: techError } = await supabase
+          .from("team_members")
+          .select("name, technician_level, active")
+          .eq("id", body.technicianId)
+          .maybeSingle();
+        if (techError) throw techError;
+        if (!techRow || techRow.active === false) {
+          return NextResponse.json({ error: "Active technician not found" }, { status: 404 });
+        }
+        if (techRow.technician_level !== "senior") {
+          return NextResponse.json(
+            { error: "Stock can only be assigned to a senior technician" },
+            { status: 400 }
+          );
+        }
+
         const requestId = `sreq-${Date.now()}`;
         const stockRequest: Omit<StockRequest, "lines"> = {
           id: requestId,
@@ -301,10 +451,18 @@ export async function POST(request: Request) {
         const { error } = await supabase.from("stock_requests").insert(stockRequestToRow(stockRequest));
         if (error) throw error;
 
+        if (body.lines.some((line) => !line.productId && !line.sundryId)) {
+          return NextResponse.json(
+            { error: "Every line needs a product or sundry" },
+            { status: 400 }
+          );
+        }
+
         const lines: StockRequestLine[] = body.lines.map((line, i) => ({
           id: `sline-${Date.now()}-${i}`,
           requestId,
-          productId: line.productId,
+          productId: line.sundryId ? "" : line.productId ?? "",
+          sundryId: line.sundryId ?? null,
           qtyNeeded: Math.max(1, line.qtyNeeded),
           qtyFulfilled: 0,
         }));
@@ -313,11 +471,6 @@ export async function POST(request: Request) {
           .insert(lines.map(stockRequestLineToRow));
         if (linesError) throw linesError;
 
-        const { data: techRow } = await supabase
-          .from("team_members")
-          .select("name")
-          .eq("id", body.technicianId)
-          .maybeSingle();
         const techName = techRow?.name ?? "technician";
 
         const { data: itemRows } = await supabase
@@ -334,6 +487,20 @@ export async function POST(request: Request) {
 
         const shortfalls: string[] = [];
         for (const line of lines) {
+          if (line.sundryId) {
+            const { data: sundry } = await supabase
+              .from("stock_sundries")
+              .select("name, quantity")
+              .eq("id", line.sundryId)
+              .maybeSingle();
+            const available = sundry?.quantity ?? 0;
+            if (line.qtyNeeded > available) {
+              shortfalls.push(
+                `${sundry?.name ?? line.sundryId}: need ${line.qtyNeeded}, available ${available}`
+              );
+            }
+            continue;
+          }
           const available = availableByProduct.get(line.productId) ?? 0;
           if (line.qtyNeeded > available) {
             const { data: product } = await supabase
@@ -568,6 +735,22 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "bookOut") {
+      const { data: technician, error: technicianError } = await supabase
+        .from("team_members")
+        .select("technician_level, active")
+        .eq("id", body.technicianId)
+        .maybeSingle();
+      if (technicianError) throw technicianError;
+      if (!technician || technician.active === false) {
+        return NextResponse.json({ error: "Active technician not found" }, { status: 404 });
+      }
+      if (technician.technician_level !== "senior") {
+        return NextResponse.json(
+          { error: "Stock can only be booked out to a senior technician" },
+          { status: 400 }
+        );
+      }
+
       const { data: itemRow, error: itemError } = await supabase
         .from("stock_items")
         .select("*")
@@ -628,6 +811,85 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
     }
 
+    if (body.action === "issueSundryLine") {
+      if (!body.requestId || !body.lineId) {
+        return NextResponse.json({ error: "requestId and lineId required" }, { status: 400 });
+      }
+
+      const { data: requestRow, error: reqError } = await supabase
+        .from("stock_requests")
+        .select("*")
+        .eq("id", body.requestId)
+        .maybeSingle();
+      if (reqError) throw reqError;
+      if (!requestRow) return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      if (requestRow.status === "fulfilled" || requestRow.status === "cancelled") {
+        return NextResponse.json({ error: "Request is closed" }, { status: 400 });
+      }
+
+      const { data: lines, error: linesError } = await supabase
+        .from("stock_request_lines")
+        .select("*")
+        .eq("request_id", body.requestId);
+      if (linesError) throw linesError;
+
+      const line = (lines ?? []).find((l) => l.id === body.lineId);
+      if (!line || !line.sundry_id) {
+        return NextResponse.json({ error: "Sundry line not found" }, { status: 404 });
+      }
+      const remaining = line.qty_needed - line.qty_fulfilled;
+      if (remaining <= 0) {
+        return NextResponse.json({ error: "Line is already fulfilled" }, { status: 400 });
+      }
+
+      const { data: sundry, error: sundryError } = await supabase
+        .from("stock_sundries")
+        .select("*")
+        .eq("id", line.sundry_id)
+        .maybeSingle();
+      if (sundryError) throw sundryError;
+      if (!sundry) return NextResponse.json({ error: "Sundry not found" }, { status: 404 });
+
+      const requested = Math.floor(Number(body.quantity ?? remaining));
+      if (!Number.isFinite(requested) || requested < 1) {
+        return NextResponse.json({ error: "Quantity must be at least 1" }, { status: 400 });
+      }
+      const quantity = Math.min(requested, remaining);
+      if (sundry.quantity < quantity) {
+        return NextResponse.json(
+          { error: `Only ${sundry.quantity} ${sundry.unit_label} in stock` },
+          { status: 400 }
+        );
+      }
+
+      const { error: stockError } = await supabase
+        .from("stock_sundries")
+        .update({ quantity: sundry.quantity - quantity, updated_at: now })
+        .eq("id", sundry.id);
+      if (stockError) throw stockError;
+
+      const nextFulfilled = line.qty_fulfilled + quantity;
+      const { error: lineError } = await supabase
+        .from("stock_request_lines")
+        .update({ qty_fulfilled: nextFulfilled })
+        .eq("id", line.id);
+      if (lineError) throw lineError;
+
+      const updatedLines = (lines ?? []).map((l) =>
+        l.id === line.id ? { ...l, qty_fulfilled: nextFulfilled } : l
+      );
+      const allDone = updatedLines.every((l) => l.qty_fulfilled >= l.qty_needed);
+      const anyDone = updatedLines.some((l) => l.qty_fulfilled > 0);
+      const nextStatus = allDone ? "fulfilled" : anyDone ? "partial" : "open";
+      const { error: statusError } = await supabase
+        .from("stock_requests")
+        .update({ status: nextStatus })
+        .eq("id", body.requestId);
+      if (statusError) throw statusError;
+
+      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+    }
+
     if (body.action === "fulfillScan") {
       const qrToken = extractStockQrToken(body.qrToken);
       const { data: itemRow, error: itemError } = await supabase
@@ -650,6 +912,21 @@ export async function POST(request: Request) {
       if (!requestRow) return NextResponse.json({ error: "Request not found" }, { status: 404 });
       if (requestRow.status === "fulfilled" || requestRow.status === "cancelled") {
         return NextResponse.json({ error: "Request is closed" }, { status: 400 });
+      }
+      const { data: requestTechnician, error: requestTechnicianError } = await supabase
+        .from("team_members")
+        .select("technician_level, active")
+        .eq("id", requestRow.technician_id)
+        .maybeSingle();
+      if (requestTechnicianError) throw requestTechnicianError;
+      if (!requestTechnician || requestTechnician.active === false) {
+        return NextResponse.json({ error: "Active technician not found" }, { status: 404 });
+      }
+      if (requestTechnician.technician_level !== "senior") {
+        return NextResponse.json(
+          { error: "Stock can only be booked out to a senior technician" },
+          { status: 400 }
+        );
       }
 
       const { data: lines, error: linesError } = await supabase

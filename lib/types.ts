@@ -66,6 +66,10 @@ export interface User {
   accessCodeUpdatedAt?: string | null;
   /** Decrypted only by authorized coordination APIs. */
   accessCode?: string;
+  /** Field technician profile details. */
+  technicianLevel?: "junior" | "senior";
+  phone?: string;
+  idNumber?: string;
 }
 
 export type UserFormData = Omit<User, "id" | "authUserId">;
@@ -255,7 +259,10 @@ export interface StockBooking {
 export interface StockRequestLine {
   id: string;
   requestId: string;
+  /** Empty string when the line targets a sundry instead of a serialized product. */
   productId: string;
+  /** Set when the line targets a quantity-based sundry. */
+  sundryId?: string | null;
   qtyNeeded: number;
   qtyFulfilled: number;
 }

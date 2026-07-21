@@ -32,12 +32,14 @@ export default function StockRequestsPage() {
   const { accessToken } = useAuth();
   const {
     products,
+    sundries,
     items,
     bookings,
     requests,
     createRequest,
     cancelRequest,
     fulfillScan,
+    issueSundryLine,
     isLoaded,
     error,
     refresh,
@@ -151,6 +153,19 @@ export default function StockRequestsPage() {
     }
   }
 
+  async function handleIssueSundry(requestId: string, lineId: string) {
+    setBusy(true);
+    setMsg("");
+    try {
+      await issueSundryLine(requestId, lineId);
+      setMsg("Sundries issued — quantity deducted from stock.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Issue failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleFulfill() {
     if (!fulfillId || !scanToken.trim()) return;
     if (scannedLineStatus === "wrong_product") {
@@ -252,6 +267,9 @@ export default function StockRequestsPage() {
                   {req.notes ? <p className="text-muted-foreground">{req.notes}</p> : null}
                   <ul className="space-y-1">
                     {req.lines.map((line) => {
+                      const sundry = line.sundryId
+                        ? sundries.find((s) => s.id === line.sundryId)
+                        : null;
                       const product = products.find((p) => p.id === line.productId);
                       const lineOpen = line.qtyFulfilled < line.qtyNeeded;
                       return (
@@ -259,12 +277,27 @@ export default function StockRequestsPage() {
                           key={line.id}
                           className="flex flex-wrap items-center justify-between gap-2 rounded border px-2 py-1"
                         >
-                          <span>{product?.name ?? line.productId}</span>
+                          <span>
+                            {sundry
+                              ? `${sundry.name} (sundry, ${sundry.quantity} ${sundry.unitLabel} in stock)`
+                              : product?.name ?? line.productId}
+                          </span>
                           <span className="flex items-center gap-2">
                             <span>
                               {line.qtyFulfilled}/{line.qtyNeeded}
                             </span>
-                            {canFulfill && open && lineOpen && (
+                            {canFulfill && open && lineOpen && line.sundryId && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={busy}
+                                onClick={() => void handleIssueSundry(req.id, line.id)}
+                              >
+                                Issue
+                              </Button>
+                            )}
+                            {canFulfill && open && lineOpen && !line.sundryId && (
                               <Button
                                 size="sm"
                                 variant="outline"

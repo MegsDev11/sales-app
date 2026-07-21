@@ -28,6 +28,9 @@ export interface Database {
           access_code_hash: string | null;
           access_code_ciphertext: string | null;
           access_code_updated_at: string | null;
+          technician_level: string | null;
+          phone: string | null;
+          id_number: string | null;
         };
         Insert: {
           id: string;
@@ -45,6 +48,9 @@ export interface Database {
           access_code_hash?: string | null;
           access_code_ciphertext?: string | null;
           access_code_updated_at?: string | null;
+          technician_level?: string | null;
+          phone?: string | null;
+          id_number?: string | null;
         };
         Update: {
           id?: string;
@@ -62,6 +68,9 @@ export interface Database {
           access_code_hash?: string | null;
           access_code_ciphertext?: string | null;
           access_code_updated_at?: string | null;
+          technician_level?: string | null;
+          phone?: string | null;
+          id_number?: string | null;
         };
         Relationships: [];
       };
@@ -426,21 +435,24 @@ export interface Database {
         Row: {
           id: string;
           request_id: string;
-          product_id: string;
+          product_id: string | null;
+          sundry_id: string | null;
           qty_needed: number;
           qty_fulfilled: number;
         };
         Insert: {
           id: string;
           request_id: string;
-          product_id: string;
+          product_id?: string | null;
+          sundry_id?: string | null;
           qty_needed?: number;
           qty_fulfilled?: number;
         };
         Update: {
           id?: string;
           request_id?: string;
-          product_id?: string;
+          product_id?: string | null;
+          sundry_id?: string | null;
           qty_needed?: number;
           qty_fulfilled?: number;
         };

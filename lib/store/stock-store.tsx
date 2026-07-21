@@ -69,9 +69,14 @@ type StockStoreValue = StockBundle & {
     technicianId: string;
     leadId?: string | null;
     notes?: string;
-    lines: { productId: string; qtyNeeded: number }[];
+    lines: { productId?: string; sundryId?: string; qtyNeeded: number }[];
   }) => Promise<void>;
   cancelRequest: (requestId: string) => Promise<void>;
+  updateRequestLines: (
+    requestId: string,
+    lines: { id?: string; productId?: string; sundryId?: string; qtyNeeded: number }[]
+  ) => Promise<void>;
+  issueSundryLine: (requestId: string, lineId: string, quantity?: number) => Promise<void>;
   fulfillScan: (
     requestId: string,
     qrToken: string,
@@ -217,6 +222,12 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       },
       cancelRequest: async (requestId) => {
         await post({ action: "cancelRequest", requestId });
+      },
+      updateRequestLines: async (requestId, lines) => {
+        await post({ action: "updateRequestLines", requestId, lines });
+      },
+      issueSundryLine: async (requestId, lineId, quantity) => {
+        await post({ action: "issueSundryLine", requestId, lineId, quantity });
       },
       fulfillScan: async (requestId, qrToken, details) => {
         await post({ action: "fulfillScan", requestId, qrToken, ...details });
