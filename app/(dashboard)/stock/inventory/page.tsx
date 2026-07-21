@@ -241,6 +241,7 @@ function StockInventoryPageInner() {
   } = useStockStore();
   const { users, getVisibleLeads } = useCrmStore();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [sundryExpanded, setSundryExpanded] = useState<Record<string, boolean>>({});
   const [addOpen, setAddOpen] = useState(false);
   const [sundryOpen, setSundryOpen] = useState(false);
   const [productId, setProductId] = useState("");
@@ -405,87 +406,112 @@ function StockInventoryPageInner() {
         </div>
       )}
 
-      <Card className="bg-white">
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">Sundries and consumables</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Quantity-based stock such as RJ45 connectors, clips, U-bolts, cable ties, trunking,
-            conduit, and lugs.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-2 border-t pt-3">
-          {(sundries ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No sundries yet. Use Add sundry to record consumable stock.
-            </p>
-          ) : (
-            (sundries ?? []).map((sundry) => (
-              <div
-                key={sundry.id}
-                className="flex flex-col gap-3 rounded-lg border px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium">{sundry.name}</p>
-                  <p className="text-sm">
-                    <span className="text-2xl font-bold">{sundry.quantity}</span>{" "}
-                    <span className="text-muted-foreground">{sundry.unitLabel}</span>
-                  </p>
-                  {sundry.notes ? (
-                    <p className="text-xs text-muted-foreground">{sundry.notes}</p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    className="w-20"
-                    type="number"
-                    min={1}
-                    value={sundryAdjustments[sundry.id] ?? "1"}
-                    onChange={(e) =>
-                      setSundryAdjustments((prev) => ({
-                        ...prev,
-                        [sundry.id]: e.target.value,
-                      }))
+      <div className="space-y-3">
+        {(sundries ?? []).length === 0 ? (
+          <Card className="bg-white">
+            <CardContent className="py-4 text-sm text-muted-foreground">
+              No sundries yet. Use Add sundry to record consumable stock such as RJ45 connectors,
+              clips, U-bolts, cable ties, trunking, conduit, and lugs.
+            </CardContent>
+          </Card>
+        ) : (
+          (sundries ?? []).map((sundry) => {
+            const isOpen = sundryExpanded[sundry.id];
+            return (
+              <Card key={sundry.id} className="bg-white">
+                <CardHeader className="py-3">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between text-left"
+                    onClick={() =>
+                      setSundryExpanded((prev) => ({ ...prev, [sundry.id]: !prev[sundry.id] }))
                     }
-                    aria-label={`Quantity adjustment for ${sundry.name}`}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy || sundry.quantity === 0}
-                    onClick={() => void handleAdjustSundry(sundry.id, -1)}
                   >
-                    <Minus className="mr-1 h-4 w-4" />
-                    Use
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void handleAdjustSundry(sundry.id, 1)}
-                  >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Add
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    className="text-red-600"
-                    disabled={busy}
-                    onClick={() => void handleDeleteSundry(sundry.id, sundry.name)}
-                    aria-label={`Remove ${sundry.name}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-          {sundryMsg && <p className="text-sm text-[#C83733]">{sundryMsg}</p>}
-        </CardContent>
-      </Card>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      {isOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      {sundry.name}
+                      <span className="text-xs font-normal text-muted-foreground">Sundry</span>
+                    </CardTitle>
+                    <div className="flex gap-3 text-xs">
+                      <span
+                        className={sundry.quantity > 0 ? "text-emerald-600" : "text-amber-600"}
+                      >
+                        {sundry.quantity} {sundry.unitLabel}
+                      </span>
+                    </div>
+                  </button>
+                </CardHeader>
+                {isOpen && (
+                  <CardContent className="space-y-2 border-t pt-3">
+                    <div className="flex flex-col gap-3 rounded-lg border px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm">
+                          <span className="text-2xl font-bold">{sundry.quantity}</span>{" "}
+                          <span className="text-muted-foreground">{sundry.unitLabel}</span>
+                        </p>
+                        {sundry.notes ? (
+                          <p className="text-xs text-muted-foreground">{sundry.notes}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          className="w-20"
+                          type="number"
+                          min={1}
+                          value={sundryAdjustments[sundry.id] ?? "1"}
+                          onChange={(e) =>
+                            setSundryAdjustments((prev) => ({
+                              ...prev,
+                              [sundry.id]: e.target.value,
+                            }))
+                          }
+                          aria-label={`Quantity adjustment for ${sundry.name}`}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || sundry.quantity === 0}
+                          onClick={() => void handleAdjustSundry(sundry.id, -1)}
+                        >
+                          <Minus className="mr-1 h-4 w-4" />
+                          Use
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => void handleAdjustSundry(sundry.id, 1)}
+                        >
+                          <Plus className="mr-1 h-4 w-4" />
+                          Add
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className="text-red-600"
+                          disabled={busy}
+                          onClick={() => void handleDeleteSundry(sundry.id, sundry.name)}
+                          aria-label={`Remove ${sundry.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })
+        )}
+        {sundryMsg && <p className="text-sm text-[#C83733]">{sundryMsg}</p>}
+      </div>
 
       {!isLoaded ? (
         <p className="text-sm text-muted-foreground">Loading…</p>

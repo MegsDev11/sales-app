@@ -35,6 +35,11 @@ export function generateFourDigitCode(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
+/** @deprecated Prefer generateFourDigitCode — kept so stale Turbopack graphs still resolve. */
+export function generateSixDigitCode(): string {
+  return generateFourDigitCode();
+}
+
 export function encryptPortalCode(code: string): string {
   const key = createHash("sha256").update(`${PEPPER}:encryption`).digest();
   const iv = randomBytes(12);
