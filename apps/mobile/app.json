@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "MEGS Field",
+    "slug": "megs-field",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "megs",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MEGS uses your location for clock-in/out and job status."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "MEGS uses the camera to scan stock QR codes."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "za.co.megswaterberg.field"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#C83733",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "package": "za.co.megswaterberg.field",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

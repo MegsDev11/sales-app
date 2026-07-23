@@ -80,6 +80,8 @@ export interface User {
   technicianLevel?: "junior" | "senior";
   phone?: string;
   idNumber?: string;
+  /** Decrypted only for owner via /api/users credentials. */
+  loginPassword?: string;
 }
 
 export type UserFormData = Omit<User, "id" | "authUserId">;

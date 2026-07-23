@@ -56,7 +56,6 @@ export default function CompanyPage() {
     (typeof PLACEHOLDER_DEPARTMENTS)[number],
     { icon: typeof Wifi; stat: string }
   > = {
-    wireless: { icon: Wifi, stat: "Wireless operations" },
     fiber: { icon: Cable, stat: "Fiber operations" },
     financial: { icon: Wallet, stat: "Financial management" },
     general: { icon: Briefcase, stat: "General management" },
@@ -100,6 +99,15 @@ export default function CompanyPage() {
       manager: getDepartmentManagers(users, "coordination")[0]?.name ?? "Not assigned",
       staffCount: getDepartmentStaff(users, "coordination").length,
       stat: "Pick lists & techs",
+    },
+    {
+      id: "wireless",
+      label: "Wireless",
+      icon: Wifi,
+      href: "/wireless",
+      manager: getDepartmentManagers(users, "wireless")[0]?.name ?? "Not assigned",
+      staffCount: getDepartmentStaff(users, "wireless").length,
+      stat: "Network layouts & Ruijie",
     },
     ...PLACEHOLDER_DEPARTMENTS.map((dept) => ({
       id: dept,

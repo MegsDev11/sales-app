@@ -84,6 +84,7 @@ export function userToRow(user: User): TeamMemberRow {
     technician_level: user.technicianLevel ?? null,
     phone: user.phone || null,
     id_number: user.idNumber || null,
+    login_password_ciphertext: null,
   };
 }
 

@@ -19,6 +19,13 @@ function initialsFromName(name: string) {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
+function migrationHint(message: string) {
+  if (/login_password_ciphertext/i.test(message)) {
+    return `${message} — run supabase/migrations/019_staff_login_password.sql in Supabase.`;
+  }
+  return message;
+}
+
 async function generateUniqueAccessCode(supabase: ReturnType<typeof createSupabaseAdminClient>) {
   for (let attempt = 0; attempt < 25; attempt++) {
     const code = generateFourDigitCode();
@@ -69,6 +76,7 @@ export async function GET(request: Request) {
         ...userFromRow(row),
         hasAccessCode: Boolean(accessCode) || Boolean(row.access_code_hash),
         accessCode,
+        loginPassword: decryptPortalCode(row.login_password_ciphertext) ?? undefined,
       });
     }
     return NextResponse.json(
@@ -77,7 +85,7 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load technicians";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: migrationHint(message) }, { status: 500 });
   }
 }
 
@@ -95,13 +103,15 @@ export async function POST(request: Request) {
         | "deactivate"
         | "reactivate"
         | "generateAccessCode"
-        | "revokeAccessCode";
+        | "revokeAccessCode"
+        | "setAppPassword";
       name?: string;
       title?: string;
       technicianLevel?: "junior" | "senior";
       phone?: string;
       email?: string;
       idNumber?: string;
+      password?: string;
       technicianId?: string;
     };
 
@@ -109,15 +119,37 @@ export async function POST(request: Request) {
 
     if (body.action === "create") {
       const name = body.name?.trim();
+      const email = body.email?.trim().toLowerCase();
+      const password = body.password ?? "";
       if (!name) {
         return NextResponse.json({ error: "Name is required" }, { status: 400 });
       }
+      if (!email) {
+        return NextResponse.json(
+          { error: "Email is required — used as MEGS Field app login" },
+          { status: 400 }
+        );
+      }
+      if (password.length < 8) {
+        return NextResponse.json(
+          { error: "App password must be at least 8 characters" },
+          { status: 400 }
+        );
+      }
 
-      const id = `tech-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Failed to create login account");
+
+      const id = authData.user.id;
       const tech: User = {
         id,
         name,
-        email: body.email?.trim() ?? "",
+        email,
         role: "staff",
         department: "coordination",
         color: TECH_COLORS[Math.floor(Math.random() * TECH_COLORS.length)],
@@ -129,13 +161,15 @@ export async function POST(request: Request) {
         technicianLevel: body.technicianLevel ?? "junior",
         phone: body.phone?.trim() ?? "",
         idNumber: body.idNumber?.trim() ?? "",
+        authUserId: id,
+        loginPassword: password,
       };
 
-      const { error } = await supabase.from("team_members").insert({
-        id: tech.id,
+      const row = {
+        id,
         name: tech.name,
-        email: body.email?.trim() || null,
-        auth_user_id: null,
+        email,
+        auth_user_id: id,
         role: tech.role,
         department: tech.department,
         color: tech.color,
@@ -147,39 +181,21 @@ export async function POST(request: Request) {
         technician_level: tech.technicianLevel,
         phone: tech.phone || null,
         id_number: tech.idNumber || null,
-      });
+        login_password_ciphertext: encryptPortalCode(password),
+      };
+
+      const { error } = await supabase.from("team_members").insert(row);
       if (error) {
-        // Fallback if migration 008 (active column) not applied yet
-        if (/active/i.test(error.message)) {
-          const { error: retryError } = await supabase.from("team_members").insert({
-            id: tech.id,
-            name: tech.name,
-            email: null,
-            auth_user_id: null,
-            role: tech.role,
-            department: tech.department,
-            color: tech.color,
-            avatar_initials: tech.avatarInitials,
-            title: tech.title,
-            monthly_revenue_target: 0,
-            monthly_deals_target: 0,
-          });
-          if (retryError) throw retryError;
-        } else {
-          throw error;
-        }
+        await supabase.auth.admin.deleteUser(id);
+        throw new Error(migrationHint(error.message));
       }
 
-      return NextResponse.json({ ok: true, technician: tech });
+      return NextResponse.json({ ok: true, technician: tech, loginPassword: password });
     }
 
-    if (body.action === "update") {
+    if (body.action === "update" || body.action === "setAppPassword") {
       if (!body.technicianId) {
         return NextResponse.json({ error: "technicianId required" }, { status: 400 });
-      }
-      const name = body.name?.trim();
-      if (!name) {
-        return NextResponse.json({ error: "Name is required" }, { status: 400 });
       }
 
       const { data: existing, error: findError } = await supabase
@@ -192,21 +208,103 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Technician not found" }, { status: 404 });
       }
 
+      const name =
+        body.action === "setAppPassword"
+          ? existing.name
+          : body.name?.trim() || existing.name;
+      if (!name) {
+        return NextResponse.json({ error: "Name is required" }, { status: 400 });
+      }
+
+      const nextEmail = (
+        body.action === "setAppPassword"
+          ? existing.email
+          : body.email?.trim() || existing.email || ""
+      )
+        .toLowerCase()
+        .trim();
+      const password = body.password?.trim() || "";
+
+      let authUserId = existing.auth_user_id as string | null;
+
+      // Provision or update Supabase Auth so MEGS Field login stays in sync
+      if (!authUserId) {
+        if (!nextEmail) {
+          return NextResponse.json(
+            { error: "Email is required to enable app login" },
+            { status: 400 }
+          );
+        }
+        if (password.length < 8) {
+          return NextResponse.json(
+            { error: "Set an app password (min 8 characters) to enable mobile login" },
+            { status: 400 }
+          );
+        }
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: nextEmail,
+          password,
+          email_confirm: true,
+        });
+        if (authError) throw authError;
+        if (!authData.user) throw new Error("Failed to create login account");
+        authUserId = authData.user.id;
+      } else {
+        const authUpdates: { email?: string; password?: string } = {};
+        if (nextEmail && nextEmail !== (existing.email ?? "").toLowerCase()) {
+          authUpdates.email = nextEmail;
+        }
+        if (password.length >= 8) {
+          authUpdates.password = password;
+        }
+        if (Object.keys(authUpdates).length) {
+          const { error: authError } = await supabase.auth.admin.updateUserById(
+            authUserId,
+            authUpdates
+          );
+          if (authError) throw authError;
+        }
+      }
+
+      const updates: Record<string, unknown> = {
+        name,
+        title:
+          body.action === "setAppPassword"
+            ? existing.title
+            : body.title?.trim() || existing.title || "Field technician",
+        avatar_initials: initialsFromName(name),
+        technician_level:
+          body.action === "setAppPassword"
+            ? existing.technician_level
+            : body.technicianLevel ?? existing.technician_level ?? "junior",
+        phone:
+          body.action === "setAppPassword"
+            ? existing.phone
+            : body.phone?.trim() || null,
+        email: nextEmail || null,
+        id_number:
+          body.action === "setAppPassword"
+            ? existing.id_number
+            : body.idNumber?.trim() || null,
+        auth_user_id: authUserId,
+      };
+      if (password.length >= 8) {
+        updates.login_password_ciphertext = encryptPortalCode(password);
+      }
+
       const { error } = await supabase
         .from("team_members")
-        .update({
-          name,
-          title: body.title?.trim() || existing.title || "Field technician",
-          avatar_initials: initialsFromName(name),
-          technician_level: body.technicianLevel ?? existing.technician_level ?? "junior",
-          phone: body.phone?.trim() || null,
-          email: body.email?.trim() || null,
-          id_number: body.idNumber?.trim() || null,
-        })
+        .update(updates)
         .eq("id", body.technicianId);
-      if (error) throw error;
+      if (error) throw new Error(migrationHint(error.message));
 
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({
+        ok: true,
+        loginPassword:
+          password.length >= 8
+            ? password
+            : decryptPortalCode(existing.login_password_ciphertext) ?? null,
+      });
     }
 
     if (body.action === "deactivate" || body.action === "reactivate") {
@@ -223,15 +321,19 @@ export async function POST(request: Request) {
       if (!existing) {
         return NextResponse.json({ error: "Technician not found" }, { status: 404 });
       }
-      if (existing.auth_user_id && body.action === "deactivate") {
-        // Allow deactivating login users from coordination roster view too
-      }
 
+      const active = body.action === "reactivate";
       const { error } = await supabase
         .from("team_members")
-        .update({ active: body.action === "reactivate" })
+        .update({ active })
         .eq("id", body.technicianId);
       if (error) throw error;
+
+      if (existing.auth_user_id) {
+        await supabase.auth.admin.updateUserById(existing.auth_user_id, {
+          ban_duration: active ? "none" : "876000h",
+        });
+      }
 
       return NextResponse.json({ ok: true });
     }
@@ -281,6 +383,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Technician action failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: migrationHint(message) }, { status: 500 });
   }
 }

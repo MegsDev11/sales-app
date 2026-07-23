@@ -33,6 +33,10 @@ import {
   Briefcase,
   BookUser,
   ConciergeBell,
+  Map,
+  Clock,
+  CalendarOff,
+  MessagesSquare,
 } from "lucide-react";
 import { PLACEHOLDER_DEPARTMENTS } from "@/lib/permissions";
 
@@ -64,6 +68,7 @@ const salesNavItems = [
 
 const supportNavItems = [
   { href: "/support", label: "Overview", icon: LayoutDashboard },
+  { href: "/support/messages", label: "Messages", icon: MessagesSquare },
   { href: "/support/requests", label: "Client Requests", icon: MessageSquare },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
@@ -81,9 +86,19 @@ const stockNavItems = [
 
 const coordinationNavItems = [
   { href: "/coordination", label: "Overview", icon: LayoutDashboard },
+  { href: "/coordination/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/coordination/timesheets", label: "Timesheets", icon: Clock },
+  { href: "/coordination/time-off", label: "Time off", icon: CalendarOff },
   { href: "/coordination/requests", label: "Pick lists", icon: ClipboardList },
   { href: "/coordination/technicians", label: "Technicians", icon: Users },
   { href: "/coordination/availability", label: "Availability", icon: Boxes },
+];
+
+const wirelessNavItems = [
+  { href: "/wireless", label: "Overview", icon: LayoutDashboard },
+  { href: "/wireless/submissions", label: "Submissions", icon: Inbox },
+  { href: "/wireless/layouts", label: "Layouts", icon: Map },
+  { href: "/wireless/clients", label: "Clients", icon: Building2 },
 ];
 
 export function OwnerSidebar() {
@@ -103,6 +118,7 @@ export function OwnerSidebar() {
   const supportPaths = supportNavItems.map((i) => i.href);
   const stockPaths = stockNavItems.map((i) => i.href);
   const coordinationPaths = coordinationNavItems.map((i) => i.href);
+  const wirelessPaths = wirelessNavItems.map((i) => i.href);
   const showSalesNav = activeSection === "sales" || salesPaths.some((p) => pathname.startsWith(p));
   const showSupportNav =
     activeSection === "support" || supportPaths.some((p) => pathname.startsWith(p));
@@ -111,6 +127,8 @@ export function OwnerSidebar() {
   const showCoordinationNav =
     activeSection === "coordination" ||
     coordinationPaths.some((p) => pathname.startsWith(p));
+  const showWirelessNav =
+    activeSection === "wireless" || wirelessPaths.some((p) => pathname.startsWith(p));
   const activePlaceholder = PLACEHOLDER_DEPARTMENTS.find(
     (dept) =>
       activeSection === dept ||
@@ -134,6 +152,8 @@ export function OwnerSidebar() {
             (section.id === "stock" && stockPaths.some((p) => pathname.startsWith(p))) ||
             (section.id === "coordination" &&
               coordinationPaths.some((p) => pathname.startsWith(p))) ||
+            (section.id === "wireless" &&
+              wirelessPaths.some((p) => pathname.startsWith(p))) ||
             (placeholderPaths.includes(section.href) &&
               (pathname === section.href || pathname.startsWith(`${section.href}/`)));
           return (
@@ -260,6 +280,35 @@ export function OwnerSidebar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setActiveSection("coordination")}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </>
+        )}
+
+        {showWirelessNav && (
+          <>
+            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Wireless
+            </p>
+            {wirelessNavItems.map((item) => {
+              const isActive =
+                item.href === "/wireless"
+                  ? pathname === "/wireless"
+                  : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setActiveSection("wireless")}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"

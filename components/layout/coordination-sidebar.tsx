@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Boxes, ClipboardList, LayoutDashboard, Users } from "lucide-react";
+import { Boxes, Briefcase, CalendarOff, ClipboardList, Clock, LayoutDashboard, Users } from "lucide-react";
 
 const coordinationNavItems = [
   { href: "/coordination", label: "Overview", icon: LayoutDashboard, short: "Home" },
+  { href: "/coordination/jobs", label: "Jobs", icon: Briefcase, short: "Jobs" },
+  { href: "/coordination/timesheets", label: "Timesheets", icon: Clock, short: "Time" },
+  { href: "/coordination/time-off", label: "Time off", icon: CalendarOff, short: "Leave" },
   { href: "/coordination/requests", label: "Pick lists", icon: ClipboardList, short: "Lists" },
   { href: "/coordination/technicians", label: "Technicians", icon: Users, short: "Techs" },
   { href: "/coordination/availability", label: "Availability", icon: Boxes, short: "Stock" },

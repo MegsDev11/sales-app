@@ -11,6 +11,10 @@ import {
   CoordinationMobileNav,
 } from "@/components/layout/coordination-sidebar";
 import {
+  WirelessSidebar,
+  WirelessMobileNav,
+} from "@/components/layout/wireless-sidebar";
+import {
   PlaceholderDepartmentSidebar,
   PlaceholderDepartmentMobileNav,
 } from "@/components/layout/placeholder-department-sidebar";
@@ -21,6 +25,7 @@ import {
   canAccessCoordination,
   canAccessStock,
   canAccessSupport,
+  canAccessWireless,
   isPlaceholderDepartment,
   type PlaceholderDepartment,
 } from "@/lib/permissions";
@@ -31,6 +36,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const isStockUser = canAccessStock(currentUser) && currentUser?.department === "stock";
   const isCoordinationUser =
     canAccessCoordination(currentUser) && currentUser?.department === "coordination";
+  const isWirelessUser =
+    canAccessWireless(currentUser) && currentUser?.department === "wireless";
   const placeholderDepartment = isPlaceholderDepartment(currentUser?.department)
     ? (currentUser.department as PlaceholderDepartment)
     : null;
@@ -47,6 +54,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <StockSidebar />
         ) : isCoordinationUser ? (
           <CoordinationSidebar />
+        ) : isWirelessUser ? (
+          <WirelessSidebar />
         ) : placeholderDepartment ? (
           <PlaceholderDepartmentSidebar department={placeholderDepartment} />
         ) : (
@@ -62,6 +71,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <StockMobileNav />
       ) : isCoordinationUser ? (
         <CoordinationMobileNav />
+      ) : isWirelessUser ? (
+        <WirelessMobileNav />
       ) : placeholderDepartment ? (
         <PlaceholderDepartmentMobileNav department={placeholderDepartment} />
       ) : (

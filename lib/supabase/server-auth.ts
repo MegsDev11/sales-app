@@ -8,6 +8,7 @@ import {
   canAccessStock,
   canAccessStockRequests,
   canAccessSupport,
+  canAccessWireless,
   isOwner,
 } from "@/lib/permissions";
 
@@ -69,6 +70,12 @@ export async function requireStockRequestsAccess(request: Request): Promise<User
 export async function requireCoordinationAccess(request: Request): Promise<User | null> {
   const user = await getAuthUserFromRequest(request);
   if (!user || !canAccessCoordination(user)) return null;
+  return user;
+}
+
+export async function requireWirelessAccess(request: Request): Promise<User | null> {
+  const user = await getAuthUserFromRequest(request);
+  if (!user || !canAccessWireless(user)) return null;
   return user;
 }
 

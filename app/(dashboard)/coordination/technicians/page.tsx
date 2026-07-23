@@ -47,6 +47,7 @@ export default function CoordinationTechniciansPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [idNumber, setIdNumber] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -60,7 +61,9 @@ export default function CoordinationTechniciansPage() {
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editIdNumber, setEditIdNumber] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [editMsg, setEditMsg] = useState("");
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -125,6 +128,14 @@ export default function CoordinationTechniciansPage() {
       setMsg("Enter a name");
       return;
     }
+    if (!email.trim()) {
+      setMsg("Email is required — techs sign into the MEGS Field app with email + password");
+      return;
+    }
+    if (password.length < 8) {
+      setMsg("App password must be at least 8 characters");
+      return;
+    }
     setBusy(true);
     setMsg("");
     try {
@@ -136,12 +147,14 @@ export default function CoordinationTechniciansPage() {
         phone: phone.trim(),
         email: email.trim(),
         idNumber: idNumber.trim(),
+        password,
       });
       setName("");
       setPhone("");
       setEmail("");
       setIdNumber("");
-      setMsg("Technician added — they will appear in pick-list tech selectors after refresh.");
+      setPassword("");
+      setMsg("Technician added with MEGS Field app login (email + password on their card).");
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Add failed");
@@ -160,6 +173,7 @@ export default function CoordinationTechniciansPage() {
     setEditPhone(tech.phone ?? "");
     setEditEmail(tech.email ?? "");
     setEditIdNumber(tech.idNumber ?? "");
+    setEditPassword("");
     setEditMsg("");
   }
 
@@ -167,6 +181,18 @@ export default function CoordinationTechniciansPage() {
     if (!editing) return;
     if (!editName.trim()) {
       setEditMsg("Enter a name");
+      return;
+    }
+    if (!editEmail.trim()) {
+      setEditMsg("Email is required for app login");
+      return;
+    }
+    if (!editing.authUserId && editPassword.length < 8) {
+      setEditMsg("Set an app password (min 8 characters) to enable mobile login");
+      return;
+    }
+    if (editPassword && editPassword.length < 8) {
+      setEditMsg("New app password must be at least 8 characters");
       return;
     }
     setBusy(true);
@@ -181,9 +207,14 @@ export default function CoordinationTechniciansPage() {
         phone: editPhone.trim(),
         email: editEmail.trim(),
         idNumber: editIdNumber.trim(),
+        ...(editPassword ? { password: editPassword } : {}),
       });
       setEditing(null);
-      setMsg("Technician updated");
+      setMsg(
+        editPassword
+          ? "Technician updated — app login password changed"
+          : "Technician updated"
+      );
       await load();
     } catch (e) {
       setEditMsg(e instanceof Error ? e.message : "Update failed");
@@ -258,6 +289,10 @@ export default function CoordinationTechniciansPage() {
             <UserPlus className="h-4 w-4" />
             Add technician
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Email + app password are the MEGS Field mobile login. Changing them here updates app
+            sign-in immediately.
+          </p>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Input
@@ -296,7 +331,14 @@ export default function CoordinationTechniciansPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email address"
+            placeholder="App login email"
+          />
+          <Input
+            type="text"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="App login password (min 8)"
+            autoComplete="new-password"
           />
           <Input
             value={idNumber}
@@ -353,9 +395,13 @@ export default function CoordinationTechniciansPage() {
                             >
                               {tech.technicianLevel ?? "junior"}
                             </Badge>
-                            {!tech.authUserId && (
-                              <Badge variant="outline" className="mt-1 ml-1 text-[10px]">
-                                Field only
+                            {!tech.authUserId ? (
+                              <Badge variant="outline" className="mt-1 ml-1 text-[10px] text-amber-700">
+                                No app login yet
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="mt-1 ml-1 text-[10px] text-emerald-700">
+                                App login active
                               </Badge>
                             )}
                             {tech.hasAccessCode ? (
@@ -363,20 +409,65 @@ export default function CoordinationTechniciansPage() {
                                 QR code set
                               </Badge>
                             ) : null}
-                            {(tech.phone || tech.email || tech.idNumber) && (
-                              <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
-                                {tech.phone ? <p>Phone: {tech.phone}</p> : null}
-                                {tech.email ? <p className="break-all">Email: {tech.email}</p> : null}
-                                {tech.idNumber ? <p>ID: {tech.idNumber}</p> : null}
+                            <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                              {tech.phone ? <p>Phone: {tech.phone}</p> : null}
+                              {tech.email ? (
+                                <p className="break-all">
+                                  <span className="font-medium text-foreground">App email:</span>{" "}
+                                  {tech.email}
+                                </p>
+                              ) : null}
+                              {tech.idNumber ? <p>ID: {tech.idNumber}</p> : null}
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <span className="font-medium text-foreground">App password:</span>
+                                {tech.loginPassword ? (
+                                  <>
+                                    <span className="font-mono text-sm text-[#C83733]">
+                                      {revealedPasswords[tech.id]
+                                        ? tech.loginPassword
+                                        : "••••••••"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="text-[10px] text-[#C83733] hover:underline"
+                                      onClick={() =>
+                                        setRevealedPasswords((prev) => ({
+                                          ...prev,
+                                          [tech.id]: !prev[tech.id],
+                                        }))
+                                      }
+                                    >
+                                      {revealedPasswords[tech.id] ? "Hide" : "Show"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="text-[10px] text-[#C83733] hover:underline"
+                                      onClick={() =>
+                                        void navigator.clipboard.writeText(tech.loginPassword!)
+                                      }
+                                    >
+                                      Copy
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-amber-700">
+                                    Not set — Edit and save a password
+                                  </span>
+                                )}
                               </div>
-                            )}
+                            </div>
                             {tech.accessCode ? (
-                              <p className="mt-2 font-mono text-lg font-bold tracking-[0.25em] text-[#C83733]">
+                              <p className="mt-2 text-[10px] text-muted-foreground">
+                                QR portal code (stock stickers, not app login):
+                              </p>
+                            ) : null}
+                            {tech.accessCode ? (
+                              <p className="font-mono text-lg font-bold tracking-[0.25em] text-[#C83733]">
                                 {tech.accessCode}
                               </p>
                             ) : tech.hasAccessCode ? (
                               <p className="mt-2 max-w-36 text-[10px] text-amber-700">
-                                Existing code is hidden. Select New code to create a visible
+                                Existing QR code is hidden. Select New code to create a visible
                                 4-digit code.
                               </p>
                             ) : null}
@@ -521,13 +612,32 @@ export default function CoordinationTechniciansPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="font-medium">Email address</label>
+              <label className="font-medium">App login email</label>
               <Input
                 type="email"
                 value={editEmail}
                 onChange={(e) => setEditEmail(e.target.value)}
-                placeholder="Email address"
+                placeholder="Email for MEGS Field app"
               />
+            </div>
+            <div className="space-y-1">
+              <label className="font-medium">
+                {editing?.authUserId ? "New app password (optional)" : "App password"}
+              </label>
+              <Input
+                type="text"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                placeholder={
+                  editing?.authUserId
+                    ? "Leave blank to keep current password"
+                    : "Min 8 characters — enables mobile login"
+                }
+                autoComplete="new-password"
+              />
+              <p className="text-xs text-muted-foreground">
+                Changing email or password here updates MEGS Field app sign-in immediately.
+              </p>
             </div>
             <div className="space-y-1">
               <label className="font-medium">ID number</label>

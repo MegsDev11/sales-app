@@ -16,7 +16,6 @@ export type OwnerSection =
 
 /** Departments that currently only have placeholder home pages. */
 export const PLACEHOLDER_DEPARTMENTS = [
-  "wireless",
   "fiber",
   "financial",
   "general",
@@ -43,7 +42,6 @@ export function isPlaceholderDepartment(
   department: string | null | undefined
 ): department is PlaceholderDepartment {
   return (
-    department === "wireless" ||
     department === "fiber" ||
     department === "financial" ||
     department === "general" ||
@@ -236,6 +234,7 @@ export function getHomeRoute(user: User): string {
   if (user.department === "support") return "/support";
   if (user.department === "stock") return "/stock";
   if (user.department === "coordination") return "/coordination";
+  if (user.department === "wireless") return "/wireless";
   if (isPlaceholderDepartment(user.department)) return `/${user.department}`;
   if (canAccessSalesAdmin(user)) return "/dashboard";
   return "/board";

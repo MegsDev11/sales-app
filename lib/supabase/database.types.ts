@@ -31,6 +31,7 @@ export interface Database {
           technician_level: string | null;
           phone: string | null;
           id_number: string | null;
+          login_password_ciphertext: string | null;
         };
         Insert: {
           id: string;
@@ -51,6 +52,7 @@ export interface Database {
           technician_level?: string | null;
           phone?: string | null;
           id_number?: string | null;
+          login_password_ciphertext?: string | null;
         };
         Update: {
           id?: string;
@@ -71,6 +73,7 @@ export interface Database {
           technician_level?: string | null;
           phone?: string | null;
           id_number?: string | null;
+          login_password_ciphertext?: string | null;
         };
         Relationships: [];
       };
@@ -646,6 +649,495 @@ export interface Database {
           link?: string;
           request_id?: string | null;
           read_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      network_layout_submissions: {
+        Row: {
+          id: string;
+          lead_id: string | null;
+          notes: string;
+          status: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          lead_id?: string | null;
+          notes?: string;
+          status?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string | null;
+          notes?: string;
+          status?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      network_layouts: {
+        Row: {
+          id: string;
+          lead_id: string | null;
+          title: string;
+          status: string;
+          canvas_json: Json;
+          submission_id: string | null;
+          created_by: string | null;
+          published_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          lead_id?: string | null;
+          title?: string;
+          status?: string;
+          canvas_json?: Json;
+          submission_id?: string | null;
+          created_by?: string | null;
+          published_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string | null;
+          title?: string;
+          status?: string;
+          canvas_json?: Json;
+          submission_id?: string | null;
+          created_by?: string | null;
+          published_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      network_layout_assets: {
+        Row: {
+          id: string;
+          submission_id: string | null;
+          layout_id: string | null;
+          kind: string;
+          storage_path: string;
+          public_url: string | null;
+          caption: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          submission_id?: string | null;
+          layout_id?: string | null;
+          kind?: string;
+          storage_path: string;
+          public_url?: string | null;
+          caption?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          submission_id?: string | null;
+          layout_id?: string | null;
+          kind?: string;
+          storage_path?: string;
+          public_url?: string | null;
+          caption?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      network_devices: {
+        Row: {
+          id: string;
+          layout_id: string;
+          node_id: string;
+          vendor: string;
+          external_id: string | null;
+          serial_number: string | null;
+          mac_address: string | null;
+          label: string;
+          status: string;
+          last_seen_at: string | null;
+          manual_override: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          layout_id: string;
+          node_id: string;
+          vendor?: string;
+          external_id?: string | null;
+          serial_number?: string | null;
+          mac_address?: string | null;
+          label?: string;
+          status?: string;
+          last_seen_at?: string | null;
+          manual_override?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          layout_id?: string;
+          node_id?: string;
+          vendor?: string;
+          external_id?: string | null;
+          serial_number?: string | null;
+          mac_address?: string | null;
+          label?: string;
+          status?: string;
+          last_seen_at?: string | null;
+          manual_override?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      jobs: {
+        Row: {
+          id: string;
+          lead_id: string | null;
+          title: string;
+          address: string;
+          client_name: string | null;
+          scheduled_start: string | null;
+          scheduled_end: string | null;
+          status: string;
+          notes: string;
+          stock_request_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          lead_id?: string | null;
+          title?: string;
+          address?: string;
+          client_name?: string | null;
+          scheduled_start?: string | null;
+          scheduled_end?: string | null;
+          status?: string;
+          notes?: string;
+          stock_request_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string | null;
+          title?: string;
+          address?: string;
+          client_name?: string | null;
+          scheduled_start?: string | null;
+          scheduled_end?: string | null;
+          status?: string;
+          notes?: string;
+          stock_request_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      job_assignments: {
+        Row: {
+          id: string;
+          job_id: string;
+          technician_id: string;
+          is_primary: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          job_id: string;
+          technician_id: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          job_id?: string;
+          technician_id?: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      job_status_events: {
+        Row: {
+          id: string;
+          job_id: string;
+          from_status: string | null;
+          to_status: string;
+          changed_by: string | null;
+          lat: number | null;
+          lng: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          job_id: string;
+          from_status?: string | null;
+          to_status: string;
+          changed_by?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          job_id?: string;
+          from_status?: string | null;
+          to_status?: string;
+          changed_by?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      time_entries: {
+        Row: {
+          id: string;
+          technician_id: string;
+          job_id: string | null;
+          clock_in_at: string;
+          clock_out_at: string | null;
+          clock_in_lat: number | null;
+          clock_in_lng: number | null;
+          clock_out_lat: number | null;
+          clock_out_lng: number | null;
+          source: string;
+          edited_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          technician_id: string;
+          job_id?: string | null;
+          clock_in_at: string;
+          clock_out_at?: string | null;
+          clock_in_lat?: number | null;
+          clock_in_lng?: number | null;
+          clock_out_lat?: number | null;
+          clock_out_lng?: number | null;
+          source?: string;
+          edited_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          technician_id?: string;
+          job_id?: string | null;
+          clock_in_at?: string;
+          clock_out_at?: string | null;
+          clock_in_lat?: number | null;
+          clock_in_lng?: number | null;
+          clock_out_lat?: number | null;
+          clock_out_lng?: number | null;
+          source?: string;
+          edited_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      time_off_requests: {
+        Row: {
+          id: string;
+          technician_id: string;
+          leave_type: string;
+          start_date: string;
+          end_date: string;
+          days: number;
+          reason: string;
+          status: string;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          review_note: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          technician_id: string;
+          leave_type: string;
+          start_date: string;
+          end_date: string;
+          days?: number;
+          reason?: string;
+          status?: string;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          review_note?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          technician_id?: string;
+          leave_type?: string;
+          start_date?: string;
+          end_date?: string;
+          days?: number;
+          reason?: string;
+          status?: string;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          review_note?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      location_pings: {
+        Row: {
+          id: string;
+          technician_id: string;
+          time_entry_id: string | null;
+          lat: number;
+          lng: number;
+          recorded_at: string;
+        };
+        Insert: {
+          id: string;
+          technician_id: string;
+          time_entry_id?: string | null;
+          lat: number;
+          lng: number;
+          recorded_at?: string;
+        };
+        Update: {
+          id?: string;
+          technician_id?: string;
+          time_entry_id?: string | null;
+          lat?: number;
+          lng?: number;
+          recorded_at?: string;
+        };
+        Relationships: [];
+      };
+      client_accounts: {
+        Row: {
+          id: string;
+          auth_user_id: string | null;
+          lead_id: string;
+          email: string | null;
+          phone: string | null;
+          active: boolean;
+          issued_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          auth_user_id?: string | null;
+          lead_id: string;
+          email?: string | null;
+          phone?: string | null;
+          active?: boolean;
+          issued_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          auth_user_id?: string | null;
+          lead_id?: string;
+          email?: string | null;
+          phone?: string | null;
+          active?: boolean;
+          issued_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      client_account_installations: {
+        Row: {
+          id: string;
+          client_account_id: string;
+          stock_item_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          client_account_id: string;
+          stock_item_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          client_account_id?: string;
+          stock_item_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      support_threads: {
+        Row: {
+          id: string;
+          lead_id: string;
+          client_account_id: string;
+          status: string;
+          last_message_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          lead_id: string;
+          client_account_id: string;
+          status?: string;
+          last_message_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string;
+          client_account_id?: string;
+          status?: string;
+          last_message_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      support_messages: {
+        Row: {
+          id: string;
+          thread_id: string;
+          sender_type: string;
+          sender_id: string | null;
+          body: string;
+          attachment_path: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          thread_id: string;
+          sender_type: string;
+          sender_id?: string | null;
+          body: string;
+          attachment_path?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          thread_id?: string;
+          sender_type?: string;
+          sender_id?: string | null;
+          body?: string;
+          attachment_path?: string | null;
           created_at?: string;
         };
         Relationships: [];
