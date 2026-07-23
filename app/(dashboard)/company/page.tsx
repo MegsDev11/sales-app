@@ -12,9 +12,25 @@ import {
   getDepartmentManagers,
   getDepartmentStaff,
   getSalesStaff,
+  PLACEHOLDER_DEPARTMENTS,
+  getDepartmentLabel,
 } from "@/lib/permissions";
 import { isActiveLead, isInLeadInbox, isLeadVisible } from "@/lib/utils/leads";
-import { Building2, Kanban, Package, Network, Users, Target, Headphones } from "lucide-react";
+import {
+  Building2,
+  Kanban,
+  Package,
+  Network,
+  Users,
+  Target,
+  Headphones,
+  Wifi,
+  Cable,
+  Wallet,
+  Briefcase,
+  BookUser,
+  ConciergeBell,
+} from "lucide-react";
 
 export default function CompanyPage() {
   const { isOwner } = useAuth();
@@ -35,6 +51,18 @@ export default function CompanyPage() {
     (l) => isLeadVisible(l) && isActiveLead(l)
   );
   const unassigned = activeSalesLeads.filter(isInLeadInbox);
+
+  const placeholderMeta: Record<
+    (typeof PLACEHOLDER_DEPARTMENTS)[number],
+    { icon: typeof Wifi; stat: string }
+  > = {
+    wireless: { icon: Wifi, stat: "Wireless operations" },
+    fiber: { icon: Cable, stat: "Fiber operations" },
+    financial: { icon: Wallet, stat: "Financial management" },
+    general: { icon: Briefcase, stat: "General management" },
+    accounts: { icon: BookUser, stat: "Clients & packages" },
+    reception: { icon: ConciergeBell, stat: "Walk-in clients" },
+  };
 
   const departments = [
     {
@@ -73,6 +101,15 @@ export default function CompanyPage() {
       staffCount: getDepartmentStaff(users, "coordination").length,
       stat: "Pick lists & techs",
     },
+    ...PLACEHOLDER_DEPARTMENTS.map((dept) => ({
+      id: dept,
+      label: getDepartmentLabel(dept),
+      icon: placeholderMeta[dept].icon,
+      href: `/${dept}`,
+      manager: getDepartmentManagers(users, dept)[0]?.name ?? "Not assigned",
+      staffCount: getDepartmentStaff(users, dept).length,
+      stat: placeholderMeta[dept].stat,
+    })),
   ];
 
   return (
@@ -88,7 +125,7 @@ export default function CompanyPage() {
         <StatCard title="Total Staff" value={users.filter((u) => u.role !== "owner").length} icon={Users} accent="#C83733" />
         <StatCard title="Sales Active Leads" value={activeSalesLeads.length} icon={Target} accent="#C83733" />
         <StatCard title="Unassigned Leads" value={unassigned.length} icon={Building2} />
-        <StatCard title="Departments" value={4} icon={Building2} accent="#6366F1" />
+        <StatCard title="Departments" value={departments.length} icon={Building2} accent="#6366F1" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

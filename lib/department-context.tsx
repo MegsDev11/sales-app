@@ -9,8 +9,19 @@ import {
   useState,
 } from "react";
 import type { OwnerSection } from "@/lib/permissions";
+import { PLACEHOLDER_DEPARTMENTS } from "@/lib/permissions";
 
 const STORAGE_KEY = "megs-owner-section";
+
+const VALID_SECTIONS: OwnerSection[] = [
+  "company",
+  "sales",
+  "stock",
+  "coordination",
+  "support",
+  ...PLACEHOLDER_DEPARTMENTS,
+  "staff",
+];
 
 interface DepartmentContextValue {
   activeSection: OwnerSection;
@@ -24,14 +35,7 @@ export function DepartmentProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as OwnerSection | null;
-    if (
-      stored === "company" ||
-      stored === "sales" ||
-      stored === "stock" ||
-      stored === "coordination" ||
-      stored === "support" ||
-      stored === "staff"
-    ) {
+    if (stored && VALID_SECTIONS.includes(stored)) {
       setActiveSectionState(stored);
     }
   }, []);

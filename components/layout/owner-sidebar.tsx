@@ -27,7 +27,14 @@ import {
   Boxes,
   Truck,
   Contact,
+  Wifi,
+  Cable,
+  Wallet,
+  Briefcase,
+  BookUser,
+  ConciergeBell,
 } from "lucide-react";
+import { PLACEHOLDER_DEPARTMENTS } from "@/lib/permissions";
 
 const ownerSections: { id: OwnerSection; label: string; icon: typeof Building2; href: string }[] = [
   { id: "company", label: "Company", icon: Building2, href: "/company" },
@@ -35,8 +42,16 @@ const ownerSections: { id: OwnerSection; label: string; icon: typeof Building2; 
   { id: "support", label: "Support", icon: Headphones, href: "/support" },
   { id: "stock", label: "Stock", icon: Package, href: "/stock" },
   { id: "coordination", label: "Coordination", icon: Network, href: "/coordination" },
+  { id: "wireless", label: "Wireless", icon: Wifi, href: "/wireless" },
+  { id: "fiber", label: "Fiber", icon: Cable, href: "/fiber" },
+  { id: "financial", label: "Financial", icon: Wallet, href: "/financial" },
+  { id: "general", label: "General", icon: Briefcase, href: "/general" },
+  { id: "accounts", label: "Accounts", icon: BookUser, href: "/accounts" },
+  { id: "reception", label: "Reception", icon: ConciergeBell, href: "/reception" },
   { id: "staff", label: "Staff Accounts", icon: UserCog, href: "/staff" },
 ];
+
+const placeholderPaths = PLACEHOLDER_DEPARTMENTS.map((dept) => `/${dept}`);
 
 const salesNavItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -96,6 +111,13 @@ export function OwnerSidebar() {
   const showCoordinationNav =
     activeSection === "coordination" ||
     coordinationPaths.some((p) => pathname.startsWith(p));
+  const activePlaceholder = PLACEHOLDER_DEPARTMENTS.find(
+    (dept) =>
+      activeSection === dept ||
+      pathname === `/${dept}` ||
+      pathname.startsWith(`/${dept}/`)
+  );
+  const showPlaceholderNav = Boolean(activePlaceholder);
 
   return (
     <aside className="hidden w-60 shrink-0 border-r bg-white print:hidden lg:block">
@@ -111,7 +133,9 @@ export function OwnerSidebar() {
             (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p))) ||
             (section.id === "stock" && stockPaths.some((p) => pathname.startsWith(p))) ||
             (section.id === "coordination" &&
-              coordinationPaths.some((p) => pathname.startsWith(p)));
+              coordinationPaths.some((p) => pathname.startsWith(p))) ||
+            (placeholderPaths.includes(section.href) &&
+              (pathname === section.href || pathname.startsWith(`${section.href}/`)));
           return (
             <button
               key={section.id}
@@ -246,6 +270,28 @@ export function OwnerSidebar() {
                 </Link>
               );
             })}
+          </>
+        )}
+
+        {showPlaceholderNav && activePlaceholder && (
+          <>
+            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {ownerSections.find((s) => s.id === activePlaceholder)?.label}
+            </p>
+            <Link
+              href={`/${activePlaceholder}`}
+              onClick={() => setActiveSection(activePlaceholder)}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname === `/${activePlaceholder}` ||
+                  pathname.startsWith(`/${activePlaceholder}/`)
+                  ? "bg-[#C83733]/10 text-[#C83733]"
+                  : "text-gray-700 hover:bg-gray-100"
+              )}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Overview
+            </Link>
           </>
         )}
       </nav>

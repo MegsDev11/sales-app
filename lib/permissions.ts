@@ -1,13 +1,56 @@
 import type { Department, User, UserRole } from "@/lib/types";
 
-export type OwnerSection = "company" | "sales" | "stock" | "coordination" | "support" | "staff";
+export type OwnerSection =
+  | "company"
+  | "sales"
+  | "stock"
+  | "coordination"
+  | "support"
+  | "wireless"
+  | "fiber"
+  | "financial"
+  | "general"
+  | "accounts"
+  | "reception"
+  | "staff";
+
+/** Departments that currently only have placeholder home pages. */
+export const PLACEHOLDER_DEPARTMENTS = [
+  "wireless",
+  "fiber",
+  "financial",
+  "general",
+  "accounts",
+  "reception",
+] as const satisfies readonly Department[];
+
+export type PlaceholderDepartment = (typeof PLACEHOLDER_DEPARTMENTS)[number];
 
 const DEPARTMENT_LABELS: Record<Department, string> = {
   sales: "Sales",
   stock: "Stock",
   coordination: "Coordination",
   support: "Support",
+  wireless: "Wireless",
+  fiber: "Fiber",
+  financial: "Financial",
+  general: "General",
+  accounts: "Accounts",
+  reception: "Reception",
 };
+
+export function isPlaceholderDepartment(
+  department: string | null | undefined
+): department is PlaceholderDepartment {
+  return (
+    department === "wireless" ||
+    department === "fiber" ||
+    department === "financial" ||
+    department === "general" ||
+    department === "accounts" ||
+    department === "reception"
+  );
+}
 
 export function normalizeRoleAndDepartment(
   role: string,
@@ -78,6 +121,46 @@ export function canAccessCoordination(user: User | null | undefined): boolean {
   if (!user) return false;
   if (isOwner(user)) return true;
   return user.department === "coordination";
+}
+
+export function canAccessDepartment(
+  user: User | null | undefined,
+  department: Department
+): boolean {
+  if (!user) return false;
+  if (isOwner(user)) return true;
+  return user.department === department;
+}
+
+export function canAccessWireless(user: User | null | undefined): boolean {
+  return canAccessDepartment(user, "wireless");
+}
+
+export function canAccessFiber(user: User | null | undefined): boolean {
+  return canAccessDepartment(user, "fiber");
+}
+
+export function canAccessFinancial(user: User | null | undefined): boolean {
+  return canAccessDepartment(user, "financial");
+}
+
+export function canAccessGeneral(user: User | null | undefined): boolean {
+  return canAccessDepartment(user, "general");
+}
+
+export function canAccessAccounts(user: User | null | undefined): boolean {
+  return canAccessDepartment(user, "accounts");
+}
+
+export function canAccessReception(user: User | null | undefined): boolean {
+  return canAccessDepartment(user, "reception");
+}
+
+export function canAccessPlaceholderDepartment(
+  user: User | null | undefined,
+  department: PlaceholderDepartment
+): boolean {
+  return canAccessDepartment(user, department);
 }
 
 /** Stock dashboard pages (inventory, scan, fulfill). */
@@ -153,6 +236,7 @@ export function getHomeRoute(user: User): string {
   if (user.department === "support") return "/support";
   if (user.department === "stock") return "/stock";
   if (user.department === "coordination") return "/coordination";
+  if (isPlaceholderDepartment(user.department)) return `/${user.department}`;
   if (canAccessSalesAdmin(user)) return "/dashboard";
   return "/board";
 }

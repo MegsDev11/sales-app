@@ -1,4 +1,14 @@
-export type Department = "sales" | "stock" | "coordination" | "support";
+export type Department =
+  | "sales"
+  | "stock"
+  | "coordination"
+  | "support"
+  | "wireless"
+  | "fiber"
+  | "financial"
+  | "general"
+  | "accounts"
+  | "reception";
 
 export type TowerStatus = "online" | "offline" | "maintenance";
 

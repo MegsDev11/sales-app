@@ -10,6 +10,10 @@ import {
   CoordinationSidebar,
   CoordinationMobileNav,
 } from "@/components/layout/coordination-sidebar";
+import {
+  PlaceholderDepartmentSidebar,
+  PlaceholderDepartmentMobileNav,
+} from "@/components/layout/placeholder-department-sidebar";
 import { DbStatusBanner } from "@/components/layout/db-status-banner";
 import { DepartmentProvider } from "@/lib/department-context";
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +21,8 @@ import {
   canAccessCoordination,
   canAccessStock,
   canAccessSupport,
+  isPlaceholderDepartment,
+  type PlaceholderDepartment,
 } from "@/lib/permissions";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -25,6 +31,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const isStockUser = canAccessStock(currentUser) && currentUser?.department === "stock";
   const isCoordinationUser =
     canAccessCoordination(currentUser) && currentUser?.department === "coordination";
+  const placeholderDepartment = isPlaceholderDepartment(currentUser?.department)
+    ? (currentUser.department as PlaceholderDepartment)
+    : null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -38,6 +47,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <StockSidebar />
         ) : isCoordinationUser ? (
           <CoordinationSidebar />
+        ) : placeholderDepartment ? (
+          <PlaceholderDepartmentSidebar department={placeholderDepartment} />
         ) : (
           <Sidebar />
         )}
@@ -51,6 +62,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <StockMobileNav />
       ) : isCoordinationUser ? (
         <CoordinationMobileNav />
+      ) : placeholderDepartment ? (
+        <PlaceholderDepartmentMobileNav department={placeholderDepartment} />
       ) : (
         <MobileNav />
       )}

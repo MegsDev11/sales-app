@@ -194,6 +194,12 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
                       <SelectItem value="support">Support</SelectItem>
                       <SelectItem value="stock">Stock</SelectItem>
                       <SelectItem value="coordination">Coordination</SelectItem>
+                      <SelectItem value="wireless">Wireless</SelectItem>
+                      <SelectItem value="fiber">Fiber</SelectItem>
+                      <SelectItem value="financial">Financial</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="accounts">Accounts</SelectItem>
+                      <SelectItem value="reception">Reception</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

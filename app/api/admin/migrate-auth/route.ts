@@ -40,6 +40,7 @@ export async function POST() {
         "supabase/migrations/015_four_digit_portal_codes.sql",
         "supabase/migrations/016_technician_profiles.sql",
         "supabase/migrations/017_pick_list_sundries.sql",
+        "supabase/migrations/018_new_departments.sql",
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Migration failed";
