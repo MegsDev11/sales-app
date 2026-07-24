@@ -9,6 +9,9 @@ import {
   hashPortalCode,
 } from "@/lib/portal-auth";
 import type { User } from "@/lib/types";
+import type { Database } from "@/lib/supabase/database.types";
+
+type TeamMemberUpdate = Database["public"]["Tables"]["team_members"]["Update"];
 
 const TECH_COLORS = ["#0EA5E9", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6"];
 
@@ -218,7 +221,7 @@ export async function POST(request: Request) {
 
       const nextEmail = (
         body.action === "setAppPassword"
-          ? existing.email
+          ? existing.email ?? ""
           : body.email?.trim() || existing.email || ""
       )
         .toLowerCase()
@@ -266,7 +269,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const updates: Record<string, unknown> = {
+      const updates: TeamMemberUpdate = {
         name,
         title:
           body.action === "setAppPassword"
