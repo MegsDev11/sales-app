@@ -10,6 +10,7 @@ import { daysToClose } from "@/lib/utils/time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getRepMonthlyStats } from "@/lib/utils/leads";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { Target, TrendingUp, Clock, DollarSign } from "lucide-react";
 
 export default function MyStatsPage() {
@@ -40,13 +41,11 @@ export default function MyStatsPage() {
   if (!currentUser || !stats) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Stats</h1>
-        <p className="text-sm text-muted-foreground">
-          Your personal sales performance
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="My Stats"
+        description="Your personal sales performance"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Active Leads" value={stats.active.length} icon={Target} accent={currentUser.color} />
@@ -56,7 +55,7 @@ export default function MyStatsPage() {
           title="Revenue Closed"
           value={`R${stats.revenue.toLocaleString()}`}
           icon={DollarSign}
-          accent="#C83733"
+          accent="var(--primary)"
         />
       </div>
 
@@ -68,7 +67,7 @@ export default function MyStatsPage() {
             <span className="text-muted-foreground">Target: R{currentUser.monthlyRevenueTarget.toLocaleString()}</span>
           </div>
           <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-            <div className="h-full rounded-full bg-[#C83733]" style={{ width: `${Math.min((stats.monthly.revenueClosed / currentUser.monthlyRevenueTarget) * 100, 100)}%` }} />
+            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min((stats.monthly.revenueClosed / currentUser.monthlyRevenueTarget) * 100, 100)}%` }} />
           </div>
           <p className="text-xs text-muted-foreground">{stats.monthly.dealsClosed} of {currentUser.monthlyDealsTarget} deals closed this month</p>
         </CardContent>
@@ -111,7 +110,7 @@ export default function MyStatsPage() {
           <CardTitle>Pipeline Value</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-3xl font-bold text-[#C83733]">
+          <p className="text-3xl font-bold text-primary">
             R{stats.pipeline.toLocaleString()}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -119,6 +118,6 @@ export default function MyStatsPage() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

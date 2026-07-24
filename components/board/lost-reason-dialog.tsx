@@ -44,7 +44,7 @@ export function LostReasonDialog({ open, onConfirm, onCancel }: LostReasonDialog
         </Select>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button className="bg-[#C83733] hover:bg-[#a82f2b]" onClick={() => onConfirm(reason)}>
+          <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onConfirm(reason)}>
             Confirm
           </Button>
         </DialogFooter>

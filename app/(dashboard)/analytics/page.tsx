@@ -9,6 +9,7 @@ import { STAGES, STAGE_LABELS } from "@/lib/constants";
 import { daysToClose } from "@/lib/utils/time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LOST_REASON_LABELS } from "@/lib/constants";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { BarChart3, TrendingUp, DollarSign, Wifi, Wrench } from "lucide-react";
 
 export default function AnalyticsPage() {
@@ -65,13 +66,11 @@ export default function AnalyticsPage() {
   const maxCount = Math.max(...stats.byStage.map((s) => s.count), 1);
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Analytics</h1>
-        <p className="text-sm text-muted-foreground">
-          Sales performance and pipeline insights
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Analytics"
+        description="Sales performance and pipeline insights"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Win Rate" value={`${stats.winRate}%`} icon={TrendingUp} accent="#16a34a" />
@@ -80,7 +79,7 @@ export default function AnalyticsPage() {
           title="Pipeline Value"
           value={`R${stats.pipeline.toLocaleString()}`}
           icon={DollarSign}
-          accent="#C83733"
+          accent="var(--primary)"
         />
         <StatCard
           title="Revenue Closed"
@@ -159,7 +158,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

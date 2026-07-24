@@ -7,7 +7,7 @@ export default function UnsupportedScreen() {
   const { me, signOut } = useAuth();
   return (
     <Screen>
-      <Title>Web CRM account</Title>
+      <Title>Web Operations account</Title>
       <Muted>{me?.message ?? "This role is not supported in the mobile app yet."}</Muted>
       <Card style={{ marginTop: 16 }}>
         <Text>{me?.user?.name}</Text>

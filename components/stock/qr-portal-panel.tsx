@@ -198,7 +198,7 @@ export function QrPortalPanel({ token }: { token: string }) {
                 key={value}
                 type="button"
                 variant={role === value ? "default" : "outline"}
-                className={role === value ? "bg-[#C83733] hover:bg-[#a82f2b]" : ""}
+                className={role === value ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
                 onClick={() => setRole(value)}
               >
                 {value === "client" ? "Client" : "Technician"}
@@ -216,9 +216,9 @@ export function QrPortalPanel({ token }: { token: string }) {
               onKeyDown={(e) => e.key === "Enter" && void handleAuthenticate()}
             />
           </div>
-          {msg && <p className="text-sm text-[#C83733]">{msg}</p>}
+          {msg && <p className="text-sm text-primary">{msg}</p>}
           <Button
-            className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={busy}
             onClick={() => void handleAuthenticate()}
           >
@@ -291,7 +291,7 @@ export function QrPortalPanel({ token }: { token: string }) {
               rows={4}
             />
             <Button
-              className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy || !workNotes.trim()}
               onClick={() => void handleSubmitVisit()}
             >
@@ -334,7 +334,7 @@ export function QrPortalPanel({ token }: { token: string }) {
               rows={4}
             />
             <Button
-              className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy || !description.trim()}
               onClick={() => void handleSubmitSupport()}
             >

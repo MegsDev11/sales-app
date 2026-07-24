@@ -257,11 +257,9 @@ export async function POST(request: Request) {
         if (assetErr) throw new Error(migrationHint(assetErr.message));
       }
 
-      const data = await loadWirelessBundle();
       return NextResponse.json({
         ok: true,
         submissionId,
-        ...data,
       });
     }
 
@@ -313,8 +311,7 @@ export async function POST(request: Request) {
           .eq("submission_id", submissionId);
       }
 
-      const data = await loadWirelessBundle();
-      return NextResponse.json({ ok: true, layoutId, ...data });
+      return NextResponse.json({ ok: true, layoutId });
     } else if (action === "save_layout") {
       const layoutId = String(body.layoutId ?? "");
       const now = new Date().toISOString();
@@ -378,8 +375,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
-    const data = await loadWirelessBundle();
-    return NextResponse.json({ ok: true, ...data });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Wireless action failed";
     return NextResponse.json({ error: migrationHint(message) }, { status: 500 });

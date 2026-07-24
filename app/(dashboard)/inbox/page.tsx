@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { getSalesStaff } from "@/lib/permissions";
 import { SERVICE_LABELS } from "@/lib/constants";
 import { X } from "lucide-react";
@@ -49,18 +50,18 @@ export default function InboxPage() {
   if (!isAdmin) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Lead Inbox</h1>
-          <p className="text-sm text-muted-foreground">Unassigned inbound leads waiting for a rep</p>
-        </div>
-        {unassigned.length > 0 && (
-          <Button className="bg-[#C83733] hover:bg-[#a82f2b]" onClick={assignNext}>
-            Assign Next (Round Robin)
-          </Button>
-        )}
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Lead Inbox"
+        description="Unassigned inbound leads waiting for a rep"
+        actions={
+          unassigned.length > 0 ? (
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={assignNext}>
+              Assign Next (Round Robin)
+            </Button>
+          ) : undefined
+        }
+      />
 
       {unassigned.length === 0 ? (
         <Card>
@@ -111,6 +112,6 @@ export default function InboxPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

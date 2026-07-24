@@ -6,37 +6,36 @@ import { useOwnerSection } from "@/lib/department-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { isInLeadInbox } from "@/lib/utils/leads";
 import type { OwnerSection } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
+import {
+  MobileNavShell,
+  NavSectionLabel,
+  SidebarShell,
+  mobileNavItemClass,
+  navBadgeClass,
+  navItemClass,
+} from "@/components/layout/page-shell";
+import {
+  coordinationNavItems,
+  isNavActive,
+  salesManagerNavItems,
+  stockNavItems,
+  supportNavItems,
+  wirelessNavItems,
+} from "@/lib/nav/department-nav";
 import {
   LayoutDashboard,
   Kanban,
-  Users,
-  BarChart3,
-  Inbox,
-  MapPin,
-  MessageSquare,
-  Radio,
   Building2,
   Package,
   Network,
   UserCog,
   Headphones,
-  ClipboardList,
-  QrCode,
-  ScanLine,
-  Boxes,
-  Truck,
-  Contact,
   Wifi,
   Cable,
   Wallet,
   Briefcase,
   BookUser,
   ConciergeBell,
-  Map,
-  Clock,
-  CalendarOff,
-  MessagesSquare,
 } from "lucide-react";
 import { PLACEHOLDER_DEPARTMENTS } from "@/lib/permissions";
 
@@ -56,50 +55,7 @@ const ownerSections: { id: OwnerSection; label: string; icon: typeof Building2; 
 ];
 
 const placeholderPaths = PLACEHOLDER_DEPARTMENTS.map((dept) => `/${dept}`);
-
-const salesNavItems = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/board", label: "Pipeline Board", icon: Kanban },
-  { href: "/inbox", label: "Lead Inbox", icon: Inbox },
-  { href: "/surveys", label: "Site Surveys", icon: MapPin },
-  { href: "/team", label: "Team", icon: Users },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-];
-
-const supportNavItems = [
-  { href: "/support", label: "Overview", icon: LayoutDashboard },
-  { href: "/support/messages", label: "Messages", icon: MessagesSquare },
-  { href: "/support/requests", label: "Client Requests", icon: MessageSquare },
-  { href: "/support/towers", label: "Towers & Outages", icon: Radio },
-  { href: "/support/clients", label: "Client Assignment", icon: Users },
-];
-
-const stockNavItems = [
-  { href: "/stock", label: "Overview", icon: LayoutDashboard },
-  { href: "/stock/inventory", label: "Inventory", icon: Package },
-  { href: "/stock/booked-out", label: "Booked Out", icon: Truck },
-  { href: "/stock/qr", label: "Generate QR", icon: QrCode },
-  { href: "/stock/client-qrs", label: "Client QRs", icon: Contact },
-  { href: "/stock/requests", label: "Requests", icon: ClipboardList },
-  { href: "/stock/scan", label: "Scan", icon: ScanLine },
-];
-
-const coordinationNavItems = [
-  { href: "/coordination", label: "Overview", icon: LayoutDashboard },
-  { href: "/coordination/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/coordination/timesheets", label: "Timesheets", icon: Clock },
-  { href: "/coordination/time-off", label: "Time off", icon: CalendarOff },
-  { href: "/coordination/requests", label: "Pick lists", icon: ClipboardList },
-  { href: "/coordination/technicians", label: "Technicians", icon: Users },
-  { href: "/coordination/availability", label: "Availability", icon: Boxes },
-];
-
-const wirelessNavItems = [
-  { href: "/wireless", label: "Overview", icon: LayoutDashboard },
-  { href: "/wireless/submissions", label: "Submissions", icon: Inbox },
-  { href: "/wireless/layouts", label: "Layouts", icon: Map },
-  { href: "/wireless/clients", label: "Clients", icon: Building2 },
-];
+const salesNavItems = salesManagerNavItems;
 
 export function OwnerSidebar() {
   const pathname = usePathname();
@@ -138,213 +94,160 @@ export function OwnerSidebar() {
   const showPlaceholderNav = Boolean(activePlaceholder);
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r bg-white print:hidden lg:block">
-      <nav className="flex flex-col gap-1 p-4">
-        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Departments
-        </p>
-        {ownerSections.map((section) => {
-          const Icon = section.icon;
-          const isActive =
-            section.id === activeSection ||
-            (section.id === "sales" && salesPaths.some((p) => pathname.startsWith(p))) ||
-            (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p))) ||
-            (section.id === "stock" && stockPaths.some((p) => pathname.startsWith(p))) ||
-            (section.id === "coordination" &&
-              coordinationPaths.some((p) => pathname.startsWith(p))) ||
-            (section.id === "wireless" &&
-              wirelessPaths.some((p) => pathname.startsWith(p))) ||
-            (placeholderPaths.includes(section.href) &&
-              (pathname === section.href || pathname.startsWith(`${section.href}/`)));
-          return (
-            <button
-              key={section.id}
-              type="button"
-              onClick={() => handleSectionClick(section.id, section.href)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left",
-                isActive ? "bg-[#C83733] text-white" : "text-gray-700 hover:bg-gray-100"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {section.label}
-            </button>
-          );
-        })}
+    <SidebarShell>
+      <NavSectionLabel>Departments</NavSectionLabel>
+      {ownerSections.map((section) => {
+        const Icon = section.icon;
+        const isActive =
+          section.id === activeSection ||
+          (section.id === "sales" && salesPaths.some((p) => pathname.startsWith(p))) ||
+          (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p))) ||
+          (section.id === "stock" && stockPaths.some((p) => pathname.startsWith(p))) ||
+          (section.id === "coordination" &&
+            coordinationPaths.some((p) => pathname.startsWith(p))) ||
+          (section.id === "wireless" && wirelessPaths.some((p) => pathname.startsWith(p))) ||
+          (placeholderPaths.includes(section.href) &&
+            (pathname === section.href || pathname.startsWith(`${section.href}/`)));
+        return (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => handleSectionClick(section.id, section.href)}
+            className={navItemClass(isActive)}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {section.label}
+          </button>
+        );
+      })}
 
-        {showSalesNav && (
-          <>
-            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Sales CRM
-            </p>
-            {salesNavItems.map((item) => {
-              const isActive =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setActiveSection("sales")}
-                  className={cn(
-                    "flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </span>
-                  {item.href === "/inbox" && unassignedCount > 0 && (
-                    <span className="rounded-full bg-[#C83733] px-1.5 text-xs font-bold text-white">
-                      {unassignedCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </>
-        )}
+      {showSalesNav ? (
+        <>
+          <NavSectionLabel className="mt-3">Sales</NavSectionLabel>
+          {salesNavItems.map((item) => {
+            const active = isNavActive(pathname, item.href, "/dashboard");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setActiveSection("sales")}
+                className={navItemClass(active)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/inbox" && unassignedCount > 0 ? (
+                  <span className={navBadgeClass(active)}>{unassignedCount}</span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </>
+      ) : null}
 
-        {showSupportNav && (
-          <>
-            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Support
-            </p>
-            {supportNavItems.map((item) => {
-              const isActive =
-                item.href === "/support"
-                  ? pathname === "/support"
-                  : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setActiveSection("support")}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </>
-        )}
+      {showSupportNav ? (
+        <>
+          <NavSectionLabel className="mt-3">Support</NavSectionLabel>
+          {supportNavItems.map((item) => {
+            const active = isNavActive(pathname, item.href, "/support");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setActiveSection("support")}
+                className={navItemClass(active)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </>
+      ) : null}
 
-        {showStockNav && (
-          <>
-            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Stock
-            </p>
-            {stockNavItems.map((item) => {
-              const isActive =
-                item.href === "/stock" ? pathname === "/stock" : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setActiveSection("stock")}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </>
-        )}
+      {showStockNav ? (
+        <>
+          <NavSectionLabel className="mt-3">Stock</NavSectionLabel>
+          {stockNavItems.map((item) => {
+            const active = isNavActive(pathname, item.href, "/stock");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setActiveSection("stock")}
+                className={navItemClass(active)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </>
+      ) : null}
 
-        {showCoordinationNav && (
-          <>
-            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Coordination
-            </p>
-            {coordinationNavItems.map((item) => {
-              const isActive =
-                item.href === "/coordination"
-                  ? pathname === "/coordination"
-                  : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setActiveSection("coordination")}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </>
-        )}
+      {showCoordinationNav ? (
+        <>
+          <NavSectionLabel className="mt-3">Coordination</NavSectionLabel>
+          {coordinationNavItems.map((item) => {
+            const active = isNavActive(pathname, item.href, "/coordination");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setActiveSection("coordination")}
+                className={navItemClass(active)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </>
+      ) : null}
 
-        {showWirelessNav && (
-          <>
-            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Wireless
-            </p>
-            {wirelessNavItems.map((item) => {
-              const isActive =
-                item.href === "/wireless"
-                  ? pathname === "/wireless"
-                  : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setActiveSection("wireless")}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-[#C83733]/10 text-[#C83733]" : "text-gray-700 hover:bg-gray-100"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </>
-        )}
+      {showWirelessNav ? (
+        <>
+          <NavSectionLabel className="mt-3">Wireless</NavSectionLabel>
+          {wirelessNavItems.map((item) => {
+            const active = isNavActive(pathname, item.href, "/wireless");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setActiveSection("wireless")}
+                className={navItemClass(active)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </>
+      ) : null}
 
-        {showPlaceholderNav && activePlaceholder && (
-          <>
-            <p className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {ownerSections.find((s) => s.id === activePlaceholder)?.label}
-            </p>
-            <Link
-              href={`/${activePlaceholder}`}
-              onClick={() => setActiveSection(activePlaceholder)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                pathname === `/${activePlaceholder}` ||
-                  pathname.startsWith(`/${activePlaceholder}/`)
-                  ? "bg-[#C83733]/10 text-[#C83733]"
-                  : "text-gray-700 hover:bg-gray-100"
-              )}
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Overview
-            </Link>
-          </>
-        )}
-      </nav>
-    </aside>
+      {showPlaceholderNav && activePlaceholder ? (
+        <>
+          <NavSectionLabel className="mt-3">
+            {ownerSections.find((s) => s.id === activePlaceholder)?.label}
+          </NavSectionLabel>
+          <Link
+            href={`/${activePlaceholder}`}
+            onClick={() => setActiveSection(activePlaceholder)}
+            className={navItemClass(
+              pathname === `/${activePlaceholder}` ||
+                pathname.startsWith(`/${activePlaceholder}/`)
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            Overview
+          </Link>
+        </>
+      ) : null}
+    </SidebarShell>
   );
 }
 
@@ -360,9 +263,9 @@ export function OwnerMobileNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t bg-white lg:hidden">
+    <MobileNavShell>
       {items.map((item) => {
-        const isActive = pathname.startsWith(item.href);
+        const active = pathname.startsWith(item.href);
         return (
           <button
             key={item.href}
@@ -371,15 +274,12 @@ export function OwnerMobileNav() {
               setActiveSection(item.section);
               router.push(item.href);
             }}
-            className={cn(
-              "flex flex-1 flex-col items-center gap-1 py-2 text-xs",
-              isActive ? "text-[#C83733]" : "text-gray-500"
-            )}
+            className={mobileNavItemClass(active)}
           >
             {item.label}
           </button>
         );
       })}
-    </nav>
+    </MobileNavShell>
   );
 }

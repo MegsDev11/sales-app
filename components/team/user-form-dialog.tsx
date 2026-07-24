@@ -307,7 +307,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-[#C83733] hover:bg-[#a82f2b]" disabled={submitting}>
+            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={submitting}>
               {submitting ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
               ) : user ? (

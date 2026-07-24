@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
@@ -28,7 +30,7 @@ export default function CoordinationAvailabilityPage() {
     if (!allowed) return;
 
     void refreshAvailability();
-    const interval = window.setInterval(() => void refreshAvailability(), 15_000);
+    const interval = window.setInterval(() => void refreshAvailability(), 60_000);
     const refreshOnFocus = () => void refreshAvailability();
     window.addEventListener("focus", refreshOnFocus);
 
@@ -41,32 +43,30 @@ export default function CoordinationAvailabilityPage() {
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Stock availability</h1>
-          <p className="text-sm text-muted-foreground">
-            Live read-only view of serialized stock and sundries held by Stock
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={refreshing}
-            onClick={() => void refreshAvailability()}
-          >
-            <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-          <Link
-            href="/coordination/requests"
-            className={buttonVariants({ className: "bg-[#C83733] hover:bg-[#a82f2b] text-white" })}
-          >
-            New pick list
-          </Link>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Stock availability"
+        description="Live read-only view of serialized stock and sundries held by Stock"
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={refreshing}
+              onClick={() => void refreshAvailability()}
+            >
+              <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Link
+              href="/coordination/requests"
+              className={buttonVariants({ className: "bg-primary text-primary-foreground hover:bg-primary/90 text-white" })}
+            >
+              New pick list
+            </Link>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
         <span>Synced automatically with Stock every 15 seconds and when this page regains focus.</span>
@@ -91,7 +91,7 @@ export default function CoordinationAvailabilityPage() {
         <div className="space-y-6">
           <section className="space-y-3">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Package className="h-4 w-4 text-[#C83733]" />
+              <Package className="h-4 w-4 text-primary" />
               Serialized products ({products.length})
             </h2>
             {products.length === 0 ? (
@@ -136,7 +136,7 @@ export default function CoordinationAvailabilityPage() {
 
           <section className="space-y-3">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Boxes className="h-4 w-4 text-[#C83733]" />
+              <Boxes className="h-4 w-4 text-primary" />
               Sundries and consumables ({sundries.length})
             </h2>
             {sundries.length === 0 ? (
@@ -178,6 +178,6 @@ export default function CoordinationAvailabilityPage() {
           </section>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

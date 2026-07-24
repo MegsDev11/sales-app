@@ -20,6 +20,9 @@ import {
 } from "@/components/layout/placeholder-department-sidebar";
 import { DbStatusBanner } from "@/components/layout/db-status-banner";
 import { DepartmentProvider } from "@/lib/department-context";
+import { CrmStoreProvider } from "@/lib/store/crm-store";
+import { StockStoreProvider } from "@/lib/store/stock-store";
+import { WirelessStoreProvider } from "@/lib/store/wireless-store";
 import { useAuth } from "@/lib/auth-context";
 import {
   canAccessCoordination,
@@ -43,9 +46,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     : null;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-surface">
       <Header />
-      <div className="flex flex-1">
+      <div className="flex min-h-0 flex-1">
         {isOwner ? (
           <OwnerSidebar />
         ) : isSupportUser ? (
@@ -61,7 +64,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         ) : (
           <Sidebar />
         )}
-        <main className="flex-1 overflow-auto pb-20 lg:pb-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-auto bg-surface pb-20 lg:pb-0">
+          {children}
+        </main>
       </div>
       {isOwner ? (
         <OwnerMobileNav />
@@ -89,10 +94,16 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <DepartmentProvider>
-        <DbStatusBanner />
-        <DashboardShell>{children}</DashboardShell>
-      </DepartmentProvider>
+      <CrmStoreProvider>
+        <StockStoreProvider>
+          <WirelessStoreProvider>
+            <DepartmentProvider>
+              <DbStatusBanner />
+              <DashboardShell>{children}</DashboardShell>
+            </DepartmentProvider>
+          </WirelessStoreProvider>
+        </StockStoreProvider>
+      </CrmStoreProvider>
     </AuthGuard>
   );
 }

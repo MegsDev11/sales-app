@@ -49,22 +49,57 @@ const defaultForm = (): LeadFormData => ({
   discount: 0,
 });
 
+function leadToFormData(lead: Lead): LeadFormData {
+  return {
+    clientName: lead.clientName,
+    company: lead.company,
+    phone: lead.phone,
+    email: lead.email,
+    serviceType: lead.serviceType,
+    packageTier: lead.packageTier,
+    assignedToId: lead.assignedToId,
+    stage: lead.stage,
+    currentActivity: lead.currentActivity,
+    priority: lead.priority,
+    closedAt: lead.closedAt,
+    dealValue: lead.dealValue,
+    discount: lead.discount,
+    leadSource: lead.leadSource,
+    address: lead.address,
+    notes: lead.notes,
+    nextFollowUpAt: lead.nextFollowUpAt,
+    nextAction: lead.nextAction,
+    coverageStatus: lead.coverageStatus,
+    serviceZone: lead.serviceZone,
+    siteSurveyDate: lead.siteSurveyDate,
+    siteSurveyNotes: lead.siteSurveyNotes,
+    lostReason: lead.lostReason,
+    installationStatus: lead.installationStatus,
+    installationDate: lead.installationDate,
+    temperature: lead.temperature,
+    inboxDismissedAt: lead.inboxDismissedAt,
+    towerId: lead.towerId,
+  };
+}
+
 export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDialogProps) {
   const { addLead, updateLead, users, towers } = useCrmStore();
   const { currentUser, isAdmin } = useAuth();
   const [form, setForm] = useState<LeadFormData>(defaultForm());
 
+  // Only hydrate when the dialog opens (or the edited lead changes) —
+  // not on every store refresh, which was wiping in-progress edits.
   useEffect(() => {
+    if (!open) return;
     if (lead) {
-      const { id, createdAt, stageEnteredAt, stageHistory, deleted, closedAt, ...rest } = lead;
-      setForm(rest);
+      setForm(leadToFormData(lead));
     } else {
       setForm({
         ...defaultForm(),
         assignedToId: isAdmin ? null : currentUser?.id ?? null,
       });
     }
-  }, [lead, open, isAdmin, currentUser]);
+  }, [open, lead?.id, isAdmin, currentUser?.id]);
 
   const salesReps = getSalesStaff(users);
 
@@ -82,12 +117,16 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.clientName.trim()) return;
+    const clientName = form.clientName.trim();
+    if (!clientName) return;
+
+    const updates: LeadFormData = { ...form, clientName };
+
     if (lead) {
-      updateLead(lead.id, form);
+      updateLead(lead.id, updates);
       onSaved?.(lead.id);
     } else {
-      const id = addLead(form);
+      const id = addLead(updates);
       onSaved?.(id);
     }
     onOpenChange(false);
@@ -222,7 +261,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" className="bg-[#C83733] hover:bg-[#a82f2b]">
+            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
               {lead ? "Save Changes" : "Add Lead"}
             </Button>
           </DialogFooter>

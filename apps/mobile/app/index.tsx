@@ -14,7 +14,7 @@ export default function Index() {
         <Title>Couldn’t load profile</Title>
         <Muted>{meError}</Muted>
         <Muted>
-          Make sure the web CRM is running (`npm run dev`) and reachable from this app.
+          Make sure the web Operations app is running (`npm run dev`) and reachable from this app.
         </Muted>
         <PrimaryButton label="Retry" onPress={() => void refreshMe()} />
         <PrimaryButton

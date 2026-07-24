@@ -88,7 +88,7 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
       throw new Error(
-        `Request timed out — is the web CRM running at ${getApiBaseUrl()}?`
+        `Request timed out — is the web Operations app running at ${getApiBaseUrl()}?`
       );
     }
     throw e;

@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
@@ -86,13 +88,11 @@ export default function CoordinationJobsPage() {
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Jobs</h1>
-        <p className="text-sm text-muted-foreground">
-          Dispatch job cards to field technicians (mobile Today list)
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Jobs"
+        description="Dispatch job cards to field technicians (mobile Today list)"
+      />
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">{error}</div>
       )}
@@ -135,7 +135,7 @@ export default function CoordinationJobsPage() {
             rows={2}
           />
           <Button
-            className="bg-[#C83733] text-white hover:bg-[#a82f2b]"
+            className="bg-primary text-white hover:bg-primary/90"
             disabled={busy || !techId}
             onClick={() => void createJob()}
           >
@@ -159,6 +159,6 @@ export default function CoordinationJobsPage() {
           </Card>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -6,6 +6,7 @@ import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { LayoutCanvas } from "@/components/wireless/layout-canvas";
 import { DeviceStatusBadge } from "@/components/wireless/device-status-badge";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -48,44 +49,40 @@ export default function WirelessClientProfilePage({
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/wireless/clients" className="text-sm text-[#C83733] hover:underline">
-            ← Clients
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold">
-            {client?.clientName ?? (loading ? "Loading…" : "Client")}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {client?.address || "No address"} · {client?.serviceType ?? "—"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => void syncRuijie()}>
-            Sync Ruijie
-          </Button>
-          {published ? (
-            <Link
-              href={`/wireless/layouts/${published.id}`}
-              className={buttonVariants({
-                className: "bg-[#C83733] hover:bg-[#a82f2b] text-white",
-              })}
-            >
-              Edit layout
-            </Link>
-          ) : (
-            <Button
-              type="button"
-              disabled={busy}
-              className="bg-[#C83733] hover:bg-[#a82f2b] text-white"
-              onClick={() => void createLayout()}
-            >
-              Create layout
+    <PageShell>
+      <Link href="/wireless/clients" className="text-sm text-primary hover:underline">
+        ← Clients
+      </Link>
+      <PageHeader
+        title={client?.clientName ?? (loading ? "Loading…" : "Client")}
+        description={`${client?.address || "No address"} · ${client?.serviceType ?? "—"}`}
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={() => void syncRuijie()}>
+              Sync Ruijie
             </Button>
-          )}
-        </div>
-      </div>
+            {published ? (
+              <Link
+                href={`/wireless/layouts/${published.id}`}
+                className={buttonVariants({
+                  className: "bg-primary text-primary-foreground hover:bg-primary/90",
+                })}
+              >
+                Edit layout
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                disabled={busy}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => void createLayout()}
+              >
+                Create layout
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
@@ -147,6 +144,6 @@ export default function WirelessClientProfilePage({
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

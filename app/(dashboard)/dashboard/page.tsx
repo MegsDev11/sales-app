@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { StatCard } from "@/components/stats/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, PageShell, Panel } from "@/components/layout/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,33 @@ import { isOverdue } from "@/lib/utils/time";
 import { STAGE_LABELS, ACTIVITY_LABELS } from "@/lib/constants";
 import { getSalesStaff } from "@/lib/permissions";
 import { Target, Calendar, AlertTriangle, TrendingUp, Inbox, Kanban } from "lucide-react";
+
+function ListRow({
+  href,
+  title,
+  subtitle,
+  trailing,
+}: {
+  href: string;
+  title: string;
+  subtitle?: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 border-b border-border px-1 py-2.5 last:border-0 hover:bg-muted/40"
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">{title}</p>
+        {subtitle ? (
+          <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+        ) : null}
+      </div>
+      {trailing}
+    </Link>
+  );
+}
 
 export default function DashboardPage() {
   const { currentUser, isAdmin } = useAuth();
@@ -48,144 +75,211 @@ export default function DashboardPage() {
     }));
 
     return (
-      <div className="space-y-6 p-4 lg:p-6">
-        <div>
-          <h1 className="text-2xl font-bold">Command Center</h1>
-          <p className="text-sm text-muted-foreground">Team overview and action items</p>
-        </div>
+      <PageShell>
+        <PageHeader
+          title="Command Center"
+          description="Team overview and action items"
+          actions={
+            <>
+              <Link href="/board">
+                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Kanban className="mr-1 h-4 w-4" />
+                  Board
+                </Button>
+              </Link>
+              <Link href="/inbox">
+                <Button size="sm" variant="outline">
+                  <Inbox className="mr-1 h-4 w-4" />
+                  Inbox
+                </Button>
+              </Link>
+            </>
+          }
+        />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Active Leads" value={active.length} icon={Target} accent="#C83733" />
-          <StatCard title="Due Today" value={dueToday.length} icon={Calendar} accent="#C83733" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="Active Leads" value={active.length} icon={Target} accent="var(--primary)" />
+          <StatCard title="Due Today" value={dueToday.length} icon={Calendar} accent="var(--primary)" />
           <StatCard title="Stuck in Stage" value={stuck.length} icon={AlertTriangle} accent="#dc2626" />
           <StatCard title="Unassigned" value={notifs?.unassigned.length ?? 0} icon={Inbox} />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle>Follow-ups Due Today</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title="Follow-ups due today" padded={false}>
+            <div className="px-3 py-1">
               {dueToday.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No follow-ups due today.</p>
+                <p className="px-1 py-3 text-sm text-muted-foreground">No follow-ups due today.</p>
               ) : (
                 dueToday.map((l) => (
-                  <Link key={l.id} href={`/leads/${l.id}`} className="flex items-center justify-between rounded-lg border p-3 hover:bg-gray-50">
-                    <div>
-                      <p className="font-medium">{l.clientName}</p>
-                      <p className="text-xs text-muted-foreground">{l.nextAction ?? "Follow up"}</p>
-                    </div>
-                    <Badge style={{ backgroundColor: getUserById(l.assignedToId ?? "")?.color }} className="text-white">
-                      {getUserById(l.assignedToId ?? "")?.name.split(" ")[0] ?? "?"}
-                    </Badge>
-                  </Link>
+                  <ListRow
+                    key={l.id}
+                    href={`/leads/${l.id}`}
+                    title={l.clientName}
+                    subtitle={l.nextAction ?? "Follow up"}
+                    trailing={
+                      <Badge
+                        style={{ backgroundColor: getUserById(l.assignedToId ?? "")?.color }}
+                        className="shrink-0 text-white"
+                      >
+                        {getUserById(l.assignedToId ?? "")?.name.split(" ")[0] ?? "?"}
+                      </Badge>
+                    }
+                  />
                 ))
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </Panel>
 
-          <Card>
-            <CardHeader><CardTitle>Rep Workload</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+          <Panel title="Rep workload">
+            <div className="space-y-3">
               {repWorkload.map(({ rep, count, stats }) => (
                 <div key={rep.id} className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="font-medium">{rep.name}</span>
-                    <span>{count} active · R{stats.revenueClosed.toLocaleString()} closed</span>
+                    <span className="text-muted-foreground">
+                      {count} active · R{stats.revenueClosed.toLocaleString()} closed
+                    </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min((stats.revenueClosed / rep.monthlyRevenueTarget) * 100, 100)}%`, backgroundColor: rep.color }} />
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min((stats.revenueClosed / rep.monthlyRevenueTarget) * 100, 100)}%`,
+                        backgroundColor: rep.color,
+                      }}
+                    />
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </Panel>
 
-          <Card>
-            <CardHeader><CardTitle>Recent Wins</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {recentWins.map((l) => (
-                <Link key={l.id} href={`/leads/${l.id}`} className="flex justify-between rounded-lg border p-2 text-sm hover:bg-gray-50">
-                  <span>{l.clientName}</span>
-                  <span className="font-medium text-green-600">R{(l.dealValue ?? 0).toLocaleString()}</span>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
+          <Panel title="Recent wins" padded={false}>
+            <div className="px-3 py-1">
+              {recentWins.length === 0 ? (
+                <p className="px-1 py-3 text-sm text-muted-foreground">No recent wins.</p>
+              ) : (
+                recentWins.map((l) => (
+                  <ListRow
+                    key={l.id}
+                    href={`/leads/${l.id}`}
+                    title={l.clientName}
+                    trailing={
+                      <span className="shrink-0 text-sm font-medium text-green-600">
+                        R{(l.dealValue ?? 0).toLocaleString()}
+                      </span>
+                    }
+                  />
+                ))
+              )}
+            </div>
+          </Panel>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Quick Links</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Link href="/board"><Button variant="outline" size="sm"><Kanban className="mr-1 h-4 w-4" />Board</Button></Link>
-              <Link href="/inbox"><Button variant="outline" size="sm"><Inbox className="mr-1 h-4 w-4" />Inbox</Button></Link>
-              <Link href="/surveys"><Button variant="outline" size="sm">Surveys</Button></Link>
-              <Link href="/team"><Button variant="outline" size="sm">Team</Button></Link>
-              <Link href="/analytics"><Button variant="outline" size="sm">Analytics</Button></Link>
-            </CardContent>
-          </Card>
+          <Panel title="Quick links">
+            <div className="flex flex-wrap gap-2">
+              <Link href="/surveys">
+                <Button variant="outline" size="sm">
+                  Surveys
+                </Button>
+              </Link>
+              <Link href="/team">
+                <Button variant="outline" size="sm">
+                  Team
+                </Button>
+              </Link>
+              <Link href="/analytics">
+                <Button variant="outline" size="sm">
+                  Analytics
+                </Button>
+              </Link>
+            </div>
+          </Panel>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
-  const myStats = currentUser ? getRepMonthlyStats(leads, currentUser.id) : { dealsClosed: 0, revenueClosed: 0 };
+  const myStats = currentUser
+    ? getRepMonthlyStats(leads, currentUser.id)
+    : { dealsClosed: 0, revenueClosed: 0 };
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Good day, {currentUser?.name.split(" ")[0]}</h1>
-        <p className="text-sm text-muted-foreground">Here&apos;s what needs your attention</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={`Good day, ${currentUser?.name.split(" ")[0]}`}
+        description="Here's what needs your attention"
+        actions={
+          <>
+            <Link href="/board">
+              <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                Go to pipeline
+              </Button>
+            </Link>
+            <Link href="/my-stats">
+              <Button size="sm" variant="outline">
+                My stats
+              </Button>
+            </Link>
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="My Active Leads" value={active.length} icon={Target} accent={currentUser?.color} />
-        <StatCard title="Due Today" value={dueToday.length} icon={Calendar} accent="#C83733" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="My Active Leads"
+          value={active.length}
+          icon={Target}
+          accent={currentUser?.color}
+        />
+        <StatCard title="Due Today" value={dueToday.length} icon={Calendar} accent="var(--primary)" />
         <StatCard title="Deals Closed" value={myStats.dealsClosed} icon={TrendingUp} accent="#16a34a" />
-        <StatCard title="Revenue" value={`R${myStats.revenueClosed.toLocaleString()}`} accent="#C83733" />
+        <StatCard
+          title="Revenue"
+          value={`R${myStats.revenueClosed.toLocaleString()}`}
+          accent="var(--primary)"
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle>Today&apos;s Tasks</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Today's tasks" padded={false}>
+          <div className="px-3 py-1">
             {dueToday.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tasks due today. Check your pipeline!</p>
+              <p className="px-1 py-3 text-sm text-muted-foreground">
+                No tasks due today. Check your pipeline!
+              </p>
             ) : (
               dueToday.map((l) => (
-                <Link key={l.id} href={`/leads/${l.id}`} className="block rounded-lg border p-3 hover:bg-gray-50">
-                  <p className="font-medium">{l.clientName}</p>
-                  <p className="text-xs text-muted-foreground">{l.nextAction} · {formatFollowUpDate(l.nextFollowUpAt)}</p>
-                </Link>
+                <ListRow
+                  key={l.id}
+                  href={`/leads/${l.id}`}
+                  title={l.clientName}
+                  subtitle={`${l.nextAction} · ${formatFollowUpDate(l.nextFollowUpAt)}`}
+                />
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
 
-        <Card>
-          <CardHeader><CardTitle>Hot Leads</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
+        <Panel title="Hot leads" padded={false}>
+          <div className="px-3 py-1">
             {hotLeads.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hot leads right now.</p>
+              <p className="px-1 py-3 text-sm text-muted-foreground">No hot leads right now.</p>
             ) : (
               hotLeads.map((l) => (
-                <Link key={l.id} href={`/leads/${l.id}`} className="flex items-center justify-between rounded-lg border p-3 hover:bg-gray-50">
-                  <div>
-                    <p className="font-medium">{l.clientName}</p>
-                    <p className="text-xs text-muted-foreground">{STAGE_LABELS[l.stage]} · {ACTIVITY_LABELS[l.currentActivity]}</p>
-                  </div>
-                  <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Hot</Badge>
-                </Link>
+                <ListRow
+                  key={l.id}
+                  href={`/leads/${l.id}`}
+                  title={l.clientName}
+                  subtitle={`${STAGE_LABELS[l.stage]} · ${ACTIVITY_LABELS[l.currentActivity]}`}
+                  trailing={
+                    <Badge className="shrink-0 bg-red-100 text-red-700 hover:bg-red-100">Hot</Badge>
+                  }
+                />
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </Panel>
       </div>
-
-      <div className="flex gap-2">
-        <Link href="/board"><Button className="bg-[#C83733] hover:bg-[#a82f2b]">Go to Pipeline</Button></Link>
-        <Link href="/my-stats"><Button variant="outline">My Stats</Button></Link>
-      </div>
-    </div>
+    </PageShell>
   );
 }

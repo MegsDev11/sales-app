@@ -8,9 +8,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragStartEvent,
 } from "@dnd-kit/core";
-import { KanbanColumn } from "@/components/board/kanban-column";
+import { KanbanColumn, parseStageDroppableId } from "@/components/board/kanban-column";
 import { LeadCard } from "@/components/board/lead-card";
 import { RepFilter } from "@/components/board/rep-filter";
 import { BoardFilters, defaultFilters, type BoardFilterState } from "@/components/board/board-filters";
@@ -25,7 +24,6 @@ import {
   isFollowUpDueToday,
   isFollowUpOverdue,
   isLeadVisible,
-  isActiveLead,
   searchLeads,
   sortLeads,
 } from "@/lib/utils/leads";
@@ -58,6 +56,8 @@ export function KanbanBoard() {
 
   const filteredLeads = useMemo(() => {
     let result = filterLeadsForUser(leads.filter(isLeadVisible), currentUser?.id, isAdmin);
+    // Inbox owns unassigned leads — keep them off the pipeline board
+    result = result.filter((l) => Boolean(l.assignedToId));
 
     if (isAdmin && repFilter) result = result.filter((l) => l.assignedToId === repFilter);
     if (serviceFilter !== "all") result = result.filter((l) => l.serviceType === serviceFilter);
@@ -72,8 +72,13 @@ export function KanbanBoard() {
   }, [leads, isAdmin, currentUser, repFilter, serviceFilter, filters]);
 
   const leadsByStage = useMemo(() => {
-    const map = Object.fromEntries(STAGES.map((s) => [s.id, [] as Lead[]])) as Record<LeadStage, Lead[]>;
-    filteredLeads.forEach((lead) => { map[lead.stage]?.push(lead); });
+    const map = Object.fromEntries(STAGES.map((s) => [s.id, [] as Lead[]])) as Record<
+      LeadStage,
+      Lead[]
+    >;
+    filteredLeads.forEach((lead) => {
+      map[lead.stage]?.push(lead);
+    });
     return map;
   }, [filteredLeads]);
 
@@ -81,8 +86,9 @@ export function KanbanBoard() {
     setActiveLead(null);
     const { active, over } = event;
     if (!over) return;
-    const leadId = active.id as string;
-    const newStage = over.id as LeadStage;
+    const leadId = String(active.id);
+    const newStage = parseStageDroppableId(over.id);
+    if (!newStage) return;
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.stage === newStage) return;
     if (!isAdmin && lead.assignedToId !== currentUser?.id) return;
@@ -112,22 +118,38 @@ export function KanbanBoard() {
     input.click();
   };
 
-  const visibleStages = [
-    ...ACTIVE_STAGES,
-    "closed_won" as LeadStage,
-    ...(showClosedLost ? (["closed_lost"] as LeadStage[]) : []),
-  ];
+  // Derive once from STAGES so stage ids never appear twice as React keys
+  const visibleStages = useMemo(() => {
+    const active = new Set<LeadStage>(ACTIVE_STAGES);
+    return STAGES.map((s) => s.id).filter((id) => {
+      if (active.has(id)) return true;
+      if (id === "closed_won") return true;
+      if (id === "closed_lost" && showClosedLost) return true;
+      return false;
+    });
+  }, [showClosedLost]);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="space-y-3 border-b bg-white px-4 py-3 lg:px-6">
+      <div className="space-y-2.5 border-b border-border bg-surface-elevated px-4 py-3 lg:px-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" className="bg-[#C83733] hover:bg-[#a82f2b]" onClick={() => setShowAddLead(true)}>
+          <Button
+            size="sm"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={() => setShowAddLead(true)}
+          >
             <Plus className="mr-1 h-4 w-4" /> Add Lead
           </Button>
-          {isAdmin && <RepFilter selected={repFilter} onSelect={setRepFilter} />}
-          <Select value={serviceFilter} onValueChange={(v) => { if (typeof v === "string") setServiceFilter(v as ServiceType | "all"); }}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Service" /></SelectTrigger>
+          {isAdmin ? <RepFilter selected={repFilter} onSelect={setRepFilter} /> : null}
+          <Select
+            value={serviceFilter}
+            onValueChange={(v) => {
+              if (typeof v === "string") setServiceFilter(v as ServiceType | "all");
+            }}
+          >
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Service" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All services</SelectItem>
               <SelectItem value="fiber">Fiber</SelectItem>
@@ -135,33 +157,66 @@ export function KanbanBoard() {
               <SelectItem value="both">Both</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant={filters.dueTodayOnly ? "default" : "outline"} size="sm" onClick={() => setFilters({ ...filters, dueTodayOnly: !filters.dueTodayOnly, overdueOnly: false })} className={filters.dueTodayOnly ? "bg-[#C83733] hover:bg-[#a82f2b]" : ""}>
+          <Button
+            variant={filters.dueTodayOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() =>
+              setFilters({
+                ...filters,
+                dueTodayOnly: !filters.dueTodayOnly,
+                overdueOnly: false,
+              })
+            }
+            className={filters.dueTodayOnly ? "bg-primary hover:bg-primary/90" : ""}
+          >
             Due Today
           </Button>
-          <Button variant={filters.overdueOnly ? "default" : "outline"} size="sm" onClick={() => setFilters({ ...filters, overdueOnly: !filters.overdueOnly, dueTodayOnly: false })} className={filters.overdueOnly ? "bg-[#C83733] hover:bg-[#a82f2b]" : ""}>
+          <Button
+            variant={filters.overdueOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() =>
+              setFilters({
+                ...filters,
+                overdueOnly: !filters.overdueOnly,
+                dueTodayOnly: false,
+              })
+            }
+            className={filters.overdueOnly ? "bg-primary hover:bg-primary/90" : ""}
+          >
             Overdue
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowClosedLost(!showClosedLost)}>
             {showClosedLost ? "Hide" : "Show"} Lost
           </Button>
-          {isAdmin && (
+          {isAdmin ? (
             <>
-              <Button variant="ghost" size="sm" onClick={exportToCsv} title="Export CSV"><Download className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="sm" onClick={handleImport} title="Import CSV"><Upload className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm" onClick={exportToCsv} title="Export CSV">
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleImport} title="Import CSV">
+                <Upload className="h-4 w-4" />
+              </Button>
             </>
-          )}
+          ) : null}
         </div>
         <BoardFilters filters={filters} onChange={setFilters} zones={[...SERVICE_ZONES]} />
       </div>
 
-      <DndContext sensors={sensors} onDragStart={(e) => setActiveLead(leads.find((l) => l.id === e.active.id) ?? null)} onDragEnd={handleDragEnd}>
-        <div className="flex-1 snap-x snap-mandatory overflow-x-auto p-4 lg:p-6">
-          <div className="flex gap-4">
+      <DndContext
+        sensors={sensors}
+        onDragStart={(e) =>
+          setActiveLead(leads.find((l) => l.id === e.active.id) ?? null)
+        }
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex-1 snap-x snap-mandatory overflow-x-auto bg-surface p-4 lg:p-5">
+          <div className="flex gap-3">
             {visibleStages.map((stageId) => {
-              const stage = STAGES.find((s) => s.id === stageId)!;
+              const stage = STAGES.find((s) => s.id === stageId);
+              if (!stage) return null;
               return (
                 <KanbanColumn
-                  key={stageId}
+                  key={`stage-col-${stageId}`}
                   stage={stageId}
                   label={stage.label}
                   headerColor={stage.headerColor}
@@ -174,18 +229,30 @@ export function KanbanBoard() {
           </div>
         </div>
         <DragOverlay>
-          {activeLead && (
-            <LeadCard lead={activeLead} rep={activeLead.assignedToId ? getUserById(activeLead.assignedToId) : undefined} showRep={isAdmin} />
-          )}
+          {activeLead ? (
+            <LeadCard
+              lead={activeLead}
+              rep={
+                activeLead.assignedToId
+                  ? getUserById(activeLead.assignedToId)
+                  : undefined
+              }
+              showRep={isAdmin}
+            />
+          ) : null}
         </DragOverlay>
       </DndContext>
 
       <LeadFormDialog open={showAddLead} onOpenChange={setShowAddLead} />
-      <LostReasonDialog open={!!pendingMove} onConfirm={handleLostConfirm} onCancel={() => setPendingMove(null)} />
+      <LostReasonDialog
+        open={!!pendingMove}
+        onConfirm={handleLostConfirm}
+        onCancel={() => setPendingMove(null)}
+      />
 
       <Button
         size="icon-lg"
-        className="fixed bottom-20 right-4 z-40 rounded-full bg-[#C83733] shadow-lg hover:bg-[#a82f2b] lg:hidden"
+        className="fixed bottom-20 right-4 z-40 rounded-full bg-primary shadow-lg hover:bg-primary/90 lg:hidden"
         onClick={() => setShowAddLead(true)}
       >
         <Plus className="h-5 w-5" />

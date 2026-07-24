@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -30,20 +32,18 @@ export default function SupportMessagesPage() {
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 8000);
+    const t = setInterval(() => void load(), 30_000);
     return () => clearInterval(t);
   }, [load]);
 
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Messages</h1>
-        <p className="text-sm text-muted-foreground">
-          Client chat from the MEGS Field mobile app
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Messages"
+        description="Client chat from the MEGS Field mobile app"
+      />
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">{error}</div>
       )}
@@ -73,6 +73,6 @@ export default function SupportMessagesPage() {
           <p className="text-sm text-muted-foreground">No threads yet.</p>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
@@ -195,21 +197,19 @@ export default function StockScanPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Scan stock</h1>
-        <p className="text-sm text-muted-foreground">
-          Book devices back in, claim new batch labels into inventory, or look up a unit.
+    <PageShell className="max-w-lg">
+      <PageHeader
+        title="Scan stock"
+        description="Book devices back in, claim new batch labels into inventory, or look up a unit."
+      />
+      {isLoaded && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Session: {returnCount} returned · {intakeCount} booked in
+          {qrLabels.filter((l) => !l.claimedAt).length > 0
+            ? ` · ${qrLabels.filter((l) => !l.claimedAt).length} pending labels`
+            : ""}
         </p>
-        {isLoaded && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Session: {returnCount} returned · {intakeCount} booked in
-            {qrLabels.filter((l) => !l.claimedAt).length > 0
-              ? ` · ${qrLabels.filter((l) => !l.claimedAt).length} pending labels`
-              : ""}
-          </p>
-        )}
-      </div>
+      )}
 
       <Card className="bg-white">
         <CardHeader>
@@ -274,7 +274,7 @@ export default function StockScanPage() {
             </p>
           )}
           <Button
-            className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={returnBusy || !returnToken}
             onClick={() => void handleReturn()}
           >
@@ -358,7 +358,7 @@ export default function StockScanPage() {
             </p>
           )}
           <Button
-            className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={intakeBusy || !intakeToken}
             onClick={() => void handleIntake()}
           >
@@ -467,7 +467,7 @@ export default function StockScanPage() {
               })}
             </div>
           )}
-          <Button className="w-full bg-[#C83733] hover:bg-[#a82f2b]" onClick={goLookup}>
+          <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={goLookup}>
             Search stock
           </Button>
         </CardContent>
@@ -499,6 +499,6 @@ export default function StockScanPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

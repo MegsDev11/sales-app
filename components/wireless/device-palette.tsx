@@ -4,33 +4,27 @@ import { cn } from "@/lib/utils";
 import {
   NODE_KIND_LABELS,
   STRUCTURE_KIND_LABELS,
+  type NetworkNodeKind,
   type PaletteTool,
 } from "@/lib/wireless/layout-types";
-import {
-  BrickWall,
-  Camera,
-  Cable,
-  Fence,
-  HardDrive,
-  Network,
-  Phone,
-  Printer,
-  Router,
-  Type,
-} from "lucide-react";
+import { DeviceKindIcon } from "@/components/wireless/device-icons";
+import { BrickWall, Cable, Fence } from "lucide-react";
 
-const PALETTE: { kind: PaletteTool; icon: typeof Network; label: string }[] = [
-  { kind: "network_point", icon: Network, label: NODE_KIND_LABELS.network_point },
-  { kind: "server_rack", icon: HardDrive, label: NODE_KIND_LABELS.server_rack },
-  { kind: "switch", icon: HardDrive, label: NODE_KIND_LABELS.switch },
-  { kind: "ptz_camera", icon: Camera, label: NODE_KIND_LABELS.ptz_camera },
-  { kind: "printer", icon: Printer, label: NODE_KIND_LABELS.printer },
-  { kind: "nec_phone", icon: Phone, label: NODE_KIND_LABELS.nec_phone },
-  { kind: "ruijie_router", icon: Router, label: NODE_KIND_LABELS.ruijie_router },
-  { kind: "label", icon: Type, label: NODE_KIND_LABELS.label },
-  { kind: "cable", icon: Cable, label: "Cable" },
-  { kind: "wall", icon: BrickWall, label: STRUCTURE_KIND_LABELS.wall },
-  { kind: "fence", icon: Fence, label: STRUCTURE_KIND_LABELS.fence },
+const DEVICE_KINDS: NetworkNodeKind[] = [
+  "network_point",
+  "server_rack",
+  "switch",
+  "ptz_camera",
+  "printer",
+  "nec_phone",
+  "ruijie_router",
+  "label",
+];
+
+const DRAW_TOOLS: { kind: PaletteTool; label: string; icon: typeof Cable }[] = [
+  { kind: "cable", label: "Cable", icon: Cable },
+  { kind: "wall", label: STRUCTURE_KIND_LABELS.wall, icon: BrickWall },
+  { kind: "fence", label: STRUCTURE_KIND_LABELS.fence, icon: Fence },
 ];
 
 export function DevicePalette({
@@ -43,9 +37,36 @@ export function DevicePalette({
   return (
     <div className="flex flex-col gap-1 rounded-lg border bg-white p-2">
       <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Palette
+        Devices
       </p>
-      {PALETTE.map((item) => {
+      {DEVICE_KINDS.map((kind) => {
+        const active = selected === kind;
+        return (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => onSelect(kind)}
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors",
+              active ? "bg-primary/10 ring-1 ring-primary text-primary" : "text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-white",
+                active ? "border-primary/40" : "border-gray-200"
+              )}
+            >
+              <DeviceKindIcon kind={kind} size={28} />
+            </span>
+            {NODE_KIND_LABELS[kind]}
+          </button>
+        );
+      })}
+      <p className="mt-2 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Draw
+      </p>
+      {DRAW_TOOLS.map((item) => {
         const Icon = item.icon;
         const active = selected === item.kind;
         return (
@@ -54,11 +75,20 @@ export function DevicePalette({
             type="button"
             onClick={() => onSelect(item.kind)}
             className={cn(
-              "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors",
-              active ? "bg-[#C83733] text-white" : "text-gray-700 hover:bg-gray-100"
+              "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors",
+              active ? "bg-primary/10 ring-1 ring-primary text-primary" : "text-gray-700 hover:bg-gray-100"
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-white",
+                active ? "border-primary/40" : "border-gray-200"
+              )}
+            >
+              <Icon
+                className={cn("h-4 w-4", active ? "text-primary" : "text-gray-600")}
+              />
+            </span>
             {item.label}
           </button>
         );

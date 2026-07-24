@@ -17,7 +17,7 @@ export type PublicNetworkStatus = {
   refresh: () => void;
 };
 
-const POLL_MS = 5_000;
+const POLL_MS = 45_000;
 
 export function usePublicNetworkStatus(): PublicNetworkStatus {
   const [outages, setOutages] = useState<PublicNetworkOutage[]>([]);
@@ -26,6 +26,9 @@ export function usePublicNetworkStatus(): PublicNetworkStatus {
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
 
   const refresh = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return;
+    }
     fetch("/api/network-status", { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { outages?: PublicNetworkOutage[]; towers?: PublicTowerStatus[] }) => {
@@ -44,10 +47,15 @@ export function usePublicNetworkStatus(): PublicNetworkStatus {
     refresh();
     const id = setInterval(refresh, POLL_MS);
     const onFocus = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refresh]);
 

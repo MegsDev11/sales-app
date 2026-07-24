@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useStockRequestsAccess } from "@/lib/hooks/use-stock-access";
@@ -193,31 +195,29 @@ export default function StockRequestsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Stock requests</h1>
-          <p className="text-sm text-muted-foreground">
-            Coordination sends pick lists; stock fulfills by scanning unit QR codes
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void refresh()}>
-            Refresh
-          </Button>
-          {canCreate && (
-            <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
-              onClick={() => {
-                setLines([{ productId: products[0]?.id ?? "", qtyNeeded: 1 }]);
-                setCreateOpen(true);
-              }}
-            >
-              New request
+    <PageShell>
+      <PageHeader
+        title="Stock requests"
+        description="Coordination sends pick lists; stock fulfills by scanning unit QR codes"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => void refresh()}>
+              Refresh
             </Button>
-          )}
-        </div>
-      </div>
+            {canCreate && (
+              <Button
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => {
+                  setLines([{ productId: products[0]?.id ?? "", qtyNeeded: 1 }]);
+                  setCreateOpen(true);
+                }}
+              >
+                New request
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {(error || msg) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -489,7 +489,7 @@ export default function StockRequestsPage() {
               Cancel
             </Button>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy}
               onClick={() => void handleCreate()}
             >
@@ -658,7 +658,7 @@ export default function StockRequestsPage() {
               Close
             </Button>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy || !scanToken.trim() || scannedLineStatus === "wrong_product"}
               onClick={() => void handleFulfill()}
             >
@@ -667,6 +667,6 @@ export default function StockRequestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

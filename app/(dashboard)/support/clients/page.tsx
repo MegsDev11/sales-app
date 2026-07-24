@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -42,13 +44,11 @@ export default function SupportClientsPage() {
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Client Assignment</h1>
-        <p className="text-sm text-muted-foreground">
-          Link clients to towers for outage notifications and support routing
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Client Assignment"
+        description="Link clients to towers for outage notifications and support routing"
+      />
 
       <Card className="bg-white">
         <CardHeader>
@@ -131,6 +131,6 @@ export default function SupportClientsPage() {
           })}
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

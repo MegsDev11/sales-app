@@ -18,7 +18,6 @@ import type {
   Activity,
   CrmData,
   Lead,
-  PublicNetworkOutage,
   Tower,
   TowerOutage,
   User,
@@ -216,38 +215,6 @@ export async function setTowerStatusViaApi(
     status,
     updatedById,
   });
-}
-
-export async function fetchActivePublicOutages(): Promise<PublicNetworkOutage[]> {
-  const supabase = getSupabaseBrowserClient();
-  if (!supabase) return [];
-
-  const [outagesRes, towersRes] = await Promise.all([
-    supabase
-      .from("tower_outages")
-      .select("*")
-      .is("resolved_at", null)
-      .eq("is_public", true)
-      .order("started_at", { ascending: false }),
-    supabase.from("towers").select("id, name"),
-  ]);
-
-  if (outagesRes.error) throw outagesRes.error;
-  if (towersRes.error) throw towersRes.error;
-
-  const towerNames = new Map(
-    (towersRes.data ?? []).map((t) => [t.id, t.name as string])
-  );
-
-  return (outagesRes.data ?? []).map((row) => ({
-    id: row.id,
-    towerId: row.tower_id,
-    towerName: towerNames.get(row.tower_id) ?? "Unknown tower",
-    title: row.title,
-    message: row.message,
-    affectedAreas: row.affected_areas ?? [],
-    startedAt: row.started_at,
-  }));
 }
 
 export function subscribeToCrmChanges(onChange: () => void): () => void {

@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
@@ -93,31 +95,29 @@ export default function CoordinationTimeOffPage() {
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Time off</h1>
-          <p className="text-sm text-muted-foreground">
-            Approve or decline technician leave requests from MEGS Field
-          </p>
-        </div>
-        <div className="w-44">
-          <Select
-            value={status}
-            onValueChange={(v) => v && setStatus(v as typeof status)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="declined">Declined</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Time off"
+        description="Approve or decline technician leave requests from MEGS Field"
+        actions={
+          <div className="w-44">
+            <Select
+              value={status}
+              onValueChange={(v) => v && setStatus(v as typeof status)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="declined">Declined</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -193,6 +193,6 @@ export default function CoordinationTimeOffPage() {
           </Card>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

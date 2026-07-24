@@ -1,6 +1,6 @@
 # MEGS Field Mobile
 
-Expo React Native app in `apps/mobile`, sharing the same Supabase project as the Next.js CRM.
+Expo React Native app in `apps/mobile`, sharing the same Supabase project as the Next.js operations web app.
 
 ## Setup
 
@@ -23,7 +23,7 @@ Expo React Native app in `apps/mobile`, sharing the same Supabase project as the
 | `team_members` stock dept | Stock (scan book-in/out/return) |
 | `team_members` coordination staff/manager | Tech (jobs + clock) |
 | `client_accounts` (issued via `POST /api/client-accounts`) | Client (credentials, layout, chat) |
-| Other staff / owner | Unsupported screen → use web CRM |
+| Other staff / owner | Unsupported screen → use web Operations |
 
 ## Key APIs
 

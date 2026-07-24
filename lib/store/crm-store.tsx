@@ -63,6 +63,7 @@ interface CrmStoreContextValue {
   moveLead: (id: string, stage: LeadStage, lostReason?: LostReason) => void;
   addActivity: (leadId: string, type: ActivityType, title: string) => void;
   reassignLead: (leadId: string, assignedToId: string | null) => void;
+  returnLeadToInbox: (leadId: string) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   addUser: (data: CreateUserPayload, accessToken: string) => Promise<string>;
   createOutage: (
@@ -114,11 +115,20 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accessTokenRef = useRef(accessToken);
   accessTokenRef.current = accessToken;
+  const pendingLeadPatches = useRef(new Map<string, Partial<Lead>>());
 
   const refreshFromSupabase = useCallback(async () => {
     try {
       const next = await fetchCrmDataFromSupabase(accessTokenRef.current);
-      setData(normalizeData(next));
+      const normalized = normalizeData(next);
+      const patches = pendingLeadPatches.current;
+      if (patches.size > 0) {
+        normalized.leads = normalized.leads.map((lead) => {
+          const pending = patches.get(lead.id);
+          return pending ? { ...lead, ...pending } : lead;
+        });
+      }
+      setData(normalized);
       setDbError(null);
     } catch (error) {
       const message =
@@ -160,18 +170,39 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
 
+    // Debounce heavily so bursts of realtime events don't full-refetch CRM
+    // repeatedly. Skip while the tab is hidden — catch up on visibility.
     const scheduleRefresh = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       refreshTimer.current = setTimeout(() => {
         void refreshFromSupabase();
-      }, 300);
+      }, 2500);
     };
 
-    return subscribeToCrmChanges(scheduleRefresh);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        scheduleRefresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    const unsubscribe = subscribeToCrmChanges(scheduleRefresh);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      unsubscribe();
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
   }, [isLoaded, refreshFromSupabase]);
 
   const updateLead = useCallback(
     (id: string, updates: Partial<Lead>) => {
+      const previous = pendingLeadPatches.current.get(id) ?? {};
+      pendingLeadPatches.current.set(id, { ...previous, ...updates });
+
       setData((prev) => ({
         ...prev,
         leads: prev.leads.map((lead) =>
@@ -179,10 +210,18 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
 
-      void patchLead(id, updates).catch((error) => {
-        setDbError(error instanceof Error ? error.message : "Update failed");
-        void refreshFromSupabase();
-      });
+      void patchLead(id, updates)
+        .then(() => {
+          // Keep pending briefly so in-flight refreshes still re-apply this patch
+          window.setTimeout(() => {
+            pendingLeadPatches.current.delete(id);
+          }, 1500);
+        })
+        .catch((error) => {
+          pendingLeadPatches.current.delete(id);
+          setDbError(error instanceof Error ? error.message : "Update failed");
+          void refreshFromSupabase();
+        });
     },
     [refreshFromSupabase]
   );
@@ -335,7 +374,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           : null;
         const activityTitle = assignedToId
           ? `Reassigned to ${user?.name ?? "team member"}`
-          : "Unassigned";
+          : "Returned to Lead Inbox";
 
         const newActivity: Activity = {
           id: `act-${Date.now()}`,
@@ -345,9 +384,12 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           createdAt: now,
         };
 
+        // Unassigning returns the lead to the inbox; assigning clears any prior dismiss.
+        const inboxDismissedAt = null;
+
         void (async () => {
           try {
-            await patchLead(leadId, { assignedToId });
+            await patchLead(leadId, { assignedToId, inboxDismissedAt });
             await insertActivity(newActivity);
           } catch (error) {
             setDbError(error instanceof Error ? error.message : "Reassign failed");
@@ -358,13 +400,20 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         return {
           ...prev,
           leads: prev.leads.map((lead) =>
-            lead.id === leadId ? { ...lead, assignedToId } : lead
+            lead.id === leadId ? { ...lead, assignedToId, inboxDismissedAt } : lead
           ),
           activities: [newActivity, ...prev.activities],
         };
       });
     },
     [refreshFromSupabase]
+  );
+
+  const returnLeadToInbox = useCallback(
+    (leadId: string) => {
+      reassignLead(leadId, null);
+    },
+    [reassignLead]
   );
 
   const updateUser = useCallback(
@@ -645,6 +694,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       moveLead,
       addActivity,
       reassignLead,
+      returnLeadToInbox,
       updateUser,
       addUser,
       createOutage,
@@ -661,7 +711,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       data, isLoaded, dbError, updateLead, addLead, deleteLead, restoreLead,
-      moveLead, addActivity, reassignLead, updateUser, addUser, createOutage,
+      moveLead, addActivity, reassignLead, returnLeadToInbox, updateUser, addUser, createOutage,
       resolveOutage, setTowerStatus, assignLeadTower, exportToCsv, importFromCsv, getUserById,
       getLeadActivities, getVisibleLeads, getTowerById, getActiveOutages,
     ]

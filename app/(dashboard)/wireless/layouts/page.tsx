@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
@@ -31,23 +33,21 @@ export default function WirelessLayoutsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Network Layouts</h1>
-          <p className="text-sm text-muted-foreground">
-            Architectural drafts and published client diagrams
-          </p>
-        </div>
-        <Button
-          type="button"
-          disabled={busy}
-          className="bg-[#C83733] hover:bg-[#a82f2b] text-white"
-          onClick={() => void createBlank()}
-        >
-          New layout
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Network Layouts"
+        description="Architectural drafts and published client diagrams"
+        actions={
+          <Button
+            type="button"
+            disabled={busy}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 text-white"
+            onClick={() => void createBlank()}
+          >
+            New layout
+          </Button>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
@@ -80,6 +80,6 @@ export default function WirelessLayoutsPage() {
           <p className="text-sm text-muted-foreground">No layouts yet.</p>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

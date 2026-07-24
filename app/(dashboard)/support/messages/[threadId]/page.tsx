@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import type { SupportMessage, SupportThread } from "@megs/shared";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -39,7 +40,7 @@ export default function SupportMessageThreadPage({
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 5000);
+    const t = setInterval(() => void load(), 15_000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -69,13 +70,16 @@ export default function SupportMessageThreadPage({
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-4 p-4 lg:p-6">
+    <PageShell className="flex h-[calc(100vh-8rem)] max-w-none flex-col gap-4 space-y-0">
       <div>
-        <Link href="/support/messages" className="text-sm text-[#C83733] hover:underline">
+        <Link href="/support/messages" className="text-sm text-primary hover:underline">
           ← Messages
         </Link>
-        <h1 className="mt-1 text-2xl font-bold">{thread?.clientName ?? "Thread"}</h1>
-        <p className="text-xs uppercase text-muted-foreground">{thread?.status}</p>
+        <PageHeader
+          className="mt-1 border-b-0 pb-0"
+          title={thread?.clientName ?? "Thread"}
+          description={thread?.status}
+        />
       </div>
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">{error}</div>
@@ -85,7 +89,7 @@ export default function SupportMessageThreadPage({
           <div
             key={m.id}
             className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-              m.senderType === "staff" ? "ml-auto bg-[#C83733]/10" : "bg-gray-100"
+              m.senderType === "staff" ? "ml-auto bg-primary/10" : "bg-gray-100"
             }`}
           >
             <p>{m.body}</p>
@@ -103,13 +107,13 @@ export default function SupportMessageThreadPage({
           placeholder="Reply to client…"
         />
         <Button
-          className="bg-[#C83733] text-white hover:bg-[#a82f2b]"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
           disabled={busy}
           onClick={() => void send()}
         >
           Send
         </Button>
       </div>
-    </div>
+    </PageShell>
   );
 }

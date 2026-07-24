@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Megs Operations
 
-## Getting Started
+Company management platform for **Megs Waterberg** — sales pipeline, stock, coordination, support, wireless, and field mobile — plus the public marketing site.
 
-First, run the development server:
+This started as a sales CRM and grew into multi-department ops. Keep shipping department features on the current shell; do not rewrite for naming alone.
+
+## Apps
+
+| Path | What |
+|------|------|
+| Repo root (`app/`, `components/`, `lib/`) | Next.js web: marketing site + staff operations dashboard |
+| `apps/mobile/` | Expo app for field techs, stock, and clients |
+| `packages/shared/` | Shared helpers (`@megs/shared`) |
+| `supabase/` | SQL migrations |
+
+## Departments (web)
+
+Built: **Company**, **Sales**, **Stock**, **Coordination**, **Support**, **Wireless**, **Staff accounts**
+
+Placeholders (shell only): Fiber, Financial, General, Accounts, Reception
+
+Staff land on their department home after login. Owners use `/company` and switch departments from the sidebar.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Staff login: `/login`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run mobile          # Expo app
+npm run db:migrate      # Apply Supabase migrations (needs DATABASE_URL)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Configure `.env.local` with Supabase URL/keys (and optional Ruijie / database URL as needed).
 
-## Learn More
+## Adding a department
 
-To learn more about Next.js, take a look at the following resources:
+Follow the Stock / Wireless pattern:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Prefixed routes under `app/(dashboard)/<dept>/`
+2. Department sidebar + access hook (`canAccess…` in `lib/permissions.ts`)
+3. Own API routes / tables when needed
+4. Reuse users from the shared CRM store — do not invent a second staff directory yet
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## When to extract architecture
 
-## Deploy on Vercel
+Leave the shared store (users + leads; towers today) alone until a feature forces it:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Support towers/outages grow → extract a support module
+- Non-sales pages only need users → thin `useUsers()` / staff helpers
+- `lib/types.ts` becomes hard to navigate → split by domain with a barrel re-export
+- Sales URLs confuse other depts → nest under `/sales/*` with redirects
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Do **not** move the web app into `apps/web`, unify everything into one mega-store, or mass-rename auth storage keys / sales routes without a concrete need.
+
+See also [docs/architecture.md](docs/architecture.md) for the department shipping pattern and extract-on-pain triggers.

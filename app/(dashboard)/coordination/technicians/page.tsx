@@ -1,34 +1,21 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import type { User } from "@/lib/types";
+import {
+  TEAM_OPTIONS,
+  TechnicianCreateForm,
+} from "@/components/coordination/technician-create-form";
+import { TechnicianEditDialog } from "@/components/coordination/technician-edit-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { KeyRound, Pencil, Radio, Cable, UserPlus } from "lucide-react";
-
-const TEAM_OPTIONS = [
-  { value: "Wireless technician", label: "Wireless technician" },
-  { value: "Fiber technician", label: "Fiber technician" },
-];
 
 function teamOf(tech: User): "wireless" | "fiber" | "general" {
   const title = (tech.title ?? "").toLowerCase();
@@ -272,10 +259,10 @@ export default function CoordinationTechniciansPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Technicians</h1>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Technicians"
+      />
 
       {msg && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -283,77 +270,24 @@ export default function CoordinationTechniciansPage() {
         </div>
       )}
 
-      <Card className="bg-white">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UserPlus className="h-4 w-4" />
-            Add technician
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Email + app password are the MEGS Field mobile login. Changing them here updates app
-            sign-in immediately.
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Full name"
-          />
-          <Select value={title} onValueChange={(v) => v && setTitle(v)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TEAM_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={technicianLevel}
-            onValueChange={(value) =>
-              value && setTechnicianLevel(value as "junior" | "senior")
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="junior">Junior technician</SelectItem>
-              <SelectItem value="senior">Senior technician</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" />
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="App login email"
-          />
-          <Input
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="App login password (min 8)"
-            autoComplete="new-password"
-          />
-          <Input
-            value={idNumber}
-            onChange={(e) => setIdNumber(e.target.value)}
-            placeholder="ID number"
-          />
-          <Button
-            className="bg-[#C83733] hover:bg-[#a82f2b]"
-            disabled={busy}
-            onClick={() => void handleAdd()}
-          >
-            Add
-          </Button>
-        </CardContent>
-      </Card>
+      <TechnicianCreateForm
+        name={name}
+        onNameChange={setName}
+        title={title}
+        onTitleChange={setTitle}
+        technicianLevel={technicianLevel}
+        onTechnicianLevelChange={setTechnicianLevel}
+        phone={phone}
+        onPhoneChange={setPhone}
+        email={email}
+        onEmailChange={setEmail}
+        password={password}
+        onPasswordChange={setPassword}
+        idNumber={idNumber}
+        onIdNumberChange={setIdNumber}
+        busy={busy}
+        onAdd={() => void handleAdd()}
+      />
 
       {!loaded ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -365,7 +299,7 @@ export default function CoordinationTechniciansPage() {
           .map((group) => (
             <div key={group.key} className="space-y-3">
               <h2 className="flex items-center gap-2 text-sm font-semibold">
-                <group.icon className="h-4 w-4 text-[#C83733]" />
+                <group.icon className="h-4 w-4 text-primary" />
                 {group.label} ({group.members.length})
               </h2>
               {group.members.length === 0 ? (
@@ -422,14 +356,14 @@ export default function CoordinationTechniciansPage() {
                                 <span className="font-medium text-foreground">App password:</span>
                                 {tech.loginPassword ? (
                                   <>
-                                    <span className="font-mono text-sm text-[#C83733]">
+                                    <span className="font-mono text-sm text-primary">
                                       {revealedPasswords[tech.id]
                                         ? tech.loginPassword
                                         : "••••••••"}
                                     </span>
                                     <button
                                       type="button"
-                                      className="text-[10px] text-[#C83733] hover:underline"
+                                      className="text-[10px] text-primary hover:underline"
                                       onClick={() =>
                                         setRevealedPasswords((prev) => ({
                                           ...prev,
@@ -441,7 +375,7 @@ export default function CoordinationTechniciansPage() {
                                     </button>
                                     <button
                                       type="button"
-                                      className="text-[10px] text-[#C83733] hover:underline"
+                                      className="text-[10px] text-primary hover:underline"
                                       onClick={() =>
                                         void navigator.clipboard.writeText(tech.loginPassword!)
                                       }
@@ -462,7 +396,7 @@ export default function CoordinationTechniciansPage() {
                               </p>
                             ) : null}
                             {tech.accessCode ? (
-                              <p className="font-mono text-lg font-bold tracking-[0.25em] text-[#C83733]">
+                              <p className="font-mono text-lg font-bold tracking-[0.25em] text-primary">
                                 {tech.accessCode}
                               </p>
                             ) : tech.hasAccessCode ? (
@@ -554,115 +488,29 @@ export default function CoordinationTechniciansPage() {
           ))}
       </div>
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto bg-white sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit technician</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="space-y-1">
-              <label className="font-medium">Full name</label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">Team / title</label>
-              <Select value={editTitle} onValueChange={(v) => v && setEditTitle(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TEAM_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                  {!TEAM_OPTIONS.some((o) => o.value === editTitle) && editTitle ? (
-                    <SelectItem value={editTitle}>{editTitle}</SelectItem>
-                  ) : null}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Wireless and fiber technicians are grouped separately on this page.
-              </p>
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">Seniority</label>
-              <Select
-                value={editTechnicianLevel}
-                onValueChange={(value) =>
-                  value && setEditTechnicianLevel(value as "junior" | "senior")
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="junior">Junior technician</SelectItem>
-                  <SelectItem value="senior">Senior technician</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">Phone number</label>
-              <Input
-                type="tel"
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                placeholder="Phone number"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">App login email</label>
-              <Input
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                placeholder="Email for MEGS Field app"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">
-                {editing?.authUserId ? "New app password (optional)" : "App password"}
-              </label>
-              <Input
-                type="text"
-                value={editPassword}
-                onChange={(e) => setEditPassword(e.target.value)}
-                placeholder={
-                  editing?.authUserId
-                    ? "Leave blank to keep current password"
-                    : "Min 8 characters — enables mobile login"
-                }
-                autoComplete="new-password"
-              />
-              <p className="text-xs text-muted-foreground">
-                Changing email or password here updates MEGS Field app sign-in immediately.
-              </p>
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">ID number</label>
-              <Input
-                value={editIdNumber}
-                onChange={(e) => setEditIdNumber(e.target.value)}
-                placeholder="ID number"
-              />
-            </div>
-            {editMsg && <p className="text-sm text-[#C83733]">{editMsg}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
-              disabled={busy}
-              onClick={() => void handleSaveEdit()}
-            >
-              Save changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <TechnicianEditDialog
+        editing={editing}
+        open={!!editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        editName={editName}
+        onEditNameChange={setEditName}
+        editTitle={editTitle}
+        onEditTitleChange={setEditTitle}
+        editTechnicianLevel={editTechnicianLevel}
+        onEditTechnicianLevelChange={setEditTechnicianLevel}
+        editPhone={editPhone}
+        onEditPhoneChange={setEditPhone}
+        editEmail={editEmail}
+        onEditEmailChange={setEditEmail}
+        editIdNumber={editIdNumber}
+        onEditIdNumberChange={setEditIdNumber}
+        editPassword={editPassword}
+        onEditPasswordChange={setEditPassword}
+        editMsg={editMsg}
+        busy={busy}
+        onSave={() => void handleSaveEdit()}
+        onCancel={() => setEditing(null)}
+      />
+    </PageShell>
   );
 }

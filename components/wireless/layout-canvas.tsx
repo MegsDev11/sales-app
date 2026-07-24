@@ -13,10 +13,11 @@ import type {
 } from "@/lib/wireless/layout-types";
 import { DeviceStatusBadge } from "@/components/wireless/device-status-badge";
 import { DevicePalette } from "@/components/wireless/device-palette";
+import { DeviceKindIcon } from "@/components/wireless/device-icons";
 
 const GRID = 20;
-const NODE_W = 88;
-const NODE_H = 56;
+const NODE_W = 72;
+const NODE_H = 78;
 
 function snap(n: number) {
   return Math.round(n / GRID) * GRID;
@@ -28,22 +29,10 @@ function isStructureTool(tool: PaletteTool | null): tool is NetworkStructureKind
 
 function nodeFill(kind: NetworkNodeKind): string {
   switch (kind) {
-    case "ruijie_router":
-      return "#C83733";
-    case "server_rack":
-      return "#1e3a5f";
-    case "switch":
-      return "#0f766e";
-    case "ptz_camera":
-      return "#7c3aed";
-    case "printer":
-      return "#475569";
-    case "nec_phone":
-      return "#0369a1";
     case "label":
       return "#f8fafc";
     default:
-      return "#334155";
+      return "#ffffff";
   }
 }
 
@@ -296,7 +285,7 @@ export function LayoutCanvas({
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
       {!readOnly && (
-        <div className="w-full shrink-0 lg:w-44">
+        <div className="w-full shrink-0 lg:w-56">
           <DevicePalette selected={tool} onSelect={handleToolSelect} />
           <p className="mt-2 text-[11px] text-muted-foreground">{hint}</p>
           {isStructureTool(tool) && draftPoints.length >= 2 && (
@@ -390,8 +379,8 @@ export function LayoutCanvas({
                   y1={a.y + NODE_H / 2}
                   x2={b.x + NODE_W / 2}
                   y2={b.y + NODE_H / 2}
-                  stroke="#0f172a"
-                  strokeWidth={2}
+                  stroke="#16a34a"
+                  strokeWidth={2.5}
                 />
               );
             })}
@@ -412,32 +401,28 @@ export function LayoutCanvas({
                   <rect
                     width={NODE_W}
                     height={NODE_H}
-                    rx={6}
+                    rx={8}
                     fill={fill}
-                    stroke={selected ? "#fbbf24" : "#0f172a"}
-                    strokeWidth={selected ? 3 : 1.5}
+                    stroke={selected ? "#C83733" : "#cbd5e1"}
+                    strokeWidth={selected ? 2.5 : 1.5}
                   />
+                  <foreignObject x={12} y={6} width={48} height={48}>
+                    <div className="flex h-12 w-12 items-center justify-center">
+                      <DeviceKindIcon kind={node.kind} size={40} />
+                    </div>
+                  </foreignObject>
                   <text
                     x={NODE_W / 2}
-                    y={22}
+                    y={66}
                     textAnchor="middle"
-                    fill={node.kind === "label" ? "#0f172a" : "#fff"}
-                    fontSize={12}
+                    fill="#0f172a"
+                    fontSize={10}
                     fontWeight={700}
                   >
-                    {shortLabel(node.kind)}
-                  </text>
-                  <text
-                    x={NODE_W / 2}
-                    y={40}
-                    textAnchor="middle"
-                    fill={node.kind === "label" ? "#334155" : "#e2e8f0"}
-                    fontSize={9}
-                  >
-                    {(node.label || "").slice(0, 12)}
+                    {(node.label || shortLabel(node.kind)).slice(0, 14)}
                   </text>
                   {device && (
-                    <foreignObject x={NODE_W - 8} y={-8} width={56} height={20}>
+                    <foreignObject x={NODE_W - 10} y={-10} width={56} height={20}>
                       <DeviceStatusBadge status={device.status} />
                     </foreignObject>
                   )}

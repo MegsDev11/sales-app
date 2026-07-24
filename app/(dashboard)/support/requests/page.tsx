@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useSupportAccess } from "@/lib/hooks/use-support-access";
@@ -102,13 +104,11 @@ export default function SupportRequestsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Client requests</h1>
-        <p className="text-sm text-muted-foreground">
-          Support requests submitted from client installation QR codes
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Client requests"
+        description="Support requests submitted from client installation QR codes"
+      />
 
       {msg && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -183,7 +183,7 @@ export default function SupportRequestsPage() {
                       key={status}
                       size="sm"
                       variant={req.status === status ? "default" : "outline"}
-                      className={req.status === status ? "bg-[#C83733] hover:bg-[#a82f2b]" : ""}
+                      className={req.status === status ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
                       disabled={busyId === req.id || req.status === status}
                       onClick={() => void updateStatus(req.id, status)}
                     >
@@ -196,6 +196,6 @@ export default function SupportRequestsPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

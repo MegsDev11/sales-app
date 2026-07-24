@@ -3,8 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   requireAuthenticated,
   requireStockAccess,
-  requireStockRequestsAccess,
-} from "@/lib/supabase/server-auth";
+  requireStockRequestsAccess} from "@/lib/supabase/server-auth";
 import {
   appNotificationToRow,
   stockBookingFromRow,
@@ -20,24 +19,21 @@ import {
   stockRequestLineToRow,
   stockRequestToRow,
   stockSundryFromRow,
-  stockSundryToRow,
-} from "@/lib/supabase/mappers";
+  stockSundryToRow} from "@/lib/supabase/mappers";
 import type {
   AppNotification,
   StockItem,
   StockQrLabel,
   StockRequest,
   StockRequestLine,
-  StockSundry,
-} from "@/lib/types";
+  StockSundry} from "@/lib/types";
 import { extractStockQrToken } from "@/lib/stock-qr-token";
 import { canAccessStock } from "@/lib/permissions";
 import {
   decryptPortalCode,
   encryptPortalCode,
   generateFourDigitCode,
-  hashPortalCode,
-} from "@/lib/portal-auth";
+  hashPortalCode} from "@/lib/portal-auth";
 
 function makeToken() {
   return `stk_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
@@ -94,8 +90,7 @@ async function loadStockBundle(includeClientPins = false) {
             clientAddress: row.client_address,
             clientPppoe: row.client_pppoe,
             wifiName: row.wifi_name,
-            wifiPassword: row.wifi_password,
-          })
+            wifiPassword: row.wifi_password})
         ) {
           return;
         }
@@ -107,8 +102,7 @@ async function loadStockBundle(includeClientPins = false) {
           .update({
             client_pin_hash: hashPortalCode(code),
             client_pin_ciphertext: encryptPortalCode(code),
-            client_pin_updated_at: updatedAt,
-          })
+            client_pin_updated_at: updatedAt})
           .eq("id", row.id);
         if (!error) clientPinsByItem.set(row.id, code);
       })
@@ -121,15 +115,13 @@ async function loadStockBundle(includeClientPins = false) {
       ...stockItemFromRow(row),
       clientPin: includeClientPins
         ? clientPinsByItem.get(row.id)
-        : undefined,
-    })),
+        : undefined})),
     bookings: (bookingsRes.data ?? []).map(stockBookingFromRow),
     requests: (requestsRes.data ?? []).map((row) =>
       stockRequestFromRow(row, linesByRequest.get(row.id) ?? [])
     ),
     qrLabels: labelsRes.error ? [] : (labelsRes.data ?? []).map(stockQrLabelFromRow),
-    sundries: sundriesRes.error ? [] : (sundriesRes.data ?? []).map(stockSundryFromRow),
-  };
+    sundries: sundriesRes.error ? [] : (sundriesRes.data ?? []).map(stockSundryFromRow)};
 }
 
 export async function GET(request: Request) {
@@ -141,8 +133,7 @@ export async function GET(request: Request) {
   try {
     const data = await loadStockBundle(canAccessStock(user));
     return NextResponse.json(data, {
-      headers: { "Cache-Control": "no-store, max-age=0" },
-    });
+      headers: { "Cache-Control": "no-store, max-age=0" }});
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load stock";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -348,8 +339,7 @@ export async function POST(request: Request) {
           return NextResponse.json(
             {
               error:
-                "A line with already booked-out stock cannot be removed. Return the units first.",
-            },
+                "A line with already booked-out stock cannot be removed. Return the units first."},
             { status: 400 }
           );
         }
@@ -380,8 +370,7 @@ export async function POST(request: Request) {
                   : {
                       product_id: line.productId ?? null,
                       // Only clear sundry_id when it was set (keeps pre-017 compatibility).
-                      ...(existing.sundry_id ? { sundry_id: null } : {}),
-                    };
+                      ...(existing.sundry_id ? { sundry_id: null } : {})};
             const { error: updateError } = await supabase
               .from("stock_request_lines")
               .update({ ...targetUpdates, qty_needed: qtyNeeded })
@@ -395,8 +384,7 @@ export async function POST(request: Request) {
                 productId: line.sundryId ? "" : line.productId ?? "",
                 sundryId: line.sundryId ?? null,
                 qtyNeeded,
-                qtyFulfilled: 0,
-              })
+                qtyFulfilled: 0})
             );
             if (insertError) throw insertError;
           }
@@ -414,7 +402,7 @@ export async function POST(request: Request) {
           if (statusError) throw statusError;
         }
 
-        return NextResponse.json({ ok: true, ...(await loadStockBundle()) });
+        return NextResponse.json({ ok: true});
       }
 
       if (body.action === "createRequest") {
@@ -446,8 +434,7 @@ export async function POST(request: Request) {
           status: "open",
           createdBy: user.id,
           createdAt: now,
-          notes: body.notes?.trim() ?? "",
-        };
+          notes: body.notes?.trim() ?? ""};
         const { error } = await supabase.from("stock_requests").insert(stockRequestToRow(stockRequest));
         if (error) throw error;
 
@@ -464,8 +451,7 @@ export async function POST(request: Request) {
           productId: line.sundryId ? "" : line.productId ?? "",
           sundryId: line.sundryId ?? null,
           qtyNeeded: Math.max(1, line.qtyNeeded),
-          qtyFulfilled: 0,
-        }));
+          qtyFulfilled: 0}));
         const { error: linesError } = await supabase
           .from("stock_request_lines")
           .insert(lines.map(stockRequestLineToRow));
@@ -523,8 +509,7 @@ export async function POST(request: Request) {
             body: `For ${techName}. Open Stock → Requests to fulfill.`,
             link: "/stock/requests",
             requestId: requestId,
-            createdAt: now,
-          },
+            createdAt: now},
         ];
 
         if (shortfalls.length > 0) {
@@ -538,8 +523,7 @@ export async function POST(request: Request) {
               body: shortfallBody,
               link: "/stock/requests",
               requestId: requestId,
-              createdAt: now,
-            },
+              createdAt: now},
             {
               id: `notif-${Date.now()}-sf-coord`,
               department: "coordination",
@@ -548,8 +532,7 @@ export async function POST(request: Request) {
               body: `${stockRequest.title} — ${shortfallBody}`,
               link: "/coordination/requests",
               requestId: requestId,
-              createdAt: now,
-            }
+              createdAt: now}
           );
         }
 
@@ -567,9 +550,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
           ok: true,
           id: requestId,
-          shortfalls,
-          ...(await loadStockBundle()),
-        });
+          shortfalls});
       }
 
       const { error } = await supabase
@@ -577,7 +558,7 @@ export async function POST(request: Request) {
         .update({ status: "cancelled" })
         .eq("id", body.requestId);
       if (error) throw error;
-      return NextResponse.json({ ok: true, ...(await loadStockBundle()) });
+      return NextResponse.json({ ok: true});
     }
 
     const user = await requireStockAccess(request);
@@ -616,11 +597,10 @@ export async function POST(request: Request) {
         quantity,
         notes: body.notes?.trim() ?? "",
         createdAt: now,
-        updatedAt: now,
-      };
+        updatedAt: now};
       const { error } = await supabase.from("stock_sundries").insert(stockSundryToRow(sundry));
       if (error) throw error;
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "adjustSundry") {
@@ -646,13 +626,13 @@ export async function POST(request: Request) {
         .update({ quantity, updated_at: now })
         .eq("id", body.sundryId);
       if (error) throw error;
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "deleteSundry") {
       const { error } = await supabase.from("stock_sundries").delete().eq("id", body.sundryId);
       if (error) throw error;
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "createItem") {
@@ -670,8 +650,7 @@ export async function POST(request: Request) {
         wifiPassword: body.wifiPassword?.trim() ?? "",
         status: "available",
         createdAt: now,
-        updatedAt: now,
-      };
+        updatedAt: now};
       const row = stockItemToRow(item) as ReturnType<typeof stockItemToRow> & {
         client_pin_hash?: string;
         client_pin_ciphertext?: string;
@@ -692,9 +671,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         item,
-        ...(clientPin ? { clientPin } : {}),
-        ...(await loadStockBundle(true)),
-      });
+        ...(clientPin ? { clientPin } : {})});
     }
 
     if (body.action === "updateItem") {
@@ -708,11 +685,10 @@ export async function POST(request: Request) {
         wifiName: body.wifiName,
         wifiPassword: body.wifiPassword,
         status: body.status,
-        updatedAt: now,
-      });
+        updatedAt: now});
       const { error } = await supabase.from("stock_items").update(updates).eq("id", body.itemId);
       if (error) throw error;
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "deleteItem") {
@@ -731,7 +707,7 @@ export async function POST(request: Request) {
       }
       const { error } = await supabase.from("stock_items").delete().eq("id", body.itemId);
       if (error) throw error;
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "bookOut") {
@@ -772,8 +748,7 @@ export async function POST(request: Request) {
           requestId: body.requestId ?? null,
           bookedOutAt: now,
           bookedOutBy: user.id,
-          notes: body.notes?.trim() ?? "",
-        })
+          notes: body.notes?.trim() ?? ""})
       );
       if (bookingError) throw bookingError;
 
@@ -783,7 +758,7 @@ export async function POST(request: Request) {
         .eq("id", body.itemId);
       if (updateError) throw updateError;
 
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "returnItem") {
@@ -808,7 +783,7 @@ export async function POST(request: Request) {
         .eq("id", body.itemId);
       if (updateError) throw updateError;
 
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "issueSundryLine") {
@@ -887,7 +862,7 @@ export async function POST(request: Request) {
         .eq("id", body.requestId);
       if (statusError) throw statusError;
 
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "fulfillScan") {
@@ -952,8 +927,7 @@ export async function POST(request: Request) {
         clientAddress: body.clientAddress?.trim() || undefined,
         clientPppoe: body.clientPppoe?.trim() || undefined,
         wifiName: body.wifiName?.trim() || undefined,
-        wifiPassword: body.wifiPassword?.trim() || undefined,
-      });
+        wifiPassword: body.wifiPassword?.trim() || undefined});
       if (Object.keys(detailUpdates).length > 0) {
         const { error: detailError } = await supabase
           .from("stock_items")
@@ -972,8 +946,7 @@ export async function POST(request: Request) {
           requestId: requestRow.id,
           bookedOutAt: now,
           bookedOutBy: user.id,
-          notes: "",
-        })
+          notes: ""})
       );
       if (bookingError) throw bookingError;
 
@@ -1003,7 +976,7 @@ export async function POST(request: Request) {
         .eq("id", body.requestId);
       if (statusError) throw statusError;
 
-      return NextResponse.json({ ok: true, ...(await loadStockBundle(true)) });
+      return NextResponse.json({ ok: true});
     }
 
     if (body.action === "createQrLabelBatch") {
@@ -1032,8 +1005,7 @@ export async function POST(request: Request) {
         deviceName: body.deviceName?.trim() ?? "",
         createdAt: now,
         claimedAt: null,
-        claimedItemId: null,
-      }));
+        claimedItemId: null}));
 
       const { error } = await supabase.from("stock_qr_labels").insert(labels.map(stockQrLabelToRow));
       if (error) throw error;
@@ -1041,9 +1013,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         batchId,
-        labels,
-        ...(await loadStockBundle(true)),
-      });
+        labels});
     }
 
     if (body.action === "claimQrLabel") {
@@ -1065,9 +1035,19 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      const bundle = await loadStockBundle(true);
-      const item = bundle.items.find((i) => i.id === result.item_id) ?? null;
-      return NextResponse.json({ ok: true, item, ...(bundle) });
+      const claimedItemId = result.item_id;
+      if (!claimedItemId) {
+        return NextResponse.json({ error: "Claim succeeded but item id missing" }, { status: 500 });
+      }
+      const { data: itemRow } = await supabase
+        .from("stock_items")
+        .select("*")
+        .eq("id", claimedItemId)
+        .maybeSingle();
+      return NextResponse.json({
+        ok: true,
+        item: itemRow ? stockItemFromRow(itemRow) : null,
+      });
     }
 
     if (body.action === "returnByQr") {
@@ -1086,9 +1066,19 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      const bundle = await loadStockBundle(true);
-      const item = bundle.items.find((i) => i.id === result.item_id) ?? null;
-      return NextResponse.json({ ok: true, item, ...(bundle) });
+      const returnedItemId = result.item_id;
+      if (!returnedItemId) {
+        return NextResponse.json({ error: "Return succeeded but item id missing" }, { status: 500 });
+      }
+      const { data: itemRow } = await supabase
+        .from("stock_items")
+        .select("*")
+        .eq("id", returnedItemId)
+        .maybeSingle();
+      return NextResponse.json({
+        ok: true,
+        item: itemRow ? stockItemFromRow(itemRow) : null,
+      });
     }
 
     if (body.action === "regenerateClientPin") {
@@ -1099,15 +1089,12 @@ export async function POST(request: Request) {
           client_pin_hash: hashPortalCode(clientPin),
           client_pin_ciphertext: encryptPortalCode(clientPin),
           client_pin_updated_at: now,
-          updated_at: now,
-        })
+          updated_at: now})
         .eq("id", body.itemId);
       if (error) throw error;
       return NextResponse.json({
         ok: true,
-        clientPin,
-        ...(await loadStockBundle(true)),
-      });
+        clientPin});
     }
 
     if (body.action === "getItemVisits") {
@@ -1129,8 +1116,7 @@ export async function POST(request: Request) {
         ok: true,
         visits: (visits ?? []).map((row) =>
           stockItemVisitFromRow(row, techMap.get(row.technician_id) ?? undefined)
-        ),
-      });
+        )});
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

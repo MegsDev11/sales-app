@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { canAccessStockRequests } from "@/lib/permissions";
 import type {
   StockBooking,
   StockItem,
@@ -129,10 +130,11 @@ const EMPTY: StockBundle = {
 const StockStoreContext = createContext<StockStoreValue | null>(null);
 
 export function StockStoreProvider({ children }: { children: React.ReactNode }) {
-  const { accessToken, isLoading: authLoading } = useAuth();
+  const { accessToken, currentUser, isLoading: authLoading } = useAuth();
   const [data, setData] = useState<StockBundle>(EMPTY);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const shouldLoadStock = canAccessStockRequests(currentUser);
 
   const applyBundle = useCallback((body: Record<string, unknown>) => {
     setData((prev) => ({
@@ -146,7 +148,7 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!accessToken) {
+    if (!accessToken || !shouldLoadStock) {
       setData(EMPTY);
       setIsLoaded(true);
       return;
@@ -165,7 +167,7 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
     } finally {
       setIsLoaded(true);
     }
-  }, [accessToken, applyBundle]);
+  }, [accessToken, applyBundle, shouldLoadStock]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -185,11 +187,23 @@ export function StockStoreProvider({ children }: { children: React.ReactNode }) 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Stock action failed");
-      applyBundle(data);
+      // Mutations return lightweight { ok, item?, labels?, ... } — refresh list state
+      const hasBundle =
+        Array.isArray(data.products) ||
+        Array.isArray(data.items) ||
+        Array.isArray(data.bookings) ||
+        Array.isArray(data.requests) ||
+        Array.isArray(data.qrLabels) ||
+        Array.isArray(data.sundries);
+      if (hasBundle) {
+        applyBundle(data);
+      } else {
+        await refresh();
+      }
       setError(null);
       return data;
     },
-    [accessToken, applyBundle]
+    [accessToken, applyBundle, refresh]
   );
 
   const value = useMemo<StockStoreValue>(

@@ -39,7 +39,7 @@ export default function LoginPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#C83733] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
@@ -57,16 +57,16 @@ export default function LoginPage() {
         />
         <h1 className="text-2xl font-bold text-black">Staff Login</h1>
         <p className="mt-1 text-muted-foreground">
-          Sales team access only — accounts are created by your manager
+          Company operations access — accounts are created by your manager
         </p>
       </div>
 
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#C83733]/10">
-            <Lock className="h-6 w-6 text-[#C83733]" />
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <Lock className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>Sign in to Sales CRM</CardTitle>
+          <CardTitle>Sign in to Megs Operations</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -98,7 +98,7 @@ export default function LoginPage() {
             )}
             <Button
               type="submit"
-              className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={submitting}
             >
               {submitting ? (
@@ -112,7 +112,7 @@ export default function LoginPage() {
       </Card>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        <Link href="/" className="text-[#C83733] hover:underline">← Back to website</Link>
+        <Link href="/" className="text-primary hover:underline">← Back to website</Link>
       </p>
       <p className="mt-2 text-center text-xs text-muted-foreground">
         Need an account? Ask your sales manager — public registration is disabled.

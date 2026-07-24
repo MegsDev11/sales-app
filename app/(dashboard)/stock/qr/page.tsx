@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState } from "react";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { stockItemPublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
@@ -46,7 +48,7 @@ function PendingLabelCard({
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
             Not booked in
           </p>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#C83733]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             {product?.name ?? "Unit"}
           </p>
           <p className="font-semibold">
@@ -267,24 +269,23 @@ export default function StockQrPage() {
   const printCount = filtered.length + (lastBatchLabels.length || pendingLabels.length);
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold">Generate QR</h1>
-          <p className="text-sm text-muted-foreground">
-            Print batch labels first, then book units in on Scan — or create a registered unit now
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => window.print()}
-          disabled={printCount === 0}
-        >
-          <Printer className="mr-1 h-4 w-4" />
-          Print labels
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        className="print:hidden"
+        title="Generate QR"
+        description="Print batch labels first, then book units in on Scan — or create a registered unit now"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.print()}
+            disabled={printCount === 0}
+          >
+            <Printer className="mr-1 h-4 w-4" />
+            Print labels
+          </Button>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden">
@@ -362,7 +363,7 @@ export default function StockQrPage() {
             </div>
           </div>
           <Button
-            className="bg-[#C83733] hover:bg-[#a82f2b]"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={busy || !batchProductId || !isLoaded}
             onClick={() => void handleBatchLabels()}
           >
@@ -439,7 +440,7 @@ export default function StockQrPage() {
               </div>
             </div>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy || !stockProductId || !isLoaded}
               onClick={() => void handleCreateStock()}
             >
@@ -549,7 +550,7 @@ export default function StockQrPage() {
             </div>
           </div>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy || !productId || !isLoaded}
               onClick={() => void handleCreate()}
             >
@@ -559,7 +560,7 @@ export default function StockQrPage() {
         </Card>
       </div>
 
-      {msg && <p className="text-sm text-[#C83733] print:hidden">{msg}</p>}
+      {msg && <p className="text-sm text-primary print:hidden">{msg}</p>}
 
       {(lastBatchLabels.length > 0 || pendingLabels.length > 0) && (
         <div className="space-y-3">
@@ -661,6 +662,6 @@ export default function StockQrPage() {
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
       />
-    </div>
+    </PageShell>
   );
 }

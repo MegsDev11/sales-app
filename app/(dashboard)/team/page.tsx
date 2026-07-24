@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { getSalesStaff, getVisibleUsers, isSalesManager } from "@/lib/permissions";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { Users, Target, Clock, TrendingUp, Trophy, Pencil } from "lucide-react";
 
 export default function TeamPage() {
@@ -85,7 +86,7 @@ export default function TeamPage() {
               <CardTitle className="text-base">{rep.name}</CardTitle>
               <p className="text-sm text-muted-foreground">{rep.title}</p>
               {isSalesManager(rep) && (
-                <Badge className="mt-1 bg-[#C83733] hover:bg-[#C83733]">Sales Manager</Badge>
+                <Badge className="mt-1 bg-primary text-primary-foreground hover:bg-primary">Sales Manager</Badge>
               )}
             </div>
           </div>
@@ -117,7 +118,7 @@ export default function TeamPage() {
               <p className="text-xs text-muted-foreground">Currently working on</p>
               <Link
                 href={`/leads/${currentLead.id}`}
-                className="font-medium hover:text-[#C83733]"
+                className="font-medium hover:text-primary"
               >
                 {currentLead.clientName}
               </Link>
@@ -139,25 +140,21 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Team Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your sales team and monitor performance
-          </p>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Team Overview"
+        description="Manage your sales team and monitor performance"
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Active Leads" value={teamStats.totalActive} icon={Target} accent="#C83733" />
+        <StatCard title="Active Leads" value={teamStats.totalActive} icon={Target} accent="var(--primary)" />
         <StatCard title="Deals Won" value={teamStats.totalWon} icon={TrendingUp} accent="#16a34a" />
         <StatCard title="Avg Days to Close" value={`${teamStats.avgCloseDays}d`} icon={Clock} />
         <StatCard
           title="Pipeline Value"
           value={`R${teamStats.pipelineValue.toLocaleString()}`}
           icon={Users}
-          accent="#C83733"
+          accent="var(--primary)"
         />
       </div>
 
@@ -244,7 +241,7 @@ export default function TeamPage() {
                         <td className="py-2 pr-4">
                           <Link
                             href={`/leads/${lead.id}`}
-                            className="hover:text-[#C83733]"
+                            className="hover:text-primary"
                           >
                             {lead.clientName}
                           </Link>
@@ -270,6 +267,6 @@ export default function TeamPage() {
         }}
         user={editUser}
       />
-    </div>
+    </PageShell>
   );
 }

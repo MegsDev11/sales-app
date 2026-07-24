@@ -19,6 +19,7 @@ const VALID_SECTIONS: OwnerSection[] = [
   "stock",
   "coordination",
   "support",
+  "wireless",
   ...PLACEHOLDER_DEPARTMENTS,
   "staff",
 ];

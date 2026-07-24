@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -82,14 +84,11 @@ export default function SupportTowersPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Towers & Outages</h1>
-        <p className="text-sm text-muted-foreground">
-          Set towers online, offline, or maintenance — changes appear live on the public website within
-          a few seconds.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Towers & Outages"
+        description="Set towers online, offline, or maintenance — changes appear live on the public website within a few seconds."
+      />
 
       {dbError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -118,7 +117,7 @@ export default function SupportTowersPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between text-base">
                   <span className="flex items-center gap-2">
-                    <Radio className="h-4 w-4 text-[#C83733]" />
+                    <Radio className="h-4 w-4 text-primary" />
                     {tower.name}
                   </span>
                   <span
@@ -269,12 +268,12 @@ export default function SupportTowersPage() {
             <Button variant="outline" onClick={() => setSelectedTower(null)}>
               Cancel
             </Button>
-            <Button className="bg-[#C83733] hover:bg-[#a82f2b]" onClick={handleCreateOutage}>
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCreateOutage}>
               Publish Offline
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

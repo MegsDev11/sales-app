@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { ArrowLeft, Phone, Mail, CheckSquare, MapPin, Pencil, Trash2 } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useAuth } from "@/lib/auth-context";
 import { getSalesStaff } from "@/lib/permissions";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -68,44 +69,43 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     const next = arr[i + 1];
     const end = next ? new Date(next.enteredAt) : new Date();
     const days = Math.floor((end.getTime() - new Date(entry.enteredAt).getTime()) / 86400000);
-    return { stage: entry.stage, days };
+    return { key: `${entry.stage}-${entry.enteredAt}-${i}`, stage: entry.stage, days };
   });
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href="/board" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to board
-        </Link>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
-            <Pencil className="mr-1 h-3 w-3" /> Edit
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => { deleteLead(lead.id); router.push("/board"); }}>
-            <Trash2 className="mr-1 h-3 w-3" /> Archive
-          </Button>
-        </div>
-      </div>
+    <PageShell className="max-w-5xl">
+      <Link href="/board" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Back to board
+      </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{lead.clientName}</h1>
-          {lead.company && <p className="text-muted-foreground">{lead.company}</p>}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <ServiceTypeBadge type={lead.serviceType} />
-            <CoverageBadge status={lead.coverageStatus} />
-            <Badge variant="outline">{STAGE_LABELS[lead.stage]}</Badge>
-            <Badge variant="outline">{TEMPERATURE_LABELS[lead.temperature]}</Badge>
-            {lead.priority === "high" && <Badge className="bg-[#C83733] hover:bg-[#C83733]">High Priority</Badge>}
-            {isOverdue(lead) && <Badge variant="destructive">Overdue</Badge>}
-          </div>
-        </div>
-        {rep && (
-          <div className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: rep.color }} />
-            <span className="text-sm font-medium">{rep.name}</span>
-          </div>
-        )}
+      <PageHeader
+        title={lead.clientName}
+        description={lead.company || undefined}
+        actions={
+          <>
+            {rep && (
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: rep.color }} />
+                <span className="text-sm font-medium">{rep.name}</span>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
+              <Pencil className="mr-1 h-3 w-3" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { deleteLead(lead.id); router.push("/board"); }}>
+              <Trash2 className="mr-1 h-3 w-3" /> Archive
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <ServiceTypeBadge type={lead.serviceType} />
+        <CoverageBadge status={lead.coverageStatus} />
+        <Badge variant="outline">{STAGE_LABELS[lead.stage]}</Badge>
+        <Badge variant="outline">{TEMPERATURE_LABELS[lead.temperature]}</Badge>
+        {lead.priority === "high" && <Badge className="bg-primary text-primary-foreground hover:bg-primary">High Priority</Badge>}
+        {isOverdue(lead) && <Badge variant="destructive">Overdue</Badge>}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -117,7 +117,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <StatCard title="Days in Stage" value={`${daysInStage(lead)}d`} accent={isOverdue(lead) ? "#dc2626" : "#16a34a"} />
         <StatCard title="Pipeline Time" value={`${totalPipelineDays(lead)}d`} />
         <StatCard title="Days to Close" value={daysToClose(lead) !== null ? `${daysToClose(lead)}d` : "—"} />
-        <StatCard title="Deal Value" value={lead.dealValue ? `R${lead.dealValue.toLocaleString()}` : "—"} accent="#C83733" />
+        <StatCard title="Deal Value" value={lead.dealValue ? `R${lead.dealValue.toLocaleString()}` : "—"} accent="var(--primary)" />
       </div>
 
       <Card>
@@ -170,7 +170,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <CardHeader><CardTitle>Stage History</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {stageDurations.map((s) => (
-              <div key={s.stage} className="flex justify-between text-sm">
+              <div key={s.key} className="flex justify-between text-sm">
                 <span>{STAGE_LABELS[s.stage]}</span>
                 <span className="font-medium">{s.days}d</span>
               </div>
@@ -185,7 +185,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <div className="flex flex-wrap gap-2">
                 {(["call", "email", "task", "site_visit"] as ActivityType[]).map((type) => (
                   <Button key={type} variant={activityType === type ? "default" : "outline"} size="sm"
-                    className={activityType === type ? "bg-[#C83733] hover:bg-[#a82f2b]" : ""}
+                    className={activityType === type ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
                     onClick={() => setActivityType(type)}>{ACTIVITY_LABELS[type]}</Button>
                 ))}
               </div>
@@ -196,7 +196,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="flex gap-2">
                 <Input placeholder="Activity description..." value={activityTitle} onChange={(e) => setActivityTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleLogActivity()} />
-                <Button onClick={() => handleLogActivity()} className="bg-[#C83733] hover:bg-[#a82f2b]">Log</Button>
+                <Button onClick={() => handleLogActivity()} className="bg-primary text-primary-foreground hover:bg-primary/90">Log</Button>
               </div>
             </div>
             <ActivityTimeline activities={activities} />
@@ -205,7 +205,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <LeadFormDialog open={showEdit} onOpenChange={setShowEdit} lead={lead} />
-    </div>
+    </PageShell>
   );
 }
 

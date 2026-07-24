@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -20,23 +19,30 @@ export function StatCard({
   accent,
 }: StatCardProps) {
   return (
-    <Card className={cn("", className)}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        {Icon && (
-          <Icon className="h-4 w-4 text-muted-foreground" style={{ color: accent }} />
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold" style={{ color: accent }}>
-          {value}
-        </div>
-        {subtitle && (
-          <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-        )}
-      </CardContent>
-    </Card>
+    <div
+      className={cn(
+        "rounded-lg border border-border bg-surface-elevated px-4 py-3 shadow-sm",
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        {Icon ? (
+          <Icon
+            className="h-4 w-4 shrink-0 text-muted-foreground"
+            style={accent ? { color: accent } : undefined}
+          />
+        ) : null}
+      </div>
+      <p
+        className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground"
+        style={accent ? { color: accent } : undefined}
+      >
+        {value}
+      </p>
+      {subtitle ? (
+        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+      ) : null}
+    </div>
   );
 }

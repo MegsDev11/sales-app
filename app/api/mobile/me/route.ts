@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       client: null,
       message:
         mobileRole === "unsupported"
-          ? "This account uses the web CRM. Mobile is for field techs, stock, and clients."
+          ? "This account uses web Operations. Mobile is for field techs, stock, and clients."
           : undefined,
     };
     return NextResponse.json(body, {

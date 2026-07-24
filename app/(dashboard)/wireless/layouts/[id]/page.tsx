@@ -4,6 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
+import { PageShell } from "@/components/layout/page-shell";
 import { LayoutCanvas } from "@/components/wireless/layout-canvas";
 import { DeviceStatusBadge } from "@/components/wireless/device-status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -122,7 +123,7 @@ export default function WirelessLayoutEditorPage({
     return (
       <div className="p-6">
         <p>Layout not found.</p>
-        <Link href="/wireless/layouts" className="text-[#C83733] hover:underline">
+        <Link href="/wireless/layouts" className="text-primary hover:underline">
           Back
         </Link>
       </div>
@@ -130,10 +131,10 @@ export default function WirelessLayoutEditorPage({
   }
 
   return (
-    <div className="space-y-4 p-4 lg:p-6">
+    <PageShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href="/wireless/layouts" className="text-sm text-[#C83733] hover:underline">
+          <Link href="/wireless/layouts" className="text-sm text-primary hover:underline">
             ← Layouts
           </Link>
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -157,7 +158,7 @@ export default function WirelessLayoutEditorPage({
           <Button
             type="button"
             disabled={busy}
-            className="bg-[#C83733] hover:bg-[#a82f2b] text-white"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={() => void save("published")}
           >
             Publish
@@ -265,6 +266,6 @@ export default function WirelessLayoutEditorPage({
           </div>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

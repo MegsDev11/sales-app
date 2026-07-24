@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
@@ -87,24 +89,23 @@ export default function ClientQrsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold">Client QRs</h1>
-          <p className="text-sm text-muted-foreground">
-            All generated client installation QR codes — search by client, PPPoE, WiFi, or serial
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => window.print()}
-          disabled={clientUnits.length === 0}
-        >
-          <Printer className="mr-1 h-4 w-4" />
-          Print labels
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        className="print:hidden"
+        title="Client QRs"
+        description="All generated client installation QR codes — search by client, PPPoE, WiFi, or serial"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.print()}
+            disabled={clientUnits.length === 0}
+          >
+            <Printer className="mr-1 h-4 w-4" />
+            Print labels
+          </Button>
+        }
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden">
@@ -194,6 +195,6 @@ export default function ClientQrsPage() {
         open={!!visitItem}
         onOpenChange={(open) => !open && setVisitItem(null)}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -152,7 +152,7 @@ export function EditUnitDialog({
               placeholder="WiFi password"
             />
           </div>
-          {msg && <p className="text-[#C83733]">{msg}</p>}
+          {msg && <p className="text-primary">{msg}</p>}
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
           <Button
@@ -171,7 +171,7 @@ export function EditUnitDialog({
             </Button>
             <Button
               type="button"
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={saving}
               onClick={() => void handleSave()}
             >
@@ -237,7 +237,7 @@ export function VisitHistoryDialog({
               </div>
             ))
           )}
-          {msg && <p className="text-[#C83733]">{msg}</p>}
+          {msg && <p className="text-primary">{msg}</p>}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -282,7 +282,7 @@ export function QrPreviewCard({
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-1 text-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#C83733]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             {product?.name ?? "Unit"}
           </p>
           <p className="font-semibold">
@@ -325,7 +325,7 @@ export function QrPreviewCard({
             <p>
               <span className="text-muted-foreground">Client PIN:</span>{" "}
               {item.clientPin ? (
-                <span className="font-mono text-base font-bold tracking-[0.2em] text-[#C83733]">
+                <span className="font-mono text-base font-bold tracking-[0.2em] text-primary">
                   {item.clientPin}
                 </span>
               ) : item.hasClientPin ? (

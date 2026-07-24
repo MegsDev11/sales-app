@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
@@ -48,13 +50,11 @@ export default function CoordinationTimesheetsPage() {
   const nameOf = (id: string) => techs.find((t) => t.id === id)?.name ?? id;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Timesheets</h1>
-        <p className="text-sm text-muted-foreground">
-          Clock in/out from the mobile app (with GPS when available)
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Timesheets"
+        description="Clock in/out from the mobile app (with GPS when available)"
+      />
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">{error}</div>
       )}
@@ -106,6 +106,6 @@ export default function CoordinationTimesheetsPage() {
           <p className="text-sm text-muted-foreground">No time entries yet.</p>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

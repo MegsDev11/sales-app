@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { UserPlus, Pencil, Eye, EyeOff, KeyRound, Copy, Check } from "lucide-react";
 
 export default function StaffPage() {
@@ -120,24 +121,22 @@ export default function StaffPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Staff Accounts</h1>
-          <p className="text-sm text-muted-foreground">
-            Create and manage login accounts — owner only
-          </p>
-        </div>
-        {canCreateAccounts && (
-          <Button
-            className="bg-[#C83733] hover:bg-[#a82f2b]"
-            onClick={() => setShowAdd(true)}
-          >
-            <UserPlus className="mr-1 h-4 w-4" />
-            Create Account
-          </Button>
-        )}
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Staff Accounts"
+        description="Create and manage login accounts — owner only"
+        actions={
+          canCreateAccounts ? (
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => setShowAdd(true)}
+            >
+              <UserPlus className="mr-1 h-4 w-4" />
+              Create Account
+            </Button>
+          ) : undefined
+        }
+      />
 
       {passwordHint && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -284,14 +283,14 @@ export default function StaffPage() {
                 autoComplete="new-password"
               />
             </div>
-            {changeError && <p className="text-sm text-[#C83733]">{changeError}</p>}
+            {changeError && <p className="text-sm text-primary">{changeError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangeUser(null)}>
               Cancel
             </Button>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={changeBusy}
               onClick={() => void handleSetPassword()}
             >
@@ -300,6 +299,6 @@ export default function StaffPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

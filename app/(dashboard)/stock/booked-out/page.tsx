@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState } from "react";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
@@ -89,14 +91,11 @@ export default function BookedOutStockPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Booked-out stock</h1>
-        <p className="text-sm text-muted-foreground">
-          See which technician and client has each unit, when it left stock, and book returns back
-          in.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Booked-out stock"
+        description="See which technician and client has each unit, when it left stock, and book returns back in."
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Input
@@ -184,7 +183,7 @@ export default function BookedOutStockPage() {
                     )}
 
                     <Button
-                      className="w-full bg-[#C83733] hover:bg-[#a82f2b]"
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                       disabled={busyId === item.id}
                       onClick={() =>
                         void handleReturn(
@@ -202,6 +201,6 @@ export default function BookedOutStockPage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

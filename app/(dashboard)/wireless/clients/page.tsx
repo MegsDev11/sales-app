@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
@@ -30,13 +32,11 @@ export default function WirelessClientsPage() {
   if (isLoading || !allowed) return null;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Wireless Clients</h1>
-        <p className="text-sm text-muted-foreground">
-          CRM leads with wireless service and/or a network layout profile
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Wireless Clients"
+        description="Sales leads with wireless service and/or a network layout profile"
+      />
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
@@ -91,6 +91,6 @@ export default function WirelessClientsPage() {
           <p className="text-sm text-muted-foreground">No matching clients.</p>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import { StatCard } from "@/components/stats/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertBanner,
+  PageHeader,
+  PageShell,
+  Panel,
+} from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { AlertTriangle, Radio, Users, Wifi } from "lucide-react";
 
@@ -19,109 +24,110 @@ export default function SupportOverviewPage() {
   const linkedClients = leads.filter((l) => !l.deleted && l.towerId).length;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Support Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage tower outages and client connectivity assignments
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Support Overview"
+        description="Manage tower outages and client connectivity assignments"
+        actions={
+          <Link
+            href="/support/towers"
+            className={buttonVariants({
+              className: "bg-primary text-primary-foreground hover:bg-primary/90",
+            })}
+          >
+            Report outage
+          </Link>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Towers"
-          value={towers.length}
-          icon={Radio}
-          accent="#C83733"
-        />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Total Towers" value={towers.length} icon={Radio} accent="var(--primary)" />
         <StatCard
           title="Active Outages"
           value={activeOutages.length}
           icon={AlertTriangle}
           accent={activeOutages.length > 0 ? "#DC2626" : "#16A34A"}
         />
-        <StatCard
-          title="Offline Towers"
-          value={offlineTowers.length}
-          icon={Wifi}
-          accent="#F59E0B"
-        />
-        <StatCard
-          title="Linked Clients"
-          value={linkedClients}
-          icon={Users}
-          accent="#6366F1"
-        />
+        <StatCard title="Offline Towers" value={offlineTowers.length} icon={Wifi} accent="#F59E0B" />
+        <StatCard title="Linked Clients" value={linkedClients} icon={Users} />
       </div>
 
-      {activeOutages.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-800">
-              <AlertTriangle className="h-5 w-5" />
-              Active Public Outages
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+      {activeOutages.length > 0 ? (
+        <AlertBanner tone="danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="font-medium">Active public outages</p>
             {activeOutages.map((outage) => {
               const tower = towers.find((t) => t.id === outage.towerId);
               return (
-                <div key={outage.id} className="rounded-lg border border-red-200 bg-white p-4">
-                  <p className="font-semibold text-red-900">{outage.title}</p>
-                  <p className="text-sm text-red-800">{tower?.name ?? "Unknown tower"}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{outage.message}</p>
-                  <p className="mt-2 text-xs text-red-700">
+                <div
+                  key={outage.id}
+                  className="rounded border border-red-200/80 bg-white/80 px-2.5 py-2"
+                >
+                  <p className="font-semibold">{outage.title}</p>
+                  <p className="text-xs">{tower?.name ?? "Unknown tower"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{outage.message}</p>
+                  <p className="mt-1 text-[11px]">
                     Affected: {outage.affectedAreas.join(", ") || "Not specified"}
                   </p>
                 </div>
               );
             })}
-            <Link href="/support/towers" className={buttonVariants({ className: "bg-[#C83733] hover:bg-[#a82f2b] text-white" })}>
-              Manage Outages
+            <Link href="/support/towers" className="inline-block font-medium underline">
+              Manage outages
             </Link>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </AlertBanner>
+      ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle className="text-base">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Link href="/support/towers" className={buttonVariants({ className: "bg-[#C83733] hover:bg-[#a82f2b] text-white" })}>
-              Report Outage
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Quick actions">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/support/towers"
+              className={buttonVariants({
+                className: "bg-primary text-primary-foreground hover:bg-primary/90",
+              })}
+            >
+              Report outage
             </Link>
             <Link href="/support/clients" className={buttonVariants({ variant: "outline" })}>
-              Assign Clients to Towers
+              Assign clients to towers
             </Link>
-          </CardContent>
-        </Card>
+            <Link href="/support/messages" className={buttonVariants({ variant: "outline" })}>
+              Messages
+            </Link>
+          </div>
+        </Panel>
 
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle className="text-base">Tower Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {towers.map((tower) => (
-              <div key={tower.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                <span>{tower.name}</span>
-                <span
-                  className={
-                    tower.status === "online"
-                      ? "text-green-600"
-                      : tower.status === "offline"
-                        ? "text-red-600"
-                        : "text-amber-600"
-                  }
+        <Panel title="Tower status" padded={false}>
+          <div className="divide-y divide-border">
+            {towers.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-muted-foreground">No towers configured.</p>
+            ) : (
+              towers.map((tower) => (
+                <div
+                  key={tower.id}
+                  className="flex items-center justify-between px-4 py-2.5 text-sm"
                 >
-                  {tower.status}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+                  <span>{tower.name}</span>
+                  <span
+                    className={
+                      tower.status === "online"
+                        ? "text-green-600"
+                        : tower.status === "offline"
+                          ? "text-red-600"
+                          : "text-amber-600"
+                    }
+                  >
+                    {tower.status}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </Panel>
       </div>
-    </div>
+    </PageShell>
   );
 }

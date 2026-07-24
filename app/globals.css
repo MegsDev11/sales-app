@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8f9fa;
-  --foreground: #000000;
+  --background: #f4f5f7;
+  --foreground: #0a0a0a;
+  --surface: #f4f5f7;
+  --surface-elevated: #ffffff;
+  --sidebar: #ffffff;
+  --sidebar-border: #e8eaed;
   --megs-red: #c83733;
   --megs-black: #000000;
   --card: #ffffff;
-  --card-foreground: #000000;
+  --card-foreground: #0a0a0a;
   --popover: #ffffff;
-  --popover-foreground: #000000;
+  --popover-foreground: #0a0a0a;
   --border: #e5e7eb;
   --input: #ffffff;
   --muted: #f3f4f6;
@@ -16,7 +20,7 @@
   --primary: #c83733;
   --primary-foreground: #ffffff;
   --secondary: #f3f4f6;
-  --secondary-foreground: #000000;
+  --secondary-foreground: #0a0a0a;
   --accent: #fef2f2;
   --accent-foreground: #c83733;
   --destructive: #dc2626;
@@ -27,6 +31,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-border: var(--sidebar-border);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);

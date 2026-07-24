@@ -8,6 +8,7 @@ import { filterLeadsForUser, isLeadVisible } from "@/lib/utils/leads";
 import { formatFollowUpDate } from "@/lib/utils/leads";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { MapPin } from "lucide-react";
 
 export default function SurveysPage() {
@@ -21,11 +22,11 @@ export default function SurveysPage() {
   }, [leads, currentUser, isAdmin]);
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Site Surveys</h1>
-        <p className="text-sm text-muted-foreground">Upcoming site survey appointments</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Site Surveys"
+        description="Upcoming site survey appointments"
+      />
 
       {surveys.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">No surveys scheduled.</CardContent></Card>
@@ -41,7 +42,7 @@ export default function SurveysPage() {
                       <MapPin className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                      <Link href={`/leads/${lead.id}`} className="font-semibold hover:text-[#C83733]">
+                      <Link href={`/leads/${lead.id}`} className="font-semibold hover:text-primary">
                         {lead.clientName}
                       </Link>
                       <p className="text-sm text-muted-foreground">{lead.address}</p>
@@ -64,6 +65,6 @@ export default function SurveysPage() {
           })}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

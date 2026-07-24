@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader, PageShell } from "@/components/layout/page-shell";
+
 import { useMemo, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -243,31 +245,29 @@ export default function CoordinationRequestsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Pick lists</h1>
-          <p className="text-sm text-muted-foreground">
-            Build the day’s stock list for a technician and send it to Stock to book out
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void refresh()}>
-            Refresh
-          </Button>
-          <Button
-            className="bg-[#C83733] hover:bg-[#a82f2b]"
-            onClick={() => {
-              setLines([
-                { target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 },
-              ]);
-              setCreateOpen(true);
-            }}
-          >
-            New pick list
-          </Button>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Pick lists"
+        description="Build the day’s stock list for a technician and send it to Stock to book out"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => void refresh()}>
+              Refresh
+            </Button>
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => {
+                setLines([
+                  { target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 },
+                ]);
+                setCreateOpen(true);
+              }}
+            >
+              New pick list
+            </Button>
+          </>
+        }
+      />
 
       {(error || msg) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -476,14 +476,14 @@ export default function CoordinationRequestsPage() {
                 Add line
               </Button>
             </div>
-            {editMsg && <p className="text-sm text-[#C83733]">{editMsg}</p>}
+            {editMsg && <p className="text-sm text-primary">{editMsg}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditRequestId(null)}>
               Cancel
             </Button>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy}
               onClick={() => void handleSaveEdit()}
             >
@@ -635,7 +635,7 @@ export default function CoordinationRequestsPage() {
               Cancel
             </Button>
             <Button
-              className="bg-[#C83733] hover:bg-[#a82f2b]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={busy || seniorTechs.length === 0}
               onClick={() => void handleCreate()}
             >
@@ -644,6 +644,6 @@ export default function CoordinationRequestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -88,7 +88,7 @@ export function NotificationsPanel() {
       >
         <Bell className="h-4 w-4" />
         {total > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#C83733] text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
             {total > 9 ? "9+" : total}
           </span>
         )}
