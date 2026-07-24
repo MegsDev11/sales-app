@@ -88,6 +88,13 @@ create policy "Allow anon write activities"
   on public.activities for all to anon using (true) with check (true);
 
 -- Also allow authenticated role (new publishable keys)
+drop policy if exists "Allow authenticated read team_members" on public.team_members;
+drop policy if exists "Allow authenticated write team_members" on public.team_members;
+drop policy if exists "Allow authenticated read leads" on public.leads;
+drop policy if exists "Allow authenticated write leads" on public.leads;
+drop policy if exists "Allow authenticated read activities" on public.activities;
+drop policy if exists "Allow authenticated write activities" on public.activities;
+
 create policy "Allow authenticated read team_members"
   on public.team_members for select to authenticated using (true);
 create policy "Allow authenticated write team_members"

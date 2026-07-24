@@ -12,6 +12,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/migrate.mjs",
+    "db:apply": "node scripts/apply-migration.mjs",
+    "db:audit": "node scripts/audit-schema.mjs",
     "mobile": "npm run start --workspace=megs-mobile",
     "typecheck:shared": "npm run typecheck --workspace=@megs/shared"
   },

@@ -1,18 +1,11 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseEnabled } from "@/lib/supabase/config";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseAuthClient } from "@/lib/supabase/auth-client";
 import type { Database } from "@/lib/supabase/database.types";
 
-let browserClient: SupabaseClient<Database> | null = null;
-
+/**
+ * Browser data access must use the same client as auth so requests run as
+ * `authenticated` (JWT), not anonymous. Anon write policies are removed.
+ */
 export function getSupabaseBrowserClient(): SupabaseClient<Database> | null {
-  if (!isSupabaseEnabled()) return null;
-
-  if (!browserClient) {
-    browserClient = createClient<Database>(
-      getSupabaseUrl(),
-      getSupabaseAnonKey()
-    );
-  }
-
-  return browserClient;
+  return getSupabaseAuthClient();
 }

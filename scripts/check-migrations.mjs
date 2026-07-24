@@ -21,6 +21,7 @@ async function probe(name, path) {
   }
 }
 
+await probe("004: leads.inbox_dismissed_at", "leads?select=id,inbox_dismissed_at&limit=1");
 await probe("009: stock_items.client_pppoe/wifi columns", "stock_items?select=id,client_pppoe,wifi_name,wifi_password&limit=1");
 await probe("010: stock_items.client_name column", "stock_items?select=id,client_name&limit=1");
 await probe("011: stock_qr_labels table", "stock_qr_labels?select=id&limit=1");
@@ -32,6 +33,10 @@ await probe(
   "015: recoverable four-digit portal codes",
   "stock_items?select=id,client_pin_ciphertext&limit=1"
 );
+await probe("020: network_layouts", "network_layouts?select=id&limit=1");
+await probe("021: jobs", "jobs?select=id&limit=1");
+await probe("024: time_off_requests", "time_off_requests?select=id&limit=1");
+await probe("025: leads.inbox_dismissed_at (ops harden)", "leads?select=id,inbox_dismissed_at&limit=1");
 
 async function probeRpc(name, fn, args) {
   const res = await fetch(`${url}/rest/v1/rpc/${fn}`, {

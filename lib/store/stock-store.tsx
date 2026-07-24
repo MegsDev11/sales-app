@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { canAccessStockRequests } from "@/lib/permissions";
+import { shouldMountStockStore } from "@/lib/store/load-gates";
+import { usePathname } from "next/navigation";
 import type {
   StockBooking,
   StockItem,
@@ -130,11 +132,13 @@ const EMPTY: StockBundle = {
 const StockStoreContext = createContext<StockStoreValue | null>(null);
 
 export function StockStoreProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() || "/";
   const { accessToken, currentUser, isLoading: authLoading } = useAuth();
   const [data, setData] = useState<StockBundle>(EMPTY);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const shouldLoadStock = canAccessStockRequests(currentUser);
+  const shouldLoadStock =
+    canAccessStockRequests(currentUser) && shouldMountStockStore(currentUser, pathname);
 
   const applyBundle = useCallback((body: Record<string, unknown>) => {
     setData((prev) => ({

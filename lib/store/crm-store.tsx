@@ -9,23 +9,23 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
   fetchCrmDataFromSupabase,
   insertActivity,
   insertTowerOutage,
   patchLead,
-  patchTower,
   patchTowerOutage,
-  patchUser,
   setTowerStatusViaApi,
   subscribeToCrmChanges,
   upsertLead,
-  upsertUser,
 } from "@/lib/supabase/data";
 import { leadFormToLead } from "@/lib/supabase/mappers";
 import { migrateLead } from "@/lib/utils/migrate";
 import { useAuth } from "@/lib/auth-context";
-import type { CreateUserPayload, UserFormData } from "@/lib/types";
+import { useStaffStore } from "@/lib/store/staff-store";
+import { shouldLoadCrmLeads } from "@/lib/store/load-gates";
+import type { CreateUserPayload } from "@/lib/types";
 import type {
   Activity,
   ActivityType,
@@ -40,8 +40,7 @@ import type {
   User,
 } from "@/lib/types";
 
-const EMPTY_DATA: CrmData = {
-  users: [],
+const EMPTY_SLICE: Omit<CrmData, "users"> = {
   leads: [],
   activities: [],
   towers: [],
@@ -91,15 +90,8 @@ interface CrmStoreContextValue {
 
 const CrmStoreContext = createContext<CrmStoreContextValue | null>(null);
 
-function normalizeData(data: CrmData): CrmData {
+function normalizeSlice(data: CrmData): Omit<CrmData, "users"> {
   return {
-    users: data.users.map((u) => ({
-      ...u,
-      email: u.email ?? "",
-      department: u.department ?? null,
-      monthlyRevenueTarget: u.monthlyRevenueTarget ?? 100000,
-      monthlyDealsTarget: u.monthlyDealsTarget ?? 5,
-    })),
     leads: data.leads.map((l) => migrateLead(l)),
     activities: data.activities,
     towers: data.towers,
@@ -108,19 +100,36 @@ function normalizeData(data: CrmData): CrmData {
 }
 
 export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
-  const { accessToken, isLoading: authLoading } = useAuth();
-  const [data, setData] = useState<CrmData>(EMPTY_DATA);
+  const pathname = usePathname() || "/";
+  const { accessToken, currentUser, isLoading: authLoading } = useAuth();
+  const staff = useStaffStore();
+  const includeLeads = shouldLoadCrmLeads(currentUser, pathname);
+  const includeTowers = includeLeads;
+
+  const [slice, setSlice] = useState(EMPTY_SLICE);
   const [isLoaded, setIsLoaded] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accessTokenRef = useRef(accessToken);
   accessTokenRef.current = accessToken;
   const pendingLeadPatches = useRef(new Map<string, Partial<Lead>>());
+  const includeRef = useRef({ includeLeads, includeTowers });
+  includeRef.current = { includeLeads, includeTowers };
 
   const refreshFromSupabase = useCallback(async () => {
+    const { includeLeads: leads, includeTowers: towers } = includeRef.current;
+    if (!leads && !towers) {
+      setSlice(EMPTY_SLICE);
+      setDbError(null);
+      return;
+    }
     try {
-      const next = await fetchCrmDataFromSupabase(accessTokenRef.current);
-      const normalized = normalizeData(next);
+      const next = await fetchCrmDataFromSupabase({
+        accessToken: accessTokenRef.current,
+        includeLeads: leads,
+        includeTowers: towers,
+      });
+      const normalized = normalizeSlice(next);
       const patches = pendingLeadPatches.current;
       if (patches.size > 0) {
         normalized.leads = normalized.leads.map((lead) => {
@@ -128,7 +137,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           return pending ? { ...lead, ...pending } : lead;
         });
       }
-      setData(normalized);
+      setSlice(normalized);
       setDbError(null);
     } catch (error) {
       const message =
@@ -142,10 +151,22 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function init() {
-      try {
-        const next = await fetchCrmDataFromSupabase(accessTokenRef.current);
+      if (!includeLeads && !includeTowers) {
         if (!cancelled) {
-          setData(normalizeData(next));
+          setSlice(EMPTY_SLICE);
+          setDbError(null);
+          setIsLoaded(true);
+        }
+        return;
+      }
+      try {
+        const next = await fetchCrmDataFromSupabase({
+          accessToken: accessTokenRef.current,
+          includeLeads,
+          includeTowers,
+        });
+        if (!cancelled) {
+          setSlice(normalizeSlice(next));
           setDbError(null);
           setIsLoaded(true);
         }
@@ -154,24 +175,21 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           error instanceof Error ? error.message : "Failed to connect to Supabase";
         if (!cancelled) {
           setDbError(message);
-          setData(EMPTY_DATA);
+          setSlice(EMPTY_SLICE);
           setIsLoaded(true);
         }
       }
     }
 
     void init();
-
     return () => {
       cancelled = true;
     };
-  }, [authLoading, accessToken]);
+  }, [authLoading, accessToken, includeLeads, includeTowers]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || (!includeLeads && !includeTowers)) return;
 
-    // Debounce heavily so bursts of realtime events don't full-refetch CRM
-    // repeatedly. Skip while the tab is hidden — catch up on visibility.
     const scheduleRefresh = () => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") {
         return;
@@ -189,21 +207,24 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     };
 
     document.addEventListener("visibilitychange", onVisibility);
-    const unsubscribe = subscribeToCrmChanges(scheduleRefresh);
+    const unsubscribe = subscribeToCrmChanges(scheduleRefresh, {
+      includeLeads,
+      includeTowers,
+    });
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       unsubscribe();
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
-  }, [isLoaded, refreshFromSupabase]);
+  }, [isLoaded, includeLeads, includeTowers, refreshFromSupabase]);
 
   const updateLead = useCallback(
     (id: string, updates: Partial<Lead>) => {
       const previous = pendingLeadPatches.current.get(id) ?? {};
       pendingLeadPatches.current.set(id, { ...previous, ...updates });
 
-      setData((prev) => ({
+      setSlice((prev) => ({
         ...prev,
         leads: prev.leads.map((lead) =>
           lead.id === id ? { ...lead, ...updates } : lead
@@ -212,7 +233,6 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
 
       void patchLead(id, updates)
         .then(() => {
-          // Keep pending briefly so in-flight refreshes still re-apply this patch
           window.setTimeout(() => {
             pendingLeadPatches.current.delete(id);
           }, 1500);
@@ -239,7 +259,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         createdAt: now,
       };
 
-      setData((prev) => ({
+      setSlice((prev) => ({
         ...prev,
         leads: [newLead, ...prev.leads],
         activities: [newActivity, ...prev.activities],
@@ -286,7 +306,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         createdAt: now,
       };
 
-      setData((prev) => {
+      setSlice((prev) => {
         const lead = prev.leads.find((l) => l.id === id);
         if (!lead) return prev;
 
@@ -343,7 +363,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         createdAt: now,
       };
 
-      setData((prev) => ({
+      setSlice((prev) => ({
         ...prev,
         activities: [newActivity, ...prev.activities],
         leads: prev.leads.map((lead) =>
@@ -368,9 +388,9 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     (leadId: string, assignedToId: string | null) => {
       const now = new Date().toISOString();
 
-      setData((prev) => {
+      setSlice((prev) => {
         const user = assignedToId
-          ? prev.users.find((u) => u.id === assignedToId)
+          ? staff.users.find((u) => u.id === assignedToId)
           : null;
         const activityTitle = assignedToId
           ? `Reassigned to ${user?.name ?? "team member"}`
@@ -384,7 +404,6 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           createdAt: now,
         };
 
-        // Unassigning returns the lead to the inbox; assigning clears any prior dismiss.
         const inboxDismissedAt = null;
 
         void (async () => {
@@ -406,7 +425,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         };
       });
     },
-    [refreshFromSupabase]
+    [refreshFromSupabase, staff.users]
   );
 
   const returnLeadToInbox = useCallback(
@@ -414,43 +433,6 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       reassignLead(leadId, null);
     },
     [reassignLead]
-  );
-
-  const updateUser = useCallback(
-    (id: string, updates: Partial<User>) => {
-      setData((prev) => ({
-        ...prev,
-        users: prev.users.map((user) =>
-          user.id === id ? { ...user, ...updates } : user
-        ),
-      }));
-
-      void patchUser(id, updates).catch((error) => {
-        setDbError(error instanceof Error ? error.message : "User update failed");
-        void refreshFromSupabase();
-      });
-    },
-    [refreshFromSupabase]
-  );
-
-  const addUser = useCallback(
-    async (formData: CreateUserPayload, accessToken: string): Promise<string> => {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const body = (await res.json()) as { error?: string; id?: string };
-      if (!res.ok) throw new Error(body.error ?? "Failed to create user");
-
-      await refreshFromSupabase();
-      return body.id ?? "";
-    },
-    [refreshFromSupabase]
   );
 
   const createOutage = useCallback(
@@ -474,7 +456,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         isPublic: true,
       };
 
-      setData((prev) => ({
+      setSlice((prev) => ({
         ...prev,
         towerOutages: [outage, ...prev.towerOutages],
         towers: prev.towers.map((tower) =>
@@ -500,7 +482,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     (outageId: string, towerId: string) => {
       const now = new Date().toISOString();
 
-      setData((prev) => ({
+      setSlice((prev) => ({
         ...prev,
         towerOutages: prev.towerOutages.map((outage) =>
           outage.id === outageId ? { ...outage, resolvedAt: now } : outage
@@ -529,13 +511,12 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     [refreshFromSupabase]
   );
 
-  /** Set tower online or maintenance; clears any active outages so the landing page updates. */
   const setTowerStatus = useCallback(
     (towerId: string, status: Exclude<TowerStatus, "offline">, updatedById: string) => {
       const now = new Date().toISOString();
       let activeIds: string[] = [];
 
-      setData((prev) => {
+      setSlice((prev) => {
         activeIds = prev.towerOutages
           .filter((o) => o.towerId === towerId && !o.resolvedAt)
           .map((o) => o.id);
@@ -577,8 +558,8 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getVisibleLeads = useCallback(
-    () => data.leads.filter((l) => !l.deleted),
-    [data.leads]
+    () => slice.leads.filter((l) => !l.deleted),
+    [slice.leads]
   );
 
   const exportToCsv = useCallback(() => {
@@ -636,7 +617,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
         });
       });
 
-      setData((prev) => ({
+      setSlice((prev) => ({
         ...prev,
         leads: [...newLeads, ...prev.leads],
       }));
@@ -655,38 +636,36 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     [refreshFromSupabase]
   );
 
-  const getUserById = useCallback(
-    (id: string) => data.users.find((u) => u.id === id),
-    [data.users]
-  );
-
   const getLeadActivities = useCallback(
     (leadId: string) =>
-      data.activities
+      slice.activities
         .filter((a) => a.leadId === leadId)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [data.activities]
+    [slice.activities]
   );
 
   const getTowerById = useCallback(
-    (id: string) => data.towers.find((t) => t.id === id),
-    [data.towers]
+    (id: string) => slice.towers.find((t) => t.id === id),
+    [slice.towers]
   );
 
   const getActiveOutages = useCallback(
-    () => data.towerOutages.filter((o) => !o.resolvedAt && o.isPublic),
-    [data.towerOutages]
+    () => slice.towerOutages.filter((o) => !o.resolvedAt && o.isPublic),
+    [slice.towerOutages]
   );
+
+  const combinedError = dbError ?? staff.error;
+  const combinedLoaded = isLoaded && staff.isLoaded;
 
   const value = useMemo(
     () => ({
-      users: data.users,
-      leads: data.leads,
-      activities: data.activities,
-      towers: data.towers,
-      towerOutages: data.towerOutages,
-      isLoaded,
-      dbError,
+      users: staff.users,
+      leads: slice.leads,
+      activities: slice.activities,
+      towers: slice.towers,
+      towerOutages: slice.towerOutages,
+      isLoaded: combinedLoaded,
+      dbError: combinedError,
       updateLead,
       addLead,
       deleteLead,
@@ -695,25 +674,46 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       addActivity,
       reassignLead,
       returnLeadToInbox,
-      updateUser,
-      addUser,
+      updateUser: staff.updateUser,
+      addUser: staff.addUser,
       createOutage,
       resolveOutage,
       setTowerStatus,
       assignLeadTower,
       exportToCsv,
       importFromCsv,
-      getUserById,
+      getUserById: staff.getUserById,
       getLeadActivities,
       getVisibleLeads,
       getTowerById,
       getActiveOutages,
     }),
     [
-      data, isLoaded, dbError, updateLead, addLead, deleteLead, restoreLead,
-      moveLead, addActivity, reassignLead, returnLeadToInbox, updateUser, addUser, createOutage,
-      resolveOutage, setTowerStatus, assignLeadTower, exportToCsv, importFromCsv, getUserById,
-      getLeadActivities, getVisibleLeads, getTowerById, getActiveOutages,
+      staff.users,
+      staff.updateUser,
+      staff.addUser,
+      staff.getUserById,
+      slice,
+      combinedLoaded,
+      combinedError,
+      updateLead,
+      addLead,
+      deleteLead,
+      restoreLead,
+      moveLead,
+      addActivity,
+      reassignLead,
+      returnLeadToInbox,
+      createOutage,
+      resolveOutage,
+      setTowerStatus,
+      assignLeadTower,
+      exportToCsv,
+      importFromCsv,
+      getLeadActivities,
+      getVisibleLeads,
+      getTowerById,
+      getActiveOutages,
     ]
   );
 

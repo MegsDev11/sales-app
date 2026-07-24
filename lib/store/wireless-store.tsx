@@ -11,6 +11,8 @@ import {
 } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { canAccessWireless } from "@/lib/permissions";
+import { shouldMountWirelessStore } from "@/lib/store/load-gates";
+import { usePathname } from "next/navigation";
 import type { NetworkLayout, NetworkLayoutSubmission } from "@/lib/wireless/layout-types";
 
 export interface WirelessClientRow {
@@ -85,8 +87,10 @@ function applyWirelessBody(
 }
 
 export function WirelessStoreProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() || "/";
   const { accessToken, currentUser, isLoading: authLoading } = useAuth();
-  const shouldLoad = canAccessWireless(currentUser);
+  const shouldLoad =
+    canAccessWireless(currentUser) && shouldMountWirelessStore(currentUser, pathname);
   const [data, setData] = useState<WirelessBundle>(empty);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

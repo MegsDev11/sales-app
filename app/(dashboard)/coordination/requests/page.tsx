@@ -28,6 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  decodePickListTarget,
+  PickListTargetOptions,
+  pickListTargetName,
+} from "@/components/coordination/pick-list-targets";
 
 export default function CoordinationRequestsPage() {
   const { allowed, isLoading } = useCoordinationAccess();
@@ -98,25 +103,11 @@ export default function CoordinationRequestsPage() {
   );
 
   // Line targets are encoded as "product:{id}" or "sundry:{id}" so one select covers both.
-  const decodeTarget = useCallback((target: string) => {
-    if (target.startsWith("sundry:")) return { sundryId: target.slice(7) };
-    if (target.startsWith("product:")) return { productId: target.slice(8) };
-    return {};
-  }, []);
+  const decodeTarget = decodePickListTarget;
 
   const targetName = useCallback(
-    (target: string) => {
-      const { productId, sundryId } = decodeTarget(target);
-      if (sundryId) {
-        const sundry = sundries.find((s) => s.id === sundryId);
-        return sundry ? `${sundry.name} (sundry)` : "Sundry";
-      }
-      if (productId) {
-        return products.find((p) => p.id === productId)?.name ?? "Product";
-      }
-      return "Product or sundry";
-    },
-    [decodeTarget, products, sundries]
+    (target: string) => pickListTargetName(target, products, sundries),
+    [products, sundries]
   );
 
   const targetAvailable = useCallback(
@@ -146,21 +137,11 @@ export default function CoordinationRequestsPage() {
 
   function lineTargetOptions() {
     return (
-      <SelectContent>
-        {products.map((p) => {
-          const avail = productCounts(p.id).available;
-          return (
-            <SelectItem key={p.id} value={`product:${p.id}`}>
-              {p.name} (avail {avail})
-            </SelectItem>
-          );
-        })}
-        {sundries.map((s) => (
-          <SelectItem key={s.id} value={`sundry:${s.id}`}>
-            {s.name} — sundry (avail {s.quantity} {s.unitLabel})
-          </SelectItem>
-        ))}
-      </SelectContent>
+      <PickListTargetOptions
+        products={products}
+        sundries={sundries}
+        productCounts={productCounts}
+      />
     );
   }
 
