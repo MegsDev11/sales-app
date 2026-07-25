@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       stageEnteredAt: now,
       leadSource: "website",
       coverageStatus: "pending_survey",
-      serviceZone: "Waterberg",
+      serviceZone: "",
       nextAction: "Respond to website enquiry",
       temperature: "warm",
       stageHistory: [{ stage: "new_lead", enteredAt: now }],

@@ -85,6 +85,7 @@ type StockStoreValue = StockBundle & {
     qrToken: string,
     details?: {
       serialNumber?: string;
+      leadId?: string | null;
       clientName?: string;
       clientAddress?: string;
       clientPppoe?: string;

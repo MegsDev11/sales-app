@@ -22,16 +22,19 @@ function pathStartsWithAny(pathname: string, prefixes: string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-/** Load sales leads/activities (+ towers) for sales, support, or owner on those hubs. */
+/** Load sales leads/activities (+ towers) for sales, support, stock, or owner on those hubs. */
 export function shouldLoadCrmLeads(user: User | null | undefined, pathname: string): boolean {
   if (!user) return false;
   if (user.department === "sales") return true;
   if (user.department === "support") return true;
-  // Pick lists / jobs reference leads — load CRM for coordination, skip stock/wireless.
+  // Stock Client QRs / pick lists need the sales client list.
+  if (user.department === "stock") return true;
+  // Pick lists / jobs reference leads — load CRM for coordination.
   if (user.department === "coordination") return true;
   if (isOwner(user)) {
     if (pathStartsWithAny(pathname, SALES_PATH_PREFIXES)) return true;
     if (pathname.startsWith("/support") || pathname.startsWith("/coordination")) return true;
+    if (pathname.startsWith("/stock")) return true;
     return false;
   }
   return false;

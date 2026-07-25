@@ -187,7 +187,12 @@ export default function WirelessLayoutEditorPage({
           onValueChange={(v) => setLeadId(!v || v === "__none__" ? "" : String(v))}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Unassigned" />
+            <SelectValue placeholder="Unassigned">
+              {(value) => {
+                if (!value || value === "__none__") return "Unassigned";
+                return clients.find((c) => c.id === value)?.clientName ?? "Selected client";
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Unassigned</SelectItem>
@@ -255,7 +260,9 @@ export default function WirelessLayoutEditorPage({
               }
             >
               <SelectTrigger className="h-8 w-[120px]">
-                <SelectValue />
+                <SelectValue>
+                  {(value) => String(value ?? "unknown")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="online">online</SelectItem>

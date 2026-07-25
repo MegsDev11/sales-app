@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getClientAccountFromRequest } from "@/lib/mobile/client-auth";
 import { migrationHint } from "@/lib/mobile/field-mappers";
-import type { ClientInstallationDto } from "@megs/shared";
+import {
+  findServicePackage,
+  toClientPackageInfo,
+  toClientPackageUpgrade,
+  upgradesForPackage,
+  type ClientInstallationDto,
+} from "@megs/shared";
 
 export async function GET(request: Request) {
   const account = await getClientAccountFromRequest(request);
@@ -12,7 +18,7 @@ export async function GET(request: Request) {
   try {
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, client_name, address, package_tier, phone, email")
+      .select("id, client_name, address, package_tier, phone, email, service_type")
       .eq("id", account.lead_id)
       .maybeSingle();
 
@@ -35,7 +41,7 @@ export async function GET(request: Request) {
       const { data: items, error } = await supabase
         .from("stock_items")
         .select(
-          "id, serial_number, wifi_name, wifi_password, client_pppoe, client_address, product_id"
+          "id, serial_number, brand, device_name, wifi_name, wifi_password, client_pppoe, client_name, client_address, product_id"
         )
         .in("id", itemIds);
       if (error) throw new Error(error.message);
@@ -49,13 +55,22 @@ export async function GET(request: Request) {
       installations = (items ?? []).map((i) => ({
         itemId: i.id,
         productName: productNames.get(i.product_id) ?? "Device",
+        brand: i.brand ?? "",
+        deviceName: i.device_name ?? "",
         serialNumber: i.serial_number ?? "",
         wifiName: i.wifi_name,
         wifiPassword: i.wifi_password,
         clientPppoe: i.client_pppoe,
+        clientName: i.client_name,
         clientAddress: i.client_address,
       }));
     }
+
+    const matched = findServicePackage(lead?.package_tier ?? null);
+    const currentPackage = matched ? toClientPackageInfo(matched) : null;
+    const upgrades = upgradesForPackage(matched).map((p) =>
+      toClientPackageUpgrade(p, matched?.price ?? 0)
+    );
 
     return NextResponse.json({
       account: {
@@ -67,6 +82,9 @@ export async function GET(request: Request) {
       clientName: lead?.client_name ?? "Client",
       address: lead?.address ?? "",
       packageTier: lead?.package_tier ?? null,
+      serviceType: lead?.service_type ?? null,
+      currentPackage,
+      upgrades,
       installations,
     });
   } catch (e) {

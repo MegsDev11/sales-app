@@ -15,7 +15,6 @@ import {
   LayoutDashboard,
   Map,
   MapPin,
-  MessageSquare,
   MessagesSquare,
   Package,
   QrCode,
@@ -53,7 +52,6 @@ export const salesStaffNavItems: NavItem[] = [
 export const supportNavItems: NavItem[] = [
   { href: "/support", label: "Overview", icon: LayoutDashboard },
   { href: "/support/messages", label: "Messages", icon: MessagesSquare },
-  { href: "/support/requests", label: "Client Requests", icon: MessageSquare },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
 ];

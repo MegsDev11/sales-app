@@ -39,22 +39,8 @@ export default function VehicleFuelScreen() {
     }, [load])
   );
 
-  async function submit() {
+  async function sendFuel(litresN: number, priceN: number, locationTrimmed: string) {
     if (!vehicle) return;
-    const litresN = Number(litres);
-    const priceN = Number(price);
-    if (!Number.isFinite(litresN) || litresN <= 0) {
-      Alert.alert("Litres", "Enter litres greater than 0");
-      return;
-    }
-    if (!location.trim()) {
-      Alert.alert("Where", "Enter where you filled up");
-      return;
-    }
-    if (!Number.isFinite(priceN) || priceN < 0) {
-      Alert.alert("Price", "Enter the fuel price (total R)");
-      return;
-    }
     setBusy(true);
     try {
       await apiFetch(API_PATHS.mobileTechFuel, {
@@ -62,7 +48,7 @@ export default function VehicleFuelScreen() {
         body: JSON.stringify({
           vehicleId: vehicle.id,
           litres: litresN,
-          location: location.trim(),
+          location: locationTrimmed,
           price: priceN,
         }),
       });
@@ -74,6 +60,48 @@ export default function VehicleFuelScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function confirmAndSubmit() {
+    if (!vehicle || busy) return;
+    const litresN = Number(litres);
+    const priceN = Number(price);
+    const locationTrimmed = location.trim();
+    if (!Number.isFinite(litresN) || litresN <= 0) {
+      Alert.alert("Litres", "Enter litres greater than 0");
+      return;
+    }
+    if (!locationTrimmed) {
+      Alert.alert("Where", "Enter where you filled up");
+      return;
+    }
+    if (!Number.isFinite(priceN) || priceN < 0) {
+      Alert.alert("Price", "Enter the fuel price (total R)");
+      return;
+    }
+
+    const perL = litresN > 0 ? priceN / litresN : 0;
+    const plate = [vehicle.brand, vehicle.numberPlate].filter(Boolean).join(" · ");
+    Alert.alert(
+      "Confirm fuel entry",
+      [
+        plate,
+        "",
+        `Litres: ${litresN}`,
+        `Where: ${locationTrimmed}`,
+        `Price: R ${priceN.toFixed(2)}`,
+        `≈ R ${perL.toFixed(2)}/L`,
+        "",
+        "Is this correct?",
+      ].join("\n"),
+      [
+        { text: "Edit", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => void sendFuel(litresN, priceN, locationTrimmed),
+        },
+      ]
+    );
   }
 
   if (loading) return <Loading />;
@@ -121,7 +149,7 @@ export default function VehicleFuelScreen() {
             <PrimaryButton
               label={busy ? "Saving…" : "Submit fuel"}
               disabled={busy}
-              onPress={() => void submit()}
+              onPress={confirmAndSubmit}
             />
           </View>
         </>

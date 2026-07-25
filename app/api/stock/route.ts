@@ -210,6 +210,7 @@ type StockAction =
       requestId: string;
       qrToken: string;
       serialNumber?: string;
+      leadId?: string | null;
       clientName?: string;
       clientAddress?: string;
       clientPppoe?: string;
@@ -936,13 +937,25 @@ export async function POST(request: Request) {
         if (detailError) throw detailError;
       }
 
+      const bookingLeadId =
+        (typeof body.leadId === "string" && body.leadId.trim()
+          ? body.leadId.trim()
+          : null) || requestRow.lead_id;
+
+      if (!bookingLeadId) {
+        return NextResponse.json(
+          { error: "Select a client before booking out" },
+          { status: 400 }
+        );
+      }
+
       const bookingId = `sbook-${Date.now()}`;
       const { error: bookingError } = await supabase.from("stock_bookings").insert(
         stockBookingToRow({
           id: bookingId,
           itemId: itemRow.id,
           technicianId: requestRow.technician_id,
-          leadId: requestRow.lead_id,
+          leadId: bookingLeadId,
           requestId: requestRow.id,
           bookedOutAt: now,
           bookedOutBy: user.id,

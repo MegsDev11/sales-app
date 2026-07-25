@@ -13,7 +13,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "MEGS uses your location for clock-in/out and job status."
+          "locationWhenInUsePermission": "MEGS uses your location for clock-in/out, job status, and to show which Wi‑Fi network your phone is on during speed tests."
         }
       ],
       [
@@ -34,6 +34,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "za.co.megswaterberg.field",
+      "entitlements": {
+        "com.apple.developer.networking.wifi-info": true
+      },
       "infoPlist": {
         "LSApplicationQueriesSchemes": ["whatsapp", "whatsapp-business"]
       }
@@ -48,6 +51,8 @@
         "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_WIFI_STATE",
+        "ACCESS_NETWORK_STATE",
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO"
       ]

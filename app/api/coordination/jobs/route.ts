@@ -128,9 +128,24 @@ export async function POST(request: Request) {
           ? body.locationLng
           : null;
 
+      const leadId = (body.leadId as string) || null;
+      let stockRequestId = (body.stockRequestId as string) || null;
+      if (!stockRequestId && leadId && technicianIds[0]) {
+        const { data: pick } = await supabase
+          .from("stock_requests")
+          .select("id")
+          .eq("technician_id", technicianIds[0])
+          .eq("lead_id", leadId)
+          .in("status", ["open", "partial", "fulfilled"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (pick?.id) stockRequestId = pick.id;
+      }
+
       const { error } = await supabase.from("jobs").insert({
         id,
-        lead_id: (body.leadId as string) || null,
+        lead_id: leadId,
         title,
         address: String(body.address ?? ""),
         client_name: (body.clientName as string) || null,
@@ -138,7 +153,7 @@ export async function POST(request: Request) {
         scheduled_end: (body.scheduledEnd as string) || null,
         status: "scheduled",
         notes,
-        stock_request_id: (body.stockRequestId as string) || null,
+        stock_request_id: stockRequestId,
         created_by: user.id,
         created_at: now,
         updated_at: now,

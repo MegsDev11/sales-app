@@ -6,12 +6,13 @@ import { notFound, useRouter } from "next/navigation";
 import { ArrowLeft, Phone, Mail, CheckSquare, MapPin, Pencil, Trash2 } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useAuth } from "@/lib/auth-context";
-import { getSalesStaff } from "@/lib/permissions";
+import { canAccessSalesAdmin, getSalesStaff } from "@/lib/permissions";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { ActivityTimeline } from "@/components/leads/activity-timeline";
 import { ServiceTypeBadge } from "@/components/leads/service-type-badge";
 import { CoverageBadge } from "@/components/leads/coverage-badge";
 import { LeadFormDialog } from "@/components/leads/lead-form-dialog";
+import { ClientAppLoginCard } from "@/components/leads/client-app-login-card";
 import { StatCard } from "@/components/stats/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,7 @@ import type { ActivityType } from "@/lib/types";
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { leads, getUserById, getLeadActivities, updateLead, addActivity, reassignLead, deleteLead, users, getTowerById } = useCrmStore();
+  const { leads, getUserById, getLeadActivities, updateLead, addActivity, reassignLead, deleteLead, users, getTowerById, towerSites } = useCrmStore();
   const { currentUser, isAdmin } = useAuth();
   const [activityTitle, setActivityTitle] = useState("");
   const [activityType, setActivityType] = useState<ActivityType>("call");
@@ -111,6 +112,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       <div className="flex flex-wrap gap-2">
         <a href={`tel:${lead.phone}`}><Button variant="outline" size="sm"><Phone className="mr-1 h-3 w-3" />{lead.phone}</Button></a>
         <a href={`mailto:${lead.email}`}><Button variant="outline" size="sm"><Mail className="mr-1 h-3 w-3" />Email</Button></a>
+        {(lead.serviceType === "wireless" || lead.serviceType === "both") && (
+          <Link href={`/wireless/clients/${lead.id}`}>
+            <Button variant="outline" size="sm">Wireless client</Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -141,10 +147,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <CardHeader><CardTitle>Client Details</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             <DetailRow label="Address" value={lead.address ?? "—"} />
-            <DetailRow label="Zone" value={lead.serviceZone} />
+            <DetailRow label="Client PPPoE" value={lead.clientPppoe || "—"} />
+            <DetailRow label="Wi‑Fi name" value={lead.wifiName || "—"} />
+            <DetailRow label="Wi‑Fi password" value={lead.wifiPassword || "—"} />
+            <DetailRow
+              label="Coverage area"
+              value={lead.towerId ? getTowerById(lead.towerId)?.name ?? "Unknown" : "—"}
+            />
             <DetailRow
               label="Tower"
-              value={lead.towerId ? getTowerById(lead.towerId)?.name ?? "Unknown" : "—"}
+              value={
+                lead.towerSiteId
+                  ? towerSites.find((s) => s.id === lead.towerSiteId)?.name ?? "Unknown"
+                  : "—"
+              }
             />
             <DetailRow label="Package" value={lead.packageTier} />
             <DetailRow label="Lead Source" value={LEAD_SOURCE_LABELS[lead.leadSource]} />
@@ -155,7 +171,15 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <div className="space-y-2 pt-2">
                 <label className="text-xs font-medium text-muted-foreground">Reassign to</label>
                 <Select value={lead.assignedToId ?? "unassigned"} onValueChange={(v) => { if (typeof v === "string") reassignLead(lead.id, v === "unassigned" ? null : v); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(value) =>
+                        !value || value === "unassigned"
+                          ? "Unassigned"
+                          : salesReps.find((r) => r.id === value)?.name ?? "Unassigned"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
                     {salesReps.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
@@ -177,6 +201,16 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             ))}
           </CardContent>
         </Card>
+
+        {canAccessSalesAdmin(currentUser) ? (
+          <div className="lg:col-span-2">
+            <ClientAppLoginCard
+              leadId={lead.id}
+              defaultEmail={lead.email}
+              defaultPhone={lead.phone}
+            />
+          </div>
+        ) : null}
 
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Activity Timeline</CardTitle></CardHeader>

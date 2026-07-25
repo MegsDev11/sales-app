@@ -109,6 +109,9 @@ export interface Lead {
   discount?: number;
   leadSource: LeadSource;
   address?: string;
+  clientPppoe?: string;
+  wifiName?: string;
+  wifiPassword?: string;
   notes?: string;
   deleted?: boolean;
   nextFollowUpAt?: string;
@@ -124,7 +127,10 @@ export interface Lead {
   stageHistory: StageHistoryEntry[];
   /** Set when removed from Lead Inbox only — lead remains elsewhere in the CRM */
   inboxDismissedAt?: string | null;
+  /** Coverage area (public towers / towns). */
   towerId?: string | null;
+  /** Physical tower site under the coverage area. */
+  towerSiteId?: string | null;
 }
 
 export interface TowerEquipmentItem {
@@ -291,6 +297,9 @@ export interface StockBooking {
   bookedOutBy?: string | null;
   returnedAt?: string | null;
   notes: string;
+  returnNeededAt?: string | null;
+  returnNeededJobId?: string | null;
+  returnNeededNote?: string;
 }
 
 export interface StockRequestLine {
@@ -319,9 +328,11 @@ export interface StockRequest {
 export type AppNotificationType =
   | "stock_request_sent"
   | "stock_shortfall"
+  | "stock_return_needed"
   | "client_support_request"
   | "tower_work_request"
-  | "service_call_request";
+  | "service_call_request"
+  | "job_card_submitted";
 
 export interface AppNotification {
   id: string;

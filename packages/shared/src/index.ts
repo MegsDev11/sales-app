@@ -49,6 +49,7 @@ export const API_PATHS = {
   mobileMe: "/api/mobile/me",
   mobileTechJobs: "/api/mobile/tech/jobs",
   mobileTechJobCard: "/api/mobile/tech/job-card",
+  mobileTechLayout: "/api/mobile/tech/layout",
   mobileTechTime: "/api/mobile/tech/time",
   mobileTechTimeOff: "/api/mobile/tech/time-off",
   mobileTechLocation: "/api/mobile/tech/location",
@@ -58,6 +59,8 @@ export const API_PATHS = {
   mobileClientMe: "/api/mobile/client/me",
   mobileClientLayout: "/api/mobile/client/layout",
   mobileClientMessages: "/api/mobile/client/messages",
+  mobileClientSupportRequests: "/api/mobile/client/support-requests",
+  mobileClientSpeedTest: "/api/mobile/client/speed-test",
   stock: "/api/stock",
   stockVehicles: "/api/stock/vehicles",
   coordinationJobs: "/api/coordination/jobs",
@@ -188,6 +191,15 @@ export interface JobCardMediaItem {
   fileName?: string;
 }
 
+export interface JobCardStockLine {
+  bookingId: string;
+  itemId: string;
+  productName: string;
+  serialNumber: string;
+  /** null = not answered yet */
+  used: boolean | null;
+}
+
 export interface JobCardPayload {
   workingOnHeights: YesNo;
   weatherDanger: YesNo;
@@ -201,9 +213,12 @@ export interface JobCardPayload {
   jobDate: string;
   jobTime: string;
   hoursOnSite: string;
+  /** ISO timestamp when tech tapped Arrived — used to compute hours on Finished. */
+  siteStartedAt: string;
   travelOneWay: string;
   workDone: string;
   stockUsed: string;
+  stockChecklist: JobCardStockLine[];
   beforePhotos: JobCardMediaItem[];
   afterPhotos: JobCardMediaItem[];
   serialPhotos: JobCardMediaItem[];
@@ -222,6 +237,8 @@ export interface JobCardSubmission {
   id: string;
   jobId: string;
   technicianId: string;
+  /** Human-searchable id e.g. JC-01001 (set on submit). */
+  cardNumber: string | null;
   status: JobCardStatus;
   payload: JobCardPayload;
   submittedAt: string | null;
@@ -254,9 +271,11 @@ export function emptyJobCardPayload(
     jobDate: "",
     jobTime: "",
     hoursOnSite: "",
+    siteStartedAt: "",
     travelOneWay: "",
     workDone: "",
     stockUsed: "",
+    stockChecklist: [],
     beforePhotos: [],
     afterPhotos: [],
     serialPhotos: [],
@@ -268,6 +287,97 @@ export function emptyJobCardPayload(
     notes: "",
     video: null,
   };
+}
+
+/** Build stockUsed summary from checklist ticks (Used / Not used). */
+export function summarizeStockChecklist(lines: JobCardStockLine[]): string {
+  if (!lines.length) return "";
+  const used = lines.filter((l) => l.used === true);
+  const unused = lines.filter((l) => l.used === false);
+  const parts: string[] = [];
+  if (used.length) {
+    parts.push(
+      `Used: ${used
+        .map((l) => [l.productName, l.serialNumber].filter(Boolean).join(" "))
+        .join(", ")}`
+    );
+  }
+  if (unused.length) {
+    parts.push(
+      `Not used (return): ${unused
+        .map((l) => [l.productName, l.serialNumber].filter(Boolean).join(" "))
+        .join(", ")}`
+    );
+  }
+  return parts.join(" · ") || "None";
+}
+
+/** Missing * required fields for job card submit (same labels as the form). */
+export function listMissingJobCardFields(payload: JobCardPayload): string[] {
+  const missing: string[] = [];
+  const needYesNo = (v: YesNo, label: string) => {
+    if (v !== "yes" && v !== "no") missing.push(label);
+  };
+
+  needYesNo(
+    payload.workingOnHeights,
+    "Does this Job include working on heights?"
+  );
+  needYesNo(
+    payload.weatherDanger,
+    "Will the current weather conditions influence or endanger any person?"
+  );
+  needYesNo(
+    payload.highVoltageNearby,
+    "Is there any high voltage power line within 30m of workspace?"
+  );
+  needYesNo(
+    payload.hasPpe,
+    "Do you have the necessary Personal Protective Equipment to complete the current assignment?"
+  );
+  needYesNo(
+    payload.needsMgmtApproval,
+    "Is there any risks that need to be run by management for approval?"
+  );
+  if (!payload.seniorTechSignature?.name?.trim()) {
+    missing.push("Signature of Senior Technician on site");
+  }
+  if (!payload.clientNameSurname.trim()) missing.push("Client Name and Surname");
+  needYesNo(payload.requiresCableWork, "Does this Job require cable work");
+  needYesNo(payload.riskAssessmentApproved, "Risk Assessment Done and Approved");
+  if (!payload.jobDate.trim()) missing.push("Date of Job");
+  if (!payload.jobTime.trim()) missing.push("Time of Job");
+  if (!payload.hoursOnSite.trim()) missing.push("Time Spend on Site (Hours)");
+  if (!payload.travelOneWay.trim()) missing.push("Travel (One Way)");
+  if (!payload.workDone.trim()) missing.push("Work Done");
+
+  const checklist = Array.isArray(payload.stockChecklist) ? payload.stockChecklist : [];
+  if (checklist.length > 0) {
+    if (!checklist.every((l) => l.used === true || l.used === false)) {
+      missing.push("Stock used (mark Used or Not used)");
+    }
+  } else if (!payload.stockUsed.trim()) {
+    missing.push("Stock used");
+  }
+
+  if (!payload.afterPhotos.length) missing.push("After Photos");
+  if (!payload.serialPhotos.length) {
+    missing.push("Serial Numbers of Stock");
+  }
+  if (payload.locationLat == null || payload.locationLng == null) {
+    missing.push("Location");
+  }
+  if (!payload.technicians.trim()) missing.push("Technicians");
+  if (!payload.clientSignature?.name?.trim()) missing.push("Client Signature");
+
+  return missing;
+}
+
+export function validateJobCardPayload(payload: JobCardPayload): string | null {
+  const missing = listMissingJobCardFields(payload);
+  if (!missing.length) return null;
+  if (missing.length === 1) return `${missing[0]} is required`;
+  return `Complete required fields:\n• ${missing.join("\n• ")}`;
 }
 
 export interface TimeEntry {
@@ -289,9 +399,11 @@ export interface SupportThread {
   id: string;
   leadId: string;
   clientAccountId: string;
-  status: "open" | "closed";
+  status: "pending" | "open" | "closed";
   lastMessageAt: string | null;
   createdAt: string;
+  acceptedBy?: string | null;
+  acceptedAt?: string | null;
   clientName?: string;
   clientAddress?: string;
   unreadCount?: number;
@@ -306,13 +418,39 @@ export interface SupportMessage {
   createdAt: string;
 }
 
+export type ClientSupportRequestCategoryDto =
+  | "slow_internet"
+  | "no_internet"
+  | "quote"
+  | "other";
+
+export type ClientSupportRequestStatusDto =
+  | "new"
+  | "checked"
+  | "site_survey_needed"
+  | "resolved";
+
+export interface ClientSupportRequestDto {
+  id: string;
+  itemId: string;
+  category: ClientSupportRequestCategoryDto;
+  description: string;
+  status: ClientSupportRequestStatusDto;
+  createdAt: string;
+  productName?: string;
+  deviceLabel?: string;
+}
+
 export interface ClientInstallationDto {
   itemId: string;
   productName: string;
+  brand: string;
+  deviceName: string;
   serialNumber: string;
   wifiName: string | null;
   wifiPassword: string | null;
   clientPppoe: string | null;
+  clientName: string | null;
   clientAddress: string | null;
 }
 
@@ -375,3 +513,16 @@ export {
   type PeriodHoursSummary,
   type WeekHoursGroup,
 } from "./timesheet-ot";
+
+export {
+  SERVICE_PACKAGES,
+  findServicePackage,
+  formatZar,
+  upgradesForPackage,
+  toClientPackageInfo,
+  toClientPackageUpgrade,
+  type ServicePackage,
+  type ServicePackageType,
+  type ClientPackageInfo,
+  type ClientPackageUpgrade,
+} from "./service-packages";

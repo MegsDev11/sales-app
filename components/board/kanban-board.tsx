@@ -18,7 +18,6 @@ import { LeadFormDialog } from "@/components/leads/lead-form-dialog";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { ACTIVE_STAGES, STAGES } from "@/lib/constants";
-import { SERVICE_ZONES } from "@/lib/data/packages";
 import {
   filterLeadsForUser,
   isFollowUpDueToday,
@@ -40,7 +39,8 @@ import { Button } from "@/components/ui/button";
 import { Plus, Download, Upload } from "lucide-react";
 
 export function KanbanBoard() {
-  const { leads, moveLead, getUserById, exportToCsv, importFromCsv } = useCrmStore();
+  const { leads, moveLead, getUserById, exportToCsv, importFromCsv, towers } =
+    useCrmStore();
   const { currentUser, isAdmin } = useAuth();
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [repFilter, setRepFilter] = useState<string | null>(null);
@@ -49,6 +49,11 @@ export function KanbanBoard() {
   const [filters, setFilters] = useState<BoardFilterState>(defaultFilters);
   const [showAddLead, setShowAddLead] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ id: string; stage: LeadStage } | null>(null);
+
+  const zoneFilterOptions = useMemo(
+    () => [...towers].map((t) => t.name).sort((a, b) => a.localeCompare(b)),
+    [towers]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -62,14 +67,19 @@ export function KanbanBoard() {
     if (isAdmin && repFilter) result = result.filter((l) => l.assignedToId === repFilter);
     if (serviceFilter !== "all") result = result.filter((l) => l.serviceType === serviceFilter);
     if (filters.priorityFilter !== "all") result = result.filter((l) => l.priority === filters.priorityFilter);
-    if (filters.zoneFilter !== "all") result = result.filter((l) => l.serviceZone === filters.zoneFilter);
+    if (filters.zoneFilter !== "all") {
+      result = result.filter((l) => {
+        const areaName = towers.find((t) => t.id === l.towerId)?.name;
+        return areaName === filters.zoneFilter || l.serviceZone === filters.zoneFilter;
+      });
+    }
     if (filters.coverageFilter !== "all") result = result.filter((l) => l.coverageStatus === filters.coverageFilter);
     if (filters.temperatureFilter !== "all") result = result.filter((l) => l.temperature === filters.temperatureFilter);
     if (filters.dueTodayOnly) result = result.filter(isFollowUpDueToday);
     if (filters.overdueOnly) result = result.filter((l) => isOverdue(l) || isFollowUpOverdue(l));
     result = searchLeads(result, filters.search);
     return sortLeads(result, filters.sortField);
-  }, [leads, isAdmin, currentUser, repFilter, serviceFilter, filters]);
+  }, [leads, isAdmin, currentUser, repFilter, serviceFilter, filters, towers]);
 
   const leadsByStage = useMemo(() => {
     const map = Object.fromEntries(STAGES.map((s) => [s.id, [] as Lead[]])) as Record<
@@ -199,7 +209,7 @@ export function KanbanBoard() {
             </>
           ) : null}
         </div>
-        <BoardFilters filters={filters} onChange={setFilters} zones={[...SERVICE_ZONES]} />
+        <BoardFilters filters={filters} onChange={setFilters} zones={zoneFilterOptions} />
       </div>
 
       <DndContext

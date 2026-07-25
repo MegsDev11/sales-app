@@ -164,6 +164,16 @@ export function LeadCard({ lead, rep, showRep = false }: LeadCardProps) {
               <MoreHorizontal className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
+              {(lead.serviceType === "wireless" || lead.serviceType === "both") && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.location.href = `/wireless/clients/${lead.id}`;
+                  }}
+                >
+                  Open wireless client
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();

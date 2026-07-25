@@ -97,6 +97,9 @@ export interface Database {
           discount: number | null;
           lead_source: string;
           address: string | null;
+          client_pppoe: string;
+          wifi_name: string;
+          wifi_password: string;
           notes: string | null;
           deleted: boolean;
           next_follow_up_at: string | null;
@@ -112,6 +115,7 @@ export interface Database {
           stage_history: StageHistoryEntry[];
           inbox_dismissed_at: string | null;
           tower_id: string | null;
+          tower_site_id: string | null;
         };
         Insert: {
           id: string;
@@ -132,6 +136,9 @@ export interface Database {
           discount?: number | null;
           lead_source?: string;
           address?: string | null;
+          client_pppoe?: string;
+          wifi_name?: string;
+          wifi_password?: string;
           notes?: string | null;
           deleted?: boolean;
           next_follow_up_at?: string | null;
@@ -147,6 +154,7 @@ export interface Database {
           stage_history?: StageHistoryEntry[];
           inbox_dismissed_at?: string | null;
           tower_id?: string | null;
+          tower_site_id?: string | null;
         };
         Update: {
           id?: string;
@@ -167,6 +175,9 @@ export interface Database {
           discount?: number | null;
           lead_source?: string;
           address?: string | null;
+          client_pppoe?: string;
+          wifi_name?: string;
+          wifi_password?: string;
           notes?: string | null;
           deleted?: boolean;
           next_follow_up_at?: string | null;
@@ -182,6 +193,7 @@ export interface Database {
           stage_history?: StageHistoryEntry[];
           inbox_dismissed_at?: string | null;
           tower_id?: string | null;
+          tower_site_id?: string | null;
         };
         Relationships: [];
       };
@@ -421,6 +433,9 @@ export interface Database {
           booked_out_by: string | null;
           returned_at: string | null;
           notes: string;
+          return_needed_at: string | null;
+          return_needed_job_id: string | null;
+          return_needed_note: string;
         };
         Insert: {
           id: string;
@@ -432,6 +447,9 @@ export interface Database {
           booked_out_by?: string | null;
           returned_at?: string | null;
           notes?: string;
+          return_needed_at?: string | null;
+          return_needed_job_id?: string | null;
+          return_needed_note?: string;
         };
         Update: {
           id?: string;
@@ -443,6 +461,9 @@ export interface Database {
           booked_out_by?: string | null;
           returned_at?: string | null;
           notes?: string;
+          return_needed_at?: string | null;
+          return_needed_job_id?: string | null;
+          return_needed_note?: string;
         };
         Relationships: [];
       };
@@ -981,6 +1002,7 @@ export interface Database {
           technician_id: string;
           status: string;
           payload: Json;
+          card_number: string | null;
           submitted_at: string | null;
           created_at: string;
           updated_at: string;
@@ -991,6 +1013,7 @@ export interface Database {
           technician_id: string;
           status?: string;
           payload?: Json;
+          card_number?: string | null;
           submitted_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1001,6 +1024,7 @@ export interface Database {
           technician_id?: string;
           status?: string;
           payload?: Json;
+          card_number?: string | null;
           submitted_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1287,6 +1311,8 @@ export interface Database {
           client_account_id: string;
           status: string;
           last_message_at: string | null;
+          accepted_by: string | null;
+          accepted_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -1295,6 +1321,8 @@ export interface Database {
           client_account_id: string;
           status?: string;
           last_message_at?: string | null;
+          accepted_by?: string | null;
+          accepted_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -1303,6 +1331,8 @@ export interface Database {
           client_account_id?: string;
           status?: string;
           last_message_at?: string | null;
+          accepted_by?: string | null;
+          accepted_at?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -1353,6 +1383,10 @@ export interface Database {
           p_qr_token: string;
         };
         Returns: Json;
+      };
+      next_job_card_number: {
+        Args: Record<string, never>;
+        Returns: string;
       };
     };
     Enums: Record<string, never>;

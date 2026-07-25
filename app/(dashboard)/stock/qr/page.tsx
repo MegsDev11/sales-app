@@ -31,7 +31,6 @@ export default function StockQrPage() {
   const [stockProductId, setStockProductId] = useState("");
   const [stockBrand, setStockBrand] = useState("");
   const [stockDeviceName, setStockDeviceName] = useState("");
-  const [stockSerialNumber, setStockSerialNumber] = useState("");
   const [batchProductId, setBatchProductId] = useState("");
   const [batchBrand, setBatchBrand] = useState("");
   const [batchDeviceName, setBatchDeviceName] = useState("");
@@ -106,7 +105,7 @@ export default function StockQrPage() {
         productId: stockProductId,
         brand: stockBrand,
         deviceName: stockDeviceName,
-        serialNumber: stockSerialNumber,
+        serialNumber: "",
       });
       if (!item) {
         setMsg("Create failed");
@@ -115,7 +114,6 @@ export default function StockQrPage() {
       setCreated(item);
       setStockBrand("");
       setStockDeviceName("");
-      setStockSerialNumber("");
       setMsg("Stock unit created — inventory QR ready below.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Create failed");
@@ -320,14 +318,6 @@ export default function StockQrPage() {
                   value={stockDeviceName}
                   onChange={(e) => setStockDeviceName(e.target.value)}
                   placeholder="LHG XL 5 ac"
-                />
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <label className="font-medium">Serial number</label>
-                <Input
-                  value={stockSerialNumber}
-                  onChange={(e) => setStockSerialNumber(e.target.value)}
-                  placeholder="SN…"
                 />
               </div>
             </div>

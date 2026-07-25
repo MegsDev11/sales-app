@@ -14,29 +14,23 @@ import {
 import type { NetworkCanvasDocument } from "@/lib/wireless/layout-types";
 import { EMPTY_CANVAS } from "@/lib/wireless/layout-types";
 import { isRuijieConfigured } from "@/lib/wireless/ruijie-client";
+import {
+  createNetworkLayoutSubmission,
+  parseSubmissionFilesFromForm,
+  wirelessMigrationHint,
+} from "@/lib/wireless/create-submission";
 import type { Json } from "@/lib/supabase/database.types";
 import type { Database } from "@/lib/supabase/database.types";
 
 type SubmissionUpdate = Database["public"]["Tables"]["network_layout_submissions"]["Update"];
 type LayoutUpdate = Database["public"]["Tables"]["network_layouts"]["Update"];
 
-const WIRELESS_BUCKET = "wireless-assets";
-
 function id(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
 
 function migrationHint(message: string) {
-  if (/does not exist|schema cache|network_layout/i.test(message)) {
-    return `${message}. Run supabase/migrations/020_wireless_network_layouts.sql in Supabase.`;
-  }
-  return message;
-}
-
-async function ensureBucket(supabase: ReturnType<typeof createSupabaseAdminClient>) {
-  const { data: buckets } = await supabase.storage.listBuckets();
-  if (buckets?.some((b) => b.id === WIRELESS_BUCKET || b.name === WIRELESS_BUCKET)) return;
-  await supabase.storage.createBucket(WIRELESS_BUCKET, { public: true });
+  return wirelessMigrationHint(message);
 }
 
 async function loadLeadNames(
@@ -202,60 +196,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Unsupported multipart action" }, { status: 400 });
       }
 
-      await ensureBucket(supabase);
       const leadId = String(form.get("leadId") ?? "").trim() || null;
       const notes = String(form.get("notes") ?? "").trim();
-      const submissionId = id("nls");
-      const now = new Date().toISOString();
-
-      const { error: subErr } = await supabase.from("network_layout_submissions").insert({
-        id: submissionId,
-        lead_id: leadId,
+      const files = parseSubmissionFilesFromForm(form);
+      const { submissionId } = await createNetworkLayoutSubmission({
+        supabase,
+        leadId,
         notes,
-        status: "new",
-        created_by: user.id,
-        created_at: now,
-        updated_at: now,
+        createdBy: user.id,
+        files,
       });
-      if (subErr) throw new Error(migrationHint(subErr.message));
-
-      const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-      const kinds = form.getAll("kinds").map((k) => String(k));
-      const captions = form.getAll("captions").map((c) => String(c));
-      const assetRows = [];
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const kind = (kinds[i] || "photo") as "sketch" | "photo" | "reference";
-        const caption = captions[i] || "";
-        const assetId = id("nla");
-        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const path = `submissions/${submissionId}/${assetId}.${ext}`;
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const { error: upErr } = await supabase.storage
-          .from(WIRELESS_BUCKET)
-          .upload(path, buffer, { contentType: file.type || "image/jpeg", upsert: false });
-        if (upErr) throw new Error(upErr.message);
-
-        const { data: pub } = supabase.storage.from(WIRELESS_BUCKET).getPublicUrl(path);
-        assetRows.push({
-          id: assetId,
-          submission_id: submissionId,
-          layout_id: null,
-          kind,
-          storage_path: path,
-          public_url: pub.publicUrl,
-          caption,
-          created_at: now,
-        });
-      }
-
-      if (assetRows.length) {
-        const { error: assetErr } = await supabase
-          .from("network_layout_assets")
-          .insert(assetRows);
-        if (assetErr) throw new Error(migrationHint(assetErr.message));
-      }
 
       return NextResponse.json({
         ok: true,

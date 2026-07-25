@@ -78,12 +78,20 @@ export default function WirelessClientsPage() {
                     : "No layout yet"}
                 </p>
               </div>
-              <Link
-                href={`/wireless/clients/${c.id}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                Open profile
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/wireless/clients/${c.id}`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  Open profile
+                </Link>
+                <Link
+                  href={`/leads/${c.id}`}
+                  className={buttonVariants({ variant: "ghost", size: "sm" })}
+                >
+                  Sales lead
+                </Link>
+              </div>
             </CardContent>
           </Card>
         ))}

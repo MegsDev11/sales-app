@@ -1,5 +1,16 @@
-import type { JobCardPayload, JobCardStatus, JobCardSubmission } from "@megs/shared";
-import { emptyJobCardPayload } from "@megs/shared";
+import type {
+  JobCardStatus,
+  JobCardStockLine,
+  JobCardSubmission,
+} from "@megs/shared";
+import {
+  emptyJobCardPayload,
+  summarizeStockChecklist,
+  validateJobCardPayload,
+  type JobCardPayload,
+} from "@megs/shared";
+
+export { summarizeStockChecklist, validateJobCardPayload };
 
 export function jobCardFromRow(row: {
   id: string;
@@ -10,61 +21,53 @@ export function jobCardFromRow(row: {
   submitted_at: string | null;
   created_at: string;
   updated_at: string;
+  card_number?: string | null;
 }): JobCardSubmission {
   const base = emptyJobCardPayload();
   const raw =
     row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
       ? (row.payload as Partial<JobCardPayload>)
       : {};
+  const checklist = Array.isArray(raw.stockChecklist)
+    ? (raw.stockChecklist as JobCardStockLine[])
+    : [];
   return {
     id: row.id,
     jobId: row.job_id,
     technicianId: row.technician_id,
+    cardNumber: row.card_number?.trim() || null,
     status: row.status === "submitted" ? "submitted" : ("draft" as JobCardStatus),
-    payload: { ...base, ...raw },
+    payload: { ...base, ...raw, stockChecklist: checklist },
     submittedAt: row.submitted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-export function validateJobCardPayload(payload: JobCardPayload): string | null {
-  const yesNo = (
-    value: JobCardPayload[keyof JobCardPayload],
-    label: string
-  ): string | null => {
-    if (value !== "yes" && value !== "no") return `${label} is required`;
-    return null;
-  };
+export function mergeStockChecklist(
+  existing: JobCardStockLine[],
+  fromBookings: JobCardStockLine[]
+): JobCardStockLine[] {
+  const byBooking = new Map(existing.map((l) => [l.bookingId, l]));
+  return fromBookings.map((line) => {
+    const prev = byBooking.get(line.bookingId);
+    return {
+      ...line,
+      used: prev?.used ?? null,
+    };
+  });
+}
 
-  const checks: Array<string | null> = [
-    yesNo(payload.workingOnHeights, "Working on heights"),
-    yesNo(payload.weatherDanger, "Weather conditions"),
-    yesNo(payload.highVoltageNearby, "High voltage nearby"),
-    yesNo(payload.hasPpe, "PPE"),
-    yesNo(payload.needsMgmtApproval, "Management approval risk"),
-    payload.seniorTechSignature?.name?.trim()
-      ? null
-      : "Senior technician signature is required",
-    payload.clientNameSurname.trim() ? null : "Client name is required",
-    yesNo(payload.requiresCableWork, "Cable work"),
-    yesNo(payload.riskAssessmentApproved, "Risk assessment approved"),
-    payload.jobDate.trim() ? null : "Date of job is required",
-    payload.jobTime.trim() ? null : "Time of job is required",
-    payload.hoursOnSite.trim() ? null : "Time spent on site is required",
-    payload.travelOneWay.trim() ? null : "Travel is required",
-    payload.workDone.trim() ? null : "Work done is required",
-    payload.stockUsed.trim() ? null : "Stock used is required",
-    payload.afterPhotos.length ? null : "After photos are required",
-    payload.serialPhotos.length ? null : "Serial number photos are required",
-    payload.locationLat != null && payload.locationLng != null
-      ? null
-      : "Location is required",
-    payload.technicians.trim() ? null : "Technicians is required",
-    payload.clientSignature?.name?.trim()
-      ? null
-      : "Client signature is required",
-  ];
-
-  return checks.find((c) => c != null) ?? null;
+/** Allocate JC-##### via DB sequence; fallback if migration not applied yet. */
+export async function allocateJobCardNumber(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: { rpc: (fn: "next_job_card_number", ...args: any[]) => any }
+): Promise<string> {
+  const { data, error } = await supabase.rpc("next_job_card_number");
+  if (!error && data != null && String(data).trim()) {
+    return String(data).trim();
+  }
+  const stamp = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `JC-${stamp}-${rand}`;
 }

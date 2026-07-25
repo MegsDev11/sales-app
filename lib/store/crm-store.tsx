@@ -774,7 +774,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     const headers = [
       "id", "clientName", "company", "phone", "email", "serviceType",
       "packageTier", "assignedToId", "stage", "priority", "dealValue",
-      "leadSource", "address", "serviceZone", "coverageStatus", "nextFollowUpAt",
+      "leadSource", "address", "clientPppoe", "serviceZone", "coverageStatus", "nextFollowUpAt",
     ];
     const rows = getVisibleLeads().map((l) =>
       headers.map((h) => {
@@ -816,7 +816,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           dealValue: row.dealValue ? Number(row.dealValue) : undefined,
           leadSource: (row.leadSource as Lead["leadSource"]) || "website",
           address: row.address,
-          serviceZone: row.serviceZone || "Pretoria North",
+          serviceZone: row.serviceZone || "",
           coverageStatus: (row.coverageStatus as Lead["coverageStatus"]) || "pending_survey",
           createdAt: now,
           stageEnteredAt: now,

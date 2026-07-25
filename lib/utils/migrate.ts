@@ -26,12 +26,15 @@ export function migrateLead(lead: Partial<Lead> & { id: string }): Lead {
     discount: lead.discount ?? 0,
     leadSource: lead.leadSource ?? "website",
     address: lead.address,
+    clientPppoe: lead.clientPppoe ?? "",
+    wifiName: lead.wifiName ?? "",
+    wifiPassword: lead.wifiPassword ?? "",
     notes: lead.notes,
     deleted: lead.deleted ?? false,
     nextFollowUpAt: lead.nextFollowUpAt,
     nextAction: lead.nextAction,
     coverageStatus: lead.coverageStatus ?? "pending_survey",
-    serviceZone: lead.serviceZone ?? "Pretoria North",
+    serviceZone: lead.serviceZone ?? "",
     siteSurveyDate: lead.siteSurveyDate,
     siteSurveyNotes: lead.siteSurveyNotes,
     lostReason: lead.lostReason,
@@ -41,5 +44,6 @@ export function migrateLead(lead: Partial<Lead> & { id: string }): Lead {
     stageHistory: lead.stageHistory ?? createStageHistory(stage, lead.stageEnteredAt ?? now),
     inboxDismissedAt: lead.inboxDismissedAt ?? null,
     towerId: lead.towerId ?? null,
+    towerSiteId: lead.towerSiteId ?? null,
   };
 }

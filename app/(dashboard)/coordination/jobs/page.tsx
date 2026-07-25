@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MapsLocationPaste } from "@/components/maps/maps-location-paste";
 
 const DEFAULT_JOB_KIND: JobKind = "service_call";
 
@@ -30,7 +31,6 @@ export default function CoordinationJobsPage() {
   const techs = getFieldTechnicians(users);
   const [jobs, setJobs] = useState<FieldJob[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [title, setTitle] = useState("Site visit");
   const [address, setAddress] = useState("");
   const [locationLat, setLocationLat] = useState("");
   const [locationLng, setLocationLng] = useState("");
@@ -80,6 +80,11 @@ export default function CoordinationJobsPage() {
     setBusy(true);
     try {
       const lead = leads.find((l) => l.id === leadId);
+      const title =
+        lead?.clientName?.trim() ||
+        address.trim() ||
+        jobKindLabel(jobType) ||
+        "Site visit";
       const res = await fetch("/api/coordination/jobs", {
         method: "POST",
         headers: {
@@ -255,7 +260,6 @@ export default function CoordinationJobsPage() {
 
       <Card>
         <CardContent className="grid gap-3 p-4 md:grid-cols-2">
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
           <Select
             value={techId || null}
             onValueChange={(v) => setTechId(!v ? "" : String(v))}
@@ -282,7 +286,11 @@ export default function CoordinationJobsPage() {
             onValueChange={(v) => setJobType(String(v) as JobKind)}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Job type" />
+              <SelectValue placeholder="Job type">
+                {(value) =>
+                  JOB_KIND_OPTIONS.find((o) => o.value === value)?.label ?? "Job type"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {JOB_KIND_OPTIONS.map((opt) => (
@@ -300,11 +308,31 @@ export default function CoordinationJobsPage() {
             autoCorrect="off"
           />
           <Select
-            value={leadId || null}
-            onValueChange={(v) => setLeadId(!v || v === "__none__" ? "" : String(v))}
+            value={leadId || "__none__"}
+            onValueChange={(v) => {
+              const nextId = !v || v === "__none__" ? "" : String(v);
+              setLeadId(nextId);
+              if (!nextId) {
+                setClientPppoe("");
+                return;
+              }
+              const lead = leads.find((l) => l.id === nextId);
+              if (!lead) return;
+              setClientPppoe(lead.clientPppoe?.trim() || "");
+              if (!address.trim() && lead.address?.trim()) {
+                setAddress(lead.address.trim());
+              }
+            }}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Client" />
+              <SelectValue placeholder="Client">
+                {(value) => {
+                  if (!value || value === "__none__") return "Client";
+                  return (
+                    leads.find((l) => l.id === value)?.clientName ?? "Client"
+                  );
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__" label="No client">
@@ -320,28 +348,14 @@ export default function CoordinationJobsPage() {
                 ))}
             </SelectContent>
           </Select>
-          <Input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Street address (optional with GPS)"
+          <MapsLocationPaste
+            address={address}
+            locationLat={locationLat}
+            locationLng={locationLng}
+            onAddressChange={setAddress}
+            onLatChange={setLocationLat}
+            onLngChange={setLocationLng}
           />
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              value={locationLat}
-              onChange={(e) => setLocationLat(e.target.value)}
-              placeholder="Latitude e.g. -24.8836"
-              inputMode="decimal"
-            />
-            <Input
-              value={locationLng}
-              onChange={(e) => setLocationLng(e.target.value)}
-              placeholder="Longitude e.g. 28.2940"
-              inputMode="decimal"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground md:col-span-2">
-            Paste GPS from Google Maps (right‑click → coordinates). Techs tap Navigate on the app to open directions.
-          </p>
           <Textarea
             className="md:col-span-2"
             value={notes}

@@ -17,6 +17,8 @@ import {
   API_PATHS,
   emptyJobCardPayload,
   jobKindLabel,
+  listMissingJobCardFields,
+  summarizeStockChecklist,
   type FieldJob,
   type JobCardMediaItem,
   type JobCardPayload,
@@ -25,6 +27,7 @@ import {
 } from "@megs/shared";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiFetch } from "../../../src/lib/api";
+import { formatTravelKm, haversineKm, MEGS_OFFICE } from "../../../src/lib/geo";
 import { useAuth } from "../../../src/auth";
 import { colors, spacing } from "../../../src/theme";
 import {
@@ -39,6 +42,7 @@ import {
   YesNoToggle,
 } from "../../../src/job-card-form";
 import { Loading, StatusChip } from "../../../src/ui";
+import { JobNetworkLayoutSection } from "../../../src/ui/job-network-layout";
 
 function mapsUrl(job: FieldJob) {
   if (
@@ -138,6 +142,21 @@ async function openWhatsAppPrefill(text: string) {
 
 function mediaId() {
   return `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function nowJobStamp() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    jobDate: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    jobTime: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+function formatOnSiteHours(startedAtIso: string, endedAt = new Date()): string {
+  const ms = endedAt.getTime() - new Date(startedAtIso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "0";
+  return Number((ms / 3_600_000).toFixed(2)).toString();
 }
 
 async function pickImages(max = 4): Promise<JobCardMediaItem[]> {
@@ -328,6 +347,23 @@ export default function JobDetail() {
 
     // Arrived toggle
     if (job.status === "on_site") {
+      const cleared: JobCardPayload = {
+        ...payload,
+        siteStartedAt: "",
+      };
+      setPayload(cleared);
+      try {
+        await apiFetch(API_PATHS.mobileTechJobCard, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "save",
+            jobId: id,
+            payload: cleared,
+          }),
+        });
+      } catch {
+        /* still undo status */
+      }
       await setStatus("en_route");
       return;
     }
@@ -342,7 +378,71 @@ export default function JobDetail() {
       ? `Arrived at ${client} — ${tech}`
       : `Arrived at ${client}`;
     await openWhatsAppPrefill(text);
-    if (!readOnly) await setStatus("on_site");
+
+    if (!readOnly) {
+      const stamp = nowJobStamp();
+      const nextPayload: JobCardPayload = {
+        ...payload,
+        jobDate: payload.jobDate.trim() || stamp.jobDate,
+        jobTime: stamp.jobTime,
+        siteStartedAt: new Date().toISOString(),
+        clientNameSurname:
+          payload.clientNameSurname.trim() ||
+          job.clientName?.trim() ||
+          payload.clientNameSurname,
+      };
+      setPayload(nextPayload);
+      try {
+        await apiFetch(API_PATHS.mobileTechJobCard, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "save",
+            jobId: id,
+            payload: nextPayload,
+          }),
+        });
+      } catch {
+        /* still mark arrived if draft save fails */
+      }
+      await setStatus("on_site");
+    }
+  }
+
+  async function finishOnSite() {
+    if (!job || readOnly || busy) return;
+    if (job.status !== "on_site") {
+      Alert.alert("Finished", "Tap Arrived first to start on-site time.");
+      return;
+    }
+    const started = payload.siteStartedAt?.trim();
+    if (!started) {
+      Alert.alert(
+        "Finished",
+        "No arrival time saved. Tap Arrived again, then Finished when done."
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      const hours = formatOnSiteHours(started);
+      const nextPayload: JobCardPayload = {
+        ...payload,
+        hoursOnSite: hours,
+      };
+      setPayload(nextPayload);
+      await apiFetch(API_PATHS.mobileTechJobCard, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "save",
+          jobId: id,
+          payload: nextPayload,
+        }),
+      });
+    } catch (e) {
+      Alert.alert("Finished", e instanceof Error ? e.message : "Could not save hours");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openNavigation() {
@@ -401,6 +501,36 @@ export default function JobDetail() {
     }
   }
 
+  async function measureTravelOneWay() {
+    if (readOnly || busy) return;
+    setBusy(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location",
+          "Allow location so we can measure travel distance to Megs Waterberg."
+        );
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const km = haversineKm(
+        { lat: pos.coords.latitude, lng: pos.coords.longitude },
+        { lat: MEGS_OFFICE.lat, lng: MEGS_OFFICE.lng }
+      );
+      patch({ travelOneWay: formatTravelKm(km) });
+    } catch (e) {
+      Alert.alert(
+        "Travel",
+        e instanceof Error ? e.message : "Could not measure travel distance"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addVideo() {
     if (readOnly) return;
     try {
@@ -432,21 +562,71 @@ export default function JobDetail() {
   }
 
   async function sendCard() {
-    setBusy(true);
-    try {
-      await apiFetch(API_PATHS.mobileTechJobCard, {
-        method: "POST",
-        body: JSON.stringify({ action: "submit", jobId: id, payload }),
-      });
-      setCardStatus("submitted");
-      Alert.alert("Sent", "Technician job card submitted", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
-    } catch (e) {
-      Alert.alert("Send failed", e instanceof Error ? e.message : "Check required fields");
-    } finally {
-      setBusy(false);
+    const checklist = Array.isArray(payload.stockChecklist)
+      ? payload.stockChecklist
+      : [];
+    const toSubmit: JobCardPayload = {
+      ...payload,
+      stockUsed:
+        checklist.length > 0
+          ? summarizeStockChecklist(checklist)
+          : payload.stockUsed,
+    };
+    const missing = listMissingJobCardFields(toSubmit);
+    if (missing.length) {
+      Alert.alert(
+        "Required fields missing",
+        `Complete all fields marked * before sending:\n\n• ${missing.join("\n• ")}`
+      );
+      return;
     }
+
+    Alert.alert(
+      "Send to coordination?",
+      "Submit this job card? Coordination will receive it and can search it by job card number.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send",
+          style: "default",
+          onPress: () => {
+            void (async () => {
+              setBusy(true);
+              try {
+                const res = (await apiFetch(
+                  API_PATHS.mobileTechJobCard,
+                  {
+                    method: "POST",
+                    body: JSON.stringify({
+                      action: "submit",
+                      jobId: id,
+                      payload: toSubmit,
+                    }),
+                  },
+                  { timeoutMs: 90000 }
+                )) as { submission?: { cardNumber?: string | null } | null };
+                setCardStatus("submitted");
+                const num = res?.submission?.cardNumber?.trim();
+                Alert.alert(
+                  "Sent to coordination",
+                  num
+                    ? `Job card ${num} submitted. Coordination can search this number.`
+                    : "Technician job card submitted",
+                  [{ text: "OK", onPress: () => router.back() }]
+                );
+              } catch (e) {
+                Alert.alert(
+                  "Send failed",
+                  e instanceof Error ? e.message : "Check required fields"
+                );
+              } finally {
+                setBusy(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
   }
 
   if (loading) return <Loading />;
@@ -612,7 +792,38 @@ export default function JobDetail() {
               {job.status === "on_site" ? "Arrived ✓  (tap to undo)" : "Arrived"}
             </Text>
           </Pressable>
+          <Pressable
+            disabled={
+              busy ||
+              readOnly ||
+              job.status !== "on_site"
+            }
+            onPress={() => void finishOnSite()}
+            style={[
+              styles.routeBtn,
+              payload.hoursOnSite.trim() && payload.siteStartedAt
+                ? styles.routeBtnDone
+                : styles.routeBtnPrimary,
+              (busy || readOnly || job.status !== "on_site") && { opacity: 0.5 },
+            ]}
+          >
+            <Text
+              style={[
+                styles.routeBtnText,
+                styles.routeBtnTextPrimary,
+                payload.hoursOnSite.trim() &&
+                  payload.siteStartedAt &&
+                  styles.routeBtnTextDone,
+              ]}
+            >
+              {payload.hoursOnSite.trim() && payload.siteStartedAt
+                ? `Finished ✓  ${payload.hoursOnSite} h`
+                : "Finished"}
+            </Text>
+          </Pressable>
         </View>
+
+        <JobNetworkLayoutSection jobId={String(id)} />
 
         <SectionHeader title="Job Card" />
         <SubSectionHeader title="Risk Assessment" />
@@ -730,11 +941,32 @@ export default function JobDetail() {
           </View>
           <View>
             <RequiredLabel label="Travel (One Way)" />
-            <FormTextInput
-              value={payload.travelOneWay}
-              onChangeText={(v) => patch({ travelOneWay: v })}
-              disabled={readOnly}
-            />
+            <Pressable
+              disabled={readOnly || busy}
+              onPress={() => void measureTravelOneWay()}
+              style={[
+                styles.travelBtn,
+                payload.travelOneWay ? styles.travelBtnDone : null,
+                (readOnly || busy) && { opacity: 0.5 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.travelBtnText,
+                  payload.travelOneWay ? styles.travelBtnTextDone : null,
+                ]}
+              >
+                {busy
+                  ? "Measuring…"
+                  : payload.travelOneWay
+                    ? `${payload.travelOneWay}  ·  tap to remeasure`
+                    : "Measure travel to Megs Waterberg"}
+              </Text>
+            </Pressable>
+            <Text style={styles.travelHint}>
+              Uses your GPS distance to the office (
+              {MEGS_OFFICE.label})
+            </Text>
           </View>
           <View>
             <RequiredLabel label="Work Done" />
@@ -746,13 +978,91 @@ export default function JobDetail() {
             />
           </View>
           <View>
-            <RequiredLabel label="Stock Used" />
-            <FormTextInput
-              value={payload.stockUsed}
-              onChangeText={(v) => patch({ stockUsed: v })}
-              multiline
-              disabled={readOnly}
-            />
+            <RequiredLabel label="Stock used" />
+            {(payload.stockChecklist?.length ?? 0) > 0 ? (
+              <View style={{ gap: 10 }}>
+                {payload.stockChecklist.map((line) => (
+                  <View key={line.bookingId} style={styles.stockLine}>
+                    <Text style={styles.stockLineTitle}>
+                      {line.productName}
+                      {line.serialNumber ? ` · ${line.serialNumber}` : ""}
+                    </Text>
+                    <View style={styles.stockToggleRow}>
+                      <Pressable
+                        disabled={readOnly}
+                        onPress={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            stockChecklist: (p.stockChecklist ?? []).map((l) =>
+                              l.bookingId === line.bookingId
+                                ? { ...l, used: true }
+                                : l
+                            ),
+                          }))
+                        }
+                        style={[
+                          styles.stockToggle,
+                          line.used === true && styles.stockToggleUsed,
+                          readOnly && { opacity: 0.5 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.stockToggleText,
+                            line.used === true && styles.stockToggleTextOn,
+                          ]}
+                        >
+                          Used
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={readOnly}
+                        onPress={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            stockChecklist: (p.stockChecklist ?? []).map((l) =>
+                              l.bookingId === line.bookingId
+                                ? { ...l, used: false }
+                                : l
+                            ),
+                          }))
+                        }
+                        style={[
+                          styles.stockToggle,
+                          line.used === false && styles.stockToggleUnused,
+                          readOnly && { opacity: 0.5 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.stockToggleText,
+                            line.used === false && styles.stockToggleTextOn,
+                          ]}
+                        >
+                          Not used
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+                <Text style={styles.travelHint}>
+                  Mark Not used if stock must be booked back into inventory.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.travelHint}>
+                  No stock booked out for this job. Enter a short note (e.g. None).
+                </Text>
+                <FormTextInput
+                  value={payload.stockUsed}
+                  onChangeText={(v) => patch({ stockUsed: v })}
+                  placeholder="None / notes"
+                  multiline
+                  disabled={readOnly}
+                />
+              </>
+            )}
           </View>
         </FormCard>
 
@@ -1059,6 +1369,77 @@ const styles = StyleSheet.create({
   },
   routeBtnTextDone: {
     color: colors.online,
+  },
+  travelBtn: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+  },
+  travelBtnDone: {
+    backgroundColor: "#DCFCE7",
+    borderColor: colors.online,
+  },
+  travelBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.accentDeep,
+    textAlign: "center",
+  },
+  travelBtnTextDone: {
+    color: "#166534",
+  },
+  travelHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: colors.mutedDark,
+  },
+  stockLine: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+    backgroundColor: "#F8FAFC",
+  },
+  stockLineTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  stockToggleRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  stockToggle: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  stockToggleUsed: {
+    borderColor: colors.online,
+    backgroundColor: "#DCFCE7",
+  },
+  stockToggleUnused: {
+    borderColor: "#F59E0B",
+    backgroundColor: "#FFFBEB",
+  },
+  stockToggleText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.mutedDark,
+  },
+  stockToggleTextOn: {
+    color: colors.text,
   },
   row2: {
     flexDirection: "row",

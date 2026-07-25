@@ -65,6 +65,7 @@ export default function StockRequestsPage() {
   const [fulfillProductId, setFulfillProductId] = useState<string | null>(null);
   const [scanToken, setScanToken] = useState("");
   const [allocSerial, setAllocSerial] = useState("");
+  const [allocLeadId, setAllocLeadId] = useState("");
   const [allocClientName, setAllocClientName] = useState("");
   const [allocClientAddress, setAllocClientAddress] = useState("");
   const [allocPppoe, setAllocPppoe] = useState("");
@@ -73,7 +74,14 @@ export default function StockRequestsPage() {
   const [allocMsg, setAllocMsg] = useState("");
 
   const techs = useMemo(() => getFieldTechnicians(users), [users]);
-  const leads = getVisibleLeads().filter((l) => !l.deleted).slice(0, 200);
+  const leads = getVisibleLeads().filter((l) => !l.deleted);
+  const clients = useMemo(
+    () =>
+      [...leads]
+        .filter((l) => l.clientName.trim())
+        .sort((a, b) => a.clientName.localeCompare(b.clientName)),
+    [leads]
+  );
 
   const fulfillRequest = fulfillId
     ? requests.find((r) => r.id === fulfillId) ?? null
@@ -103,22 +111,65 @@ export default function StockRequestsPage() {
   useEffect(() => {
     if (!scannedItem) return;
     setAllocSerial(scannedItem.serialNumber ?? "");
-    setAllocClientAddress(scannedItem.clientAddress ?? "");
-    setAllocPppoe(scannedItem.clientPppoe ?? "");
-    setAllocWifiName(scannedItem.wifiName ?? "");
-    setAllocWifiPassword(scannedItem.wifiPassword ?? "");
-    const requestClient = fulfillRequest?.leadId
-      ? leads.find((l) => l.id === fulfillRequest.leadId)?.clientName
+    const requestLead = fulfillRequest?.leadId
+      ? clients.find((l) => l.id === fulfillRequest.leadId)
       : undefined;
-    setAllocClientName(scannedItem.clientName || requestClient || "");
+    const matchedLead =
+      requestLead ||
+      clients.find(
+        (l) =>
+          scannedItem.clientName &&
+          l.clientName.trim().toLowerCase() ===
+            scannedItem.clientName.trim().toLowerCase()
+      );
+    if (matchedLead) {
+      setAllocLeadId(matchedLead.id);
+      setAllocClientName(matchedLead.clientName);
+      setAllocClientAddress(
+        matchedLead.address?.trim() || scannedItem.clientAddress || ""
+      );
+      setAllocPppoe(matchedLead.clientPppoe?.trim() || scannedItem.clientPppoe || "");
+      setAllocWifiName(matchedLead.wifiName?.trim() || scannedItem.wifiName || "");
+      setAllocWifiPassword(
+        matchedLead.wifiPassword?.trim() || scannedItem.wifiPassword || ""
+      );
+    } else {
+      setAllocLeadId("");
+      setAllocClientName(scannedItem.clientName || requestLead?.clientName || "");
+      setAllocClientAddress(scannedItem.clientAddress ?? "");
+      setAllocPppoe(scannedItem.clientPppoe ?? "");
+      setAllocWifiName(scannedItem.wifiName ?? "");
+      setAllocWifiPassword(scannedItem.wifiPassword ?? "");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scannedItem?.id]);
+  }, [scannedItem?.id, fulfillRequest?.leadId]);
 
   if (isLoading || !allowed) return null;
+
+  function applyLead(leadIdValue: string) {
+    if (!leadIdValue || leadIdValue === "__none") {
+      setAllocLeadId("");
+      setAllocClientName("");
+      setAllocClientAddress("");
+      setAllocPppoe("");
+      setAllocWifiName("");
+      setAllocWifiPassword("");
+      return;
+    }
+    const lead = clients.find((c) => c.id === leadIdValue);
+    setAllocLeadId(leadIdValue);
+    if (!lead) return;
+    setAllocClientName(lead.clientName);
+    setAllocClientAddress(lead.address?.trim() || "");
+    setAllocPppoe(lead.clientPppoe?.trim() || "");
+    setAllocWifiName(lead.wifiName?.trim() || "");
+    setAllocWifiPassword(lead.wifiPassword?.trim() || "");
+  }
 
   function resetAllocation() {
     setScanToken("");
     setAllocSerial("");
+    setAllocLeadId("");
     setAllocClientName("");
     setAllocClientAddress("");
     setAllocPppoe("");
@@ -174,19 +225,26 @@ export default function StockRequestsPage() {
       setAllocMsg("Scanned unit does not match this line's product");
       return;
     }
+    if (!allocLeadId) {
+      setAllocMsg("Select a client before booking out");
+      return;
+    }
     setBusy(true);
     setAllocMsg("");
     try {
       await fulfillScan(fulfillId, extractStockQrToken(scanToken), {
         serialNumber: allocSerial,
+        leadId: allocLeadId,
         clientName: allocClientName,
         clientAddress: allocClientAddress,
         clientPppoe: allocPppoe,
         wifiName: allocWifiName,
         wifiPassword: allocWifiPassword,
       });
+      setFulfillId(null);
+      setFulfillProductId(null);
       resetAllocation();
-      setAllocMsg("Unit booked out to request");
+      setMsg("Unit booked out to the pick list.");
     } catch (e) {
       setAllocMsg(e instanceof Error ? e.message : "Scan failed");
     } finally {
@@ -306,6 +364,18 @@ export default function StockRequestsPage() {
                                   resetAllocation();
                                   setFulfillProductId(line.productId);
                                   setFulfillId(req.id);
+                                  if (req.leadId) {
+                                    // Prefill after reset — apply on next tick once dialog opens
+                                    const lead = clients.find((c) => c.id === req.leadId);
+                                    if (lead) {
+                                      setAllocLeadId(lead.id);
+                                      setAllocClientName(lead.clientName);
+                                      setAllocClientAddress(lead.address?.trim() || "");
+                                      setAllocPppoe(lead.clientPppoe?.trim() || "");
+                                      setAllocWifiName(lead.wifiName?.trim() || "");
+                                      setAllocWifiPassword(lead.wifiPassword?.trim() || "");
+                                    }
+                                  }
                                 }}
                               >
                                 Allocate
@@ -608,12 +678,40 @@ export default function StockRequestsPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label className="font-medium">Client name</label>
-                <Input
-                  value={allocClientName}
-                  onChange={(e) => setAllocClientName(e.target.value)}
-                />
+              <div className="space-y-1 sm:col-span-2">
+                <label className="font-medium">
+                  Client name <span className="text-red-600">*</span>
+                </label>
+                <Select
+                  value={allocLeadId || "__none"}
+                  onValueChange={(v) => {
+                    if (typeof v !== "string") return;
+                    applyLead(v);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select client">
+                      {(value) => {
+                        if (!value || value === "__none") {
+                          return "Select client";
+                        }
+                        return (
+                          clients.find((c) => c.id === value)?.clientName ||
+                          "Select client"
+                        );
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Select client</SelectItem>
+                    {clients.map((l) => (
+                      <SelectItem key={l.id} value={l.id} label={l.clientName}>
+                        {l.clientName}
+                        {l.address ? ` — ${l.address}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label className="font-medium">Client address</label>
@@ -659,7 +757,14 @@ export default function StockRequestsPage() {
             </Button>
             <Button
               className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={busy || !scanToken.trim() || scannedLineStatus === "wrong_product"}
+              disabled={
+                busy ||
+                !scanToken.trim() ||
+                !allocLeadId ||
+                scannedLineStatus === "wrong_product" ||
+                scannedLineStatus === "unavailable" ||
+                scannedLineStatus === "no_line"
+              }
               onClick={() => void handleFulfill()}
             >
               Book out unit

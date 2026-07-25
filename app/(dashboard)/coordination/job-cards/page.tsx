@@ -12,6 +12,7 @@ import {
 } from "@megs/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function yn(v: YesNo) {
   if (v === "yes") return "Yes";
@@ -62,12 +63,16 @@ export default function CoordinationJobCardsPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     if (!accessToken) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/coordination/job-cards?status=submitted", {
+      const params = new URLSearchParams({ status: "submitted" });
+      if (query.trim()) params.set("q", query.trim());
+      const res = await fetch(`/api/coordination/job-cards?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const json = await res.json();
@@ -82,7 +87,7 @@ export default function CoordinationJobCardsPage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, query]);
 
   useEffect(() => {
     void load();
@@ -102,19 +107,40 @@ export default function CoordinationJobCardsPage() {
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {loading ? "Loading…" : `${cards.length} submitted`}
         </p>
-        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setQuery(search);
+            }}
+            placeholder="Search JC-01001, client, tech…"
+            className="w-full sm:w-64"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setQuery(search)}
+            disabled={loading}
+          >
+            Search
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {!loading && cards.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No submitted job cards yet. When a tech taps Send on a job card, it appears here.
+            {query.trim()
+              ? `No job cards match “${query.trim()}”.`
+              : "No submitted job cards yet. When a tech taps Send on a job card, it appears here."}
           </CardContent>
         </Card>
       ) : null}
@@ -133,6 +159,11 @@ export default function CoordinationJobCardsPage() {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
+                      {card.cardNumber ? (
+                        <span className="rounded-md bg-slate-900 px-2 py-0.5 font-mono text-xs font-semibold tracking-wide text-white">
+                          {card.cardNumber}
+                        </span>
+                      ) : null}
                       <p className="font-semibold">{card.jobTitle}</p>
                       {card.jobType && card.jobType !== "general" ? (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
@@ -164,6 +195,9 @@ export default function CoordinationJobCardsPage() {
 
                 {open ? (
                   <div className="space-y-4 border-t border-border pt-4">
+                    {card.cardNumber ? (
+                      <Field label="Job card #" value={card.cardNumber} />
+                    ) : null}
                     <div>
                       <p className="mb-2 text-sm font-semibold">Risk assessment</p>
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -209,6 +243,41 @@ export default function CoordinationJobCardsPage() {
                         <div className="sm:col-span-2">
                           <Field label="Stock used" value={p.stockUsed} />
                         </div>
+                        {Array.isArray(p.stockChecklist) && p.stockChecklist.length > 0 ? (
+                          <div className="sm:col-span-2 space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Stock checklist
+                            </p>
+                            <ul className="space-y-1 rounded-lg border bg-muted/20 p-2 text-sm">
+                              {p.stockChecklist.map((line) => (
+                                <li
+                                  key={line.bookingId}
+                                  className="flex flex-wrap items-center justify-between gap-2"
+                                >
+                                  <span>
+                                    {line.productName}
+                                    {line.serialNumber ? ` · ${line.serialNumber}` : ""}
+                                  </span>
+                                  <span
+                                    className={
+                                      line.used === true
+                                        ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800"
+                                        : line.used === false
+                                          ? "rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800"
+                                          : "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600"
+                                    }
+                                  >
+                                    {line.used === true
+                                      ? "Used"
+                                      : line.used === false
+                                        ? "Not used"
+                                        : "—"}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
                         <Field label="Technicians" value={p.technicians} />
                         <Field
                           label="Client signature"

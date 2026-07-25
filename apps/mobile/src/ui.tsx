@@ -8,9 +8,22 @@ import {
   View,
   type ViewProps,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing } from "./theme";
 
-export function Screen({ children, style, ...rest }: ViewProps) {
+type ScreenProps = ViewProps & {
+  /** Pad under status bar when the nav header is hidden */
+  safeTop?: boolean;
+};
+
+export function Screen({ children, style, safeTop, ...rest }: ScreenProps) {
+  if (safeTop) {
+    return (
+      <SafeAreaView style={[styles.screen, style]} edges={["top", "left", "right"]} {...rest}>
+        {children}
+      </SafeAreaView>
+    );
+  }
   return (
     <View style={[styles.screen, style]} {...rest}>
       {children}

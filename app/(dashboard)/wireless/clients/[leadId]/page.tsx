@@ -58,6 +58,12 @@ export default function WirelessClientProfilePage({
         description={`${client?.address || "No address"} · ${client?.serviceType ?? "—"}`}
         actions={
           <>
+            <Link
+              href={`/leads/${leadId}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Sales lead
+            </Link>
             <Button type="button" variant="outline" onClick={() => void syncRuijie()}>
               Sync Ruijie
             </Button>

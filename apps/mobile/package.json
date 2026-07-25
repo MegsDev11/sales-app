@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@megs/shared": "*",
+    "@react-native-community/netinfo": "11.4.1",
     "@supabase/supabase-js": "^2.110.8",
     "expo": "~54.0.36",
     "expo-asset": "~12.0.13",

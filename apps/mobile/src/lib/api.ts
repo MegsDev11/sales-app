@@ -60,12 +60,18 @@ export function getApiBaseUrl() {
   return configured || "http://localhost:3000";
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}) {
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  opts?: { timeoutMs?: number }
+) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const headers = new Headers(init.headers);
-  if (!headers.has("Content-Type") && init.body) {
+  const isFormData =
+    typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!headers.has("Content-Type") && init.body && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
   if (session?.access_token) {
@@ -73,7 +79,10 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    opts?.timeoutMs ?? (isFormData ? 60000 : 20000)
+  );
   try {
     const res = await fetch(`${getApiBaseUrl()}${path}`, {
       ...init,

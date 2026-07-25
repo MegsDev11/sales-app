@@ -139,6 +139,9 @@ export function leadFromRow(row: LeadRow): Lead {
     discount: row.discount ?? undefined,
     leadSource: row.lead_source as Lead["leadSource"],
     address: row.address ?? undefined,
+    clientPppoe: row.client_pppoe || undefined,
+    wifiName: row.wifi_name || undefined,
+    wifiPassword: row.wifi_password || undefined,
     notes: row.notes ?? undefined,
     deleted: row.deleted,
     nextFollowUpAt: row.next_follow_up_at ?? undefined,
@@ -155,6 +158,7 @@ export function leadFromRow(row: LeadRow): Lead {
     stageHistory: row.stage_history ?? [],
     inboxDismissedAt: row.inbox_dismissed_at ?? undefined,
     towerId: row.tower_id ?? null,
+    towerSiteId: row.tower_site_id ?? null,
   };
 }
 
@@ -178,6 +182,9 @@ export function leadToRow(lead: Lead): LeadRow {
     discount: lead.discount ?? null,
     lead_source: lead.leadSource,
     address: lead.address ?? null,
+    client_pppoe: lead.clientPppoe ?? "",
+    wifi_name: lead.wifiName ?? "",
+    wifi_password: lead.wifiPassword ?? "",
     notes: lead.notes ?? null,
     deleted: lead.deleted ?? false,
     next_follow_up_at: lead.nextFollowUpAt ?? null,
@@ -193,6 +200,7 @@ export function leadToRow(lead: Lead): LeadRow {
     stage_history: lead.stageHistory,
     inbox_dismissed_at: lead.inboxDismissedAt ?? null,
     tower_id: lead.towerId ?? null,
+    tower_site_id: lead.towerSiteId ?? null,
   };
 }
 
@@ -215,6 +223,9 @@ export function leadUpdatesToRow(updates: Partial<Lead>): Partial<LeadRow> {
   if (updates.discount !== undefined) row.discount = updates.discount ?? null;
   if (updates.leadSource !== undefined) row.lead_source = updates.leadSource;
   if (updates.address !== undefined) row.address = updates.address ?? null;
+  if (updates.clientPppoe !== undefined) row.client_pppoe = updates.clientPppoe ?? "";
+  if (updates.wifiName !== undefined) row.wifi_name = updates.wifiName ?? "";
+  if (updates.wifiPassword !== undefined) row.wifi_password = updates.wifiPassword ?? "";
   if (updates.notes !== undefined) row.notes = updates.notes ?? null;
   if (updates.deleted !== undefined) row.deleted = updates.deleted;
   if (updates.nextFollowUpAt !== undefined) {
@@ -243,6 +254,9 @@ export function leadUpdatesToRow(updates: Partial<Lead>): Partial<LeadRow> {
   }
   if (updates.towerId !== undefined) {
     row.tower_id = updates.towerId ?? null;
+  }
+  if (updates.towerSiteId !== undefined) {
+    row.tower_site_id = updates.towerSiteId ?? null;
   }
   return row;
 }
@@ -569,6 +583,9 @@ export function stockBookingFromRow(row: StockBookingRow): StockBooking {
     bookedOutBy: row.booked_out_by,
     returnedAt: row.returned_at,
     notes: row.notes,
+    returnNeededAt: row.return_needed_at ?? null,
+    returnNeededJobId: row.return_needed_job_id ?? null,
+    returnNeededNote: row.return_needed_note ?? "",
   };
 }
 
@@ -583,6 +600,9 @@ export function stockBookingToRow(booking: StockBooking): StockBookingRow {
     booked_out_by: booking.bookedOutBy ?? null,
     returned_at: booking.returnedAt ?? null,
     notes: booking.notes,
+    return_needed_at: booking.returnNeededAt ?? null,
+    return_needed_job_id: booking.returnNeededJobId ?? null,
+    return_needed_note: booking.returnNeededNote ?? "",
   };
 }
 

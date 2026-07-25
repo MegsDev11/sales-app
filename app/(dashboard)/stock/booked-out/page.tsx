@@ -59,6 +59,7 @@ export default function BookedOutStockPage() {
           clientName,
           lead?.address,
           request?.title,
+          booking.returnNeededNote,
         ]
           .filter(Boolean)
           .join(" ")
@@ -67,12 +68,18 @@ export default function BookedOutStockPage() {
         return { booking, item, product, technician, lead, request, clientName };
       })
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-      .sort(
-        (a, b) =>
+      .sort((a, b) => {
+        const aNeed = a.booking.returnNeededAt ? 1 : 0;
+        const bNeed = b.booking.returnNeededAt ? 1 : 0;
+        if (aNeed !== bNeed) return bNeed - aNeed;
+        return (
           new Date(b.booking.bookedOutAt).getTime() -
           new Date(a.booking.bookedOutAt).getTime()
-      );
+        );
+      });
   }, [bookings, items, products, users, leads, requests, query]);
+
+  const returnNeededCount = activeBookings.filter((e) => e.booking.returnNeededAt).length;
 
   if (isLoading || !allowed) return null;
 
@@ -106,8 +113,18 @@ export default function BookedOutStockPage() {
         />
         <p className="text-sm font-medium">
           {activeBookings.length} unit{activeBookings.length === 1 ? "" : "s"} currently out
+          {returnNeededCount > 0
+            ? ` · ${returnNeededCount} return needed`
+            : ""}
         </p>
       </div>
+
+      {returnNeededCount > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {returnNeededCount} unit{returnNeededCount === 1 ? "" : "s"} marked unused on a job
+          card — book back into stock.
+        </div>
+      )}
 
       {(error || message) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -134,12 +151,26 @@ export default function BookedOutStockPage() {
               const itemLabel =
                 [product?.name, item.deviceName].filter(Boolean).join(" · ") || "Stock unit";
               return (
-                <Card key={booking.id} className="bg-white">
+                <Card
+                  key={booking.id}
+                  className={
+                    booking.returnNeededAt
+                      ? "bg-white ring-2 ring-amber-400"
+                      : "bg-white"
+                  }
+                >
                   <CardHeader className="pb-2">
                     <CardTitle className="flex flex-wrap items-start justify-between gap-2 text-base">
                       <span>{itemLabel}</span>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                        Booked out
+                      <span className="flex flex-wrap gap-1">
+                        {booking.returnNeededAt ? (
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">
+                            Return needed
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          Booked out
+                        </span>
                       </span>
                     </CardTitle>
                   </CardHeader>
@@ -176,6 +207,15 @@ export default function BookedOutStockPage() {
                         Stock list: <span className="font-medium">{request.title}</span>
                       </p>
                     )}
+                    {booking.returnNeededAt ? (
+                      <p className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-900">
+                        {booking.returnNeededNote ||
+                          "Tech marked this unit unused on a job card."}
+                        {booking.returnNeededAt
+                          ? ` · ${formatDate(booking.returnNeededAt)}`
+                          : ""}
+                      </p>
+                    ) : null}
                     {booking.notes && (
                       <p className="rounded border bg-gray-50 px-2 py-1 text-xs text-muted-foreground">
                         {booking.notes}

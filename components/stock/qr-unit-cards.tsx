@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { stockItemPublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
 import { useStockStore } from "@/lib/store/stock-store";
+import { useCrmStore } from "@/lib/store/crm-store";
 import type { StockItem, StockItemVisit, StockProduct } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Download, History, KeyRound, Pencil, Trash2 } from "lucide-react";
 
 export function EditUnitDialog({
@@ -28,9 +36,11 @@ export function EditUnitDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { updateItem, deleteItem } = useStockStore();
+  const { getVisibleLeads, leads } = useCrmStore();
   const [brand, setBrand] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
+  const [leadId, setLeadId] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [clientPppoe, setClientPppoe] = useState("");
@@ -38,6 +48,15 @@ export function EditUnitDialog({
   const [wifiPassword, setWifiPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+
+  const clients = useMemo(
+    () =>
+      getVisibleLeads()
+        .filter((l) => !l.deleted && l.clientName.trim())
+        .slice()
+        .sort((a, b) => a.clientName.localeCompare(b.clientName)),
+    [getVisibleLeads, leads]
+  );
 
   useEffect(() => {
     if (item) {
@@ -49,9 +68,13 @@ export function EditUnitDialog({
       setClientPppoe(item.clientPppoe ?? "");
       setWifiName(item.wifiName ?? "");
       setWifiPassword(item.wifiPassword ?? "");
+      const match = clients.find(
+        (l) => l.clientName.trim().toLowerCase() === (item.clientName ?? "").trim().toLowerCase()
+      );
+      setLeadId(match?.id ?? "");
       setMsg("");
     }
-  }, [item]);
+  }, [item, clients]);
 
   if (!item) return null;
 
@@ -114,11 +137,53 @@ export function EditUnitDialog({
           </div>
           <div className="space-y-1">
             <label className="font-medium">Client name</label>
-            <Input
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              placeholder="Client name"
-            />
+            <Select
+              value={leadId || "__none"}
+              onValueChange={(v) => {
+                if (typeof v !== "string") return;
+                if (v === "__none") {
+                  setLeadId("");
+                  setClientName("");
+                  setClientAddress("");
+                  setClientPppoe("");
+                  setWifiName("");
+                  setWifiPassword("");
+                  return;
+                }
+                const lead = clients.find((c) => c.id === v);
+                setLeadId(v);
+                if (!lead) return;
+                setClientName(lead.clientName);
+                setClientAddress(lead.address?.trim() || "");
+                setClientPppoe(lead.clientPppoe?.trim() || "");
+                setWifiName(lead.wifiName?.trim() || "");
+                setWifiPassword(lead.wifiPassword?.trim() || "");
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select client">
+                  {(value) => {
+                    if (!value || value === "__none") {
+                      return clientName || "Select client";
+                    }
+                    return (
+                      clients.find((c) => c.id === value)?.clientName ||
+                      clientName ||
+                      "Select client"
+                    );
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+                <SelectContent>
+                <SelectItem value="__none">Select client</SelectItem>
+                {clients.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.clientName}
+                    {l.address ? ` — ${l.address}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <label className="font-medium">Client address</label>
@@ -283,7 +348,7 @@ export function QrPreviewCard({
         </div>
         <div className="min-w-0 flex-1 space-y-1 text-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-            {product?.name ?? "Unit"}
+            {item.clientName?.trim() || product?.name || "Unit"}
           </p>
           <p className="font-semibold">
             {[item.brand, item.deviceName].filter(Boolean).join(" ") || product?.name || "—"}
@@ -297,9 +362,9 @@ export function QrPreviewCard({
           <p>
             <span className="text-muted-foreground">Device:</span> {item.deviceName || "—"}
           </p>
-          {item.clientName ? (
+          {item.clientName && product?.name ? (
             <p>
-              <span className="text-muted-foreground">Client:</span> {item.clientName}
+              <span className="text-muted-foreground">Product:</span> {product.name}
             </p>
           ) : null}
           {item.clientAddress ? (

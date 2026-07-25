@@ -86,7 +86,7 @@ export default function WirelessSubmissionsPage() {
     <PageShell>
       <PageHeader
         title="Tech Submissions"
-        description="Inbox for site sketches and photos. Managers can upload now; tech app will POST the same API later."
+        description="Inbox for site sketches and photos from field techs and managers. Tech job cards submit here when a client has no published layout (or when they send an update)."
       />
 
       {error && (
@@ -112,7 +112,15 @@ export default function WirelessSubmissionsPage() {
               onValueChange={(v) => setLeadId(!v || v === "__none__" ? "" : String(v))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
+                <SelectValue placeholder="Unassigned">
+                  {(value) => {
+                    if (!value || value === "__none__") return "Unassigned";
+                    return (
+                      sortedClients.find((c) => c.id === value)?.clientName ??
+                      "Selected client"
+                    );
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Unassigned</SelectItem>
@@ -131,7 +139,9 @@ export default function WirelessSubmissionsPage() {
               onValueChange={(v) => setKind(v === "photo" ? "photo" : "sketch")}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {(value) => (value === "photo" ? "Photo" : "Sketch")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="sketch">Sketch</SelectItem>

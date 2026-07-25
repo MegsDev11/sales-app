@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { PACKAGES, SERVICE_ZONES } from "@/lib/data/packages";
+import { useEffect, useMemo, useState } from "react";
+import { PACKAGES } from "@/lib/data/packages";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { useAuth } from "@/lib/auth-context";
 import { getSalesStaff } from "@/lib/permissions";
@@ -43,10 +43,15 @@ const defaultForm = (): LeadFormData => ({
   priority: "medium",
   leadSource: "website",
   coverageStatus: "pending_survey",
-  serviceZone: "Pretoria North",
+  serviceZone: "",
   temperature: "warm",
   dealValue: 899,
   discount: 0,
+  clientPppoe: "",
+  wifiName: "",
+  wifiPassword: "",
+  towerId: null,
+  towerSiteId: null,
 });
 
 function leadToFormData(lead: Lead): LeadFormData {
@@ -66,6 +71,9 @@ function leadToFormData(lead: Lead): LeadFormData {
     discount: lead.discount,
     leadSource: lead.leadSource,
     address: lead.address,
+    clientPppoe: lead.clientPppoe ?? "",
+    wifiName: lead.wifiName ?? "",
+    wifiPassword: lead.wifiPassword ?? "",
     notes: lead.notes,
     nextFollowUpAt: lead.nextFollowUpAt,
     nextAction: lead.nextAction,
@@ -78,28 +86,52 @@ function leadToFormData(lead: Lead): LeadFormData {
     installationDate: lead.installationDate,
     temperature: lead.temperature,
     inboxDismissedAt: lead.inboxDismissedAt,
-    towerId: lead.towerId,
+    towerId: lead.towerId ?? null,
+    towerSiteId: lead.towerSiteId ?? null,
   };
 }
 
 export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDialogProps) {
-  const { addLead, updateLead, users, towers } = useCrmStore();
+  const { addLead, updateLead, users, towers, towerSites } = useCrmStore();
   const { currentUser, isAdmin } = useAuth();
   const [form, setForm] = useState<LeadFormData>(defaultForm());
+
+  const sortedTowers = useMemo(
+    () => [...towers].sort((a, b) => a.name.localeCompare(b.name)),
+    [towers]
+  );
+
+  const sitesForArea = useMemo(() => {
+    if (!form.towerId) return [];
+    return towerSites
+      .filter((s) => s.areaId === form.towerId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [towerSites, form.towerId]);
 
   // Only hydrate when the dialog opens (or the edited lead changes) —
   // not on every store refresh, which was wiping in-progress edits.
   useEffect(() => {
     if (!open) return;
     if (lead) {
-      setForm(leadToFormData(lead));
+      const data = leadToFormData(lead);
+      if (!data.towerSiteId && data.towerId && data.serviceZone) {
+        const match = towerSites.find(
+          (s) => s.areaId === data.towerId && s.name === data.serviceZone
+        );
+        if (match) data.towerSiteId = match.id;
+      }
+      if (!data.towerId && data.serviceZone) {
+        const area = towers.find((t) => t.name === data.serviceZone);
+        if (area) data.towerId = area.id;
+      }
+      setForm(data);
     } else {
       setForm({
         ...defaultForm(),
         assignedToId: isAdmin ? null : currentUser?.id ?? null,
       });
     }
-  }, [open, lead?.id, isAdmin, currentUser?.id]);
+  }, [open, lead?.id, isAdmin, currentUser?.id, towers, towerSites]);
 
   const salesReps = getSalesStaff(users);
 
@@ -113,6 +145,45 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
         dealValue: pkg.price - (f.discount ?? 0),
       }));
     }
+  };
+
+  const handleCoverageAreaChange = (areaId: string) => {
+    if (areaId === "unassigned") {
+      setForm((f) => ({
+        ...f,
+        towerId: null,
+        towerSiteId: null,
+        serviceZone: "",
+      }));
+      return;
+    }
+    const area = towers.find((t) => t.id === areaId);
+    setForm((f) => ({
+      ...f,
+      towerId: areaId,
+      towerSiteId: null,
+      serviceZone: area?.name ?? "",
+    }));
+  };
+
+  const handleTowerSiteChange = (siteId: string) => {
+    if (siteId === "unassigned") {
+      const area = towers.find((t) => t.id === form.towerId);
+      setForm((f) => ({
+        ...f,
+        towerSiteId: null,
+        serviceZone: area?.name ?? f.serviceZone,
+      }));
+      return;
+    }
+    const site = towerSites.find((s) => s.id === siteId);
+    const area = towers.find((t) => t.id === (site?.areaId ?? form.towerId));
+    setForm((f) => ({
+      ...f,
+      towerSiteId: siteId,
+      towerId: site?.areaId ?? f.towerId,
+      serviceZone: site?.name ?? area?.name ?? f.serviceZone,
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -162,26 +233,57 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Package</label>
               <Select onValueChange={(v) => { if (typeof v === "string") handlePackageChange(v); }}>
-                <SelectTrigger className="mt-1 w-full"><SelectValue placeholder="Select package" /></SelectTrigger>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue placeholder="Select package">
+                    {(value) => {
+                      if (typeof value !== "string") return "Select package";
+                      const pkg = PACKAGES.find((p) => p.id === value);
+                      return pkg
+                        ? `${pkg.name} — R${pkg.price.toLocaleString()}`
+                        : form.packageTier || "Select package";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {PACKAGES.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} — R{p.price.toLocaleString()}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} — R{p.price.toLocaleString()}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Deal Value (R)</label>
-              <Input type="number" value={form.dealValue ?? ""} onChange={(e) => set("dealValue", Number(e.target.value))} />
+              <Input
+                type="number"
+                value={form.dealValue ?? ""}
+                onChange={(e) => set("dealValue", Number(e.target.value))}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Discount (R)</label>
-              <Input type="number" value={form.discount ?? 0} onChange={(e) => set("discount", Number(e.target.value))} />
+              <Input
+                type="number"
+                value={form.discount ?? 0}
+                onChange={(e) => set("discount", Number(e.target.value))}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Priority</label>
-              <Select value={form.priority} onValueChange={(v) => { if (typeof v === "string") set("priority", v as LeadFormData["priority"]); }}>
-                <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <Select
+                value={form.priority}
+                onValueChange={(v) => {
+                  if (typeof v === "string") set("priority", v as LeadFormData["priority"]);
+                }}
+              >
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue>
+                    {(value) =>
+                      value === "high" ? "High" : value === "low" ? "Low" : "Medium"
+                    }
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="high">High</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
@@ -191,8 +293,27 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Lead Source</label>
-              <Select value={form.leadSource} onValueChange={(v) => { if (typeof v === "string") set("leadSource", v as LeadFormData["leadSource"]); }}>
-                <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <Select
+                value={form.leadSource}
+                onValueChange={(v) => {
+                  if (typeof v === "string") set("leadSource", v as LeadFormData["leadSource"]);
+                }}
+              >
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue>
+                    {(value) =>
+                      value === "website"
+                        ? "Website"
+                        : value === "referral"
+                          ? "Referral"
+                          : value === "walk-in"
+                            ? "Walk-in"
+                            : value === "cold-call"
+                              ? "Cold Call"
+                              : String(value ?? "")
+                    }
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="website">Website</SelectItem>
                   <SelectItem value="referral">Referral</SelectItem>
@@ -202,35 +323,84 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Service Zone</label>
-              <Select value={form.serviceZone} onValueChange={(v) => { if (typeof v === "string") set("serviceZone", v); }}>
-                <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <label className="mb-1 block text-xs font-medium text-foreground">Coverage area</label>
+              <Select
+                value={form.towerId ?? "unassigned"}
+                onValueChange={(v) => {
+                  if (typeof v === "string") handleCoverageAreaChange(v);
+                }}
+              >
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue placeholder="Select coverage area">
+                    {(value) => {
+                      if (!value || value === "unassigned") return "Select coverage area";
+                      return (
+                        sortedTowers.find((t) => t.id === value)?.name ?? "Select coverage area"
+                      );
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
-                  {SERVICE_ZONES.map((z) => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                  <SelectItem value="unassigned">Not set</SelectItem>
+                  {sortedTowers.map((tower) => (
+                    <SelectItem key={tower.id} value={tower.id}>
+                      {tower.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Tower</label>
               <Select
-                value={form.towerId ?? "unassigned"}
+                value={form.towerSiteId ?? "unassigned"}
                 onValueChange={(v) => {
-                  if (typeof v === "string") set("towerId", v === "unassigned" ? null : v);
+                  if (typeof v === "string") handleTowerSiteChange(v);
                 }}
+                disabled={!form.towerId}
               >
-                <SelectTrigger className="mt-1 w-full"><SelectValue placeholder="Select tower" /></SelectTrigger>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue
+                    placeholder={form.towerId ? "Select tower" : "Pick coverage area first"}
+                  >
+                    {(value) => {
+                      if (!form.towerId) return "Pick coverage area first";
+                      if (!value || value === "unassigned") return "Select tower";
+                      return sitesForArea.find((s) => s.id === value)?.name ?? "Select tower";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unassigned">No tower assigned</SelectItem>
-                  {towers.map((tower) => (
-                    <SelectItem key={tower.id} value={tower.id}>{tower.name}</SelectItem>
+                  <SelectItem value="unassigned">Not set</SelectItem>
+                  {sitesForArea.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground">Coverage</label>
-              <Select value={form.coverageStatus} onValueChange={(v) => { if (typeof v === "string") set("coverageStatus", v as LeadFormData["coverageStatus"]); }}>
-                <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+              <Select
+                value={form.coverageStatus}
+                onValueChange={(v) => {
+                  if (typeof v === "string") {
+                    set("coverageStatus", v as LeadFormData["coverageStatus"]);
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue>
+                    {(value) =>
+                      value === "confirmed"
+                        ? "Confirmed"
+                        : value === "not_available"
+                          ? "No Coverage"
+                          : "Survey Needed"
+                    }
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="pending_survey">Survey Needed</SelectItem>
@@ -241,11 +411,30 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
             {isAdmin && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-foreground">Assign To</label>
-                <Select value={form.assignedToId ?? "unassigned"} onValueChange={(v) => { if (typeof v === "string") set("assignedToId", v === "unassigned" ? null : v); }}>
-                  <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.assignedToId ?? "unassigned"}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") {
+                      set("assignedToId", v === "unassigned" ? null : v);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue>
+                      {(value) =>
+                        !value || value === "unassigned"
+                          ? "Unassigned"
+                          : salesReps.find((r) => r.id === value)?.name ?? "Unassigned"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {salesReps.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                    {salesReps.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -255,12 +444,44 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               <Input value={form.address ?? ""} onChange={(e) => set("address", e.target.value)} />
             </div>
             <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-foreground">Client PPPoE</label>
+              <Input
+                value={form.clientPppoe ?? ""}
+                onChange={(e) => set("clientPppoe", e.target.value)}
+                placeholder="client@megs"
+                autoCapitalize="off"
+                autoCorrect="off"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">Wi‑Fi name</label>
+              <Input
+                value={form.wifiName ?? ""}
+                onChange={(e) => set("wifiName", e.target.value)}
+                placeholder="SSID"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">Wi‑Fi password</label>
+              <Input
+                value={form.wifiPassword ?? ""}
+                onChange={(e) => set("wifiPassword", e.target.value)}
+                placeholder="Wi‑Fi password"
+              />
+            </div>
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-foreground">Notes</label>
-              <Textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} rows={2} />
+              <Textarea
+                value={form.notes ?? ""}
+                onChange={(e) => set("notes", e.target.value)}
+                rows={2}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
             <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
               {lead ? "Save Changes" : "Add Lead"}
             </Button>

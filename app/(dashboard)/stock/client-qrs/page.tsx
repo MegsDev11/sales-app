@@ -5,6 +5,7 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useMemo, useState } from "react";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
+import { useCrmStore } from "@/lib/store/crm-store";
 import type { StockItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ function isClientUnit(item: StockItem) {
 export default function ClientQrsPage() {
   const { allowed, isLoading } = useStockAccess();
   const { products, items, isLoaded, error, createItem, regenerateClientPin } = useStockStore();
+  const { getVisibleLeads, leads } = useCrmStore();
 
   const [query, setQuery] = useState("");
   const [filterProduct, setFilterProduct] = useState("all");
@@ -40,6 +42,7 @@ export default function ClientQrsPage() {
   const [brand, setBrand] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
+  const [leadId, setLeadId] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [clientPppoe, setClientPppoe] = useState("");
@@ -50,6 +53,15 @@ export default function ClientQrsPage() {
   const [created, setCreated] = useState<StockItem | null>(null);
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  const clients = useMemo(
+    () =>
+      getVisibleLeads()
+        .filter((l) => !l.deleted && l.clientName.trim())
+        .slice()
+        .sort((a, b) => a.clientName.localeCompare(b.clientName)),
+    [getVisibleLeads, leads]
+  );
 
   const editingLive = editing ? items.find((i) => i.id === editing.id) ?? editing : null;
   const createdLive = created ? items.find((i) => i.id === created.id) ?? null : null;
@@ -109,6 +121,7 @@ export default function ClientQrsPage() {
       setBrand("");
       setDeviceName("");
       setSerialNumber("");
+      setLeadId("");
       setClientName("");
       setClientAddress("");
       setClientPppoe("");
@@ -235,11 +248,51 @@ export default function ClientQrsPage() {
             </div>
             <div className="space-y-1">
               <label className="font-medium">Client name</label>
-              <Input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Client name"
-              />
+              <Select
+                value={leadId || "__none"}
+                onValueChange={(v) => {
+                  if (typeof v !== "string") return;
+                  if (v === "__none") {
+                    setLeadId("");
+                    setClientName("");
+                    setClientAddress("");
+                    setClientPppoe("");
+                    setWifiName("");
+                    setWifiPassword("");
+                    return;
+                  }
+                  const lead = clients.find((c) => c.id === v);
+                  setLeadId(v);
+                  if (!lead) return;
+                  setClientName(lead.clientName);
+                  setClientAddress(lead.address?.trim() || "");
+                  setClientPppoe(lead.clientPppoe?.trim() || "");
+                  setWifiName(lead.wifiName?.trim() || "");
+                  setWifiPassword(lead.wifiPassword?.trim() || "");
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select client">
+                    {(value) => {
+                      if (!value || value === "__none") return "Select client";
+                      return (
+                        clients.find((c) => c.id === value)?.clientName ||
+                        clientName ||
+                        "Select client"
+                      );
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Select client</SelectItem>
+                  {clients.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.clientName}
+                      {l.address ? ` — ${l.address}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1 sm:col-span-2">
               <label className="font-medium">Client address</label>

@@ -17,8 +17,9 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const supabase = createSupabaseAdminClient();
-  const statusFilter =
-    new URL(request.url).searchParams.get("status")?.trim() || "submitted";
+  const url = new URL(request.url);
+  const statusFilter = url.searchParams.get("status")?.trim() || "submitted";
+  const q = url.searchParams.get("q")?.trim().toLowerCase() || "";
 
   try {
     let query = supabase
@@ -33,7 +34,14 @@ export async function GET(request: Request) {
 
     const { data: rows, error } = await query;
     if (error) {
-      throw new Error(migrationHint(error.message, "030_job_card_submissions.sql"));
+      throw new Error(
+        migrationHint(
+          error.message,
+          /card_number/i.test(error.message)
+            ? "038_job_card_number.sql"
+            : "030_job_card_submissions.sql"
+        )
+      );
     }
 
     const list = rows ?? [];
@@ -55,7 +63,7 @@ export async function GET(request: Request) {
     const jobById = new Map((jobs ?? []).map((j) => [j.id, j]));
     const techById = new Map((techs ?? []).map((t) => [t.id, t]));
 
-    const cards: CoordinationJobCardRow[] = list.map((row) => {
+    let cards: CoordinationJobCardRow[] = list.map((row) => {
       const submission = jobCardFromRow(row);
       const job = jobById.get(row.job_id);
       const tech = techById.get(row.technician_id);
@@ -68,6 +76,25 @@ export async function GET(request: Request) {
         technicianName: tech?.name ?? row.technician_id,
       };
     });
+
+    if (q) {
+      cards = cards.filter((card) => {
+        const hay = [
+          card.cardNumber,
+          card.jobTitle,
+          card.jobClientName,
+          card.jobAddress,
+          card.technicianName,
+          card.payload.clientNameSurname,
+          card.payload.technicians,
+          card.payload.workDone,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
 
     return NextResponse.json({ cards });
   } catch (e) {

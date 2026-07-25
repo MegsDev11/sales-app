@@ -5,13 +5,18 @@ export default function ClientLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         tabBarActiveTintColor: colors.brand,
-        headerTitleStyle: { fontWeight: "700" },
+        tabBarInactiveTintColor: colors.mutedDark,
+        tabBarStyle: {
+          backgroundColor: "#FFFFFF",
+          borderTopColor: colors.border,
+        },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "My service", tabBarLabel: "Home" }} />
+      <Tabs.Screen name="index" options={{ title: "Home", tabBarLabel: "Home" }} />
       <Tabs.Screen name="network" options={{ title: "Network", tabBarLabel: "Network" }} />
-      <Tabs.Screen name="messages" options={{ title: "Messages", tabBarLabel: "Messages" }} />
+      <Tabs.Screen name="messages" options={{ title: "Support", tabBarLabel: "Support" }} />
     </Tabs>
   );
 }
