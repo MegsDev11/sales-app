@@ -287,7 +287,7 @@ export default function StockScanPage() {
         <CardHeader>
           <CardTitle className="text-base">Book new stock in</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Scan a pending batch label (from Generate QR). Each successful scan adds +1 to
+            Scan a pending batch label (from Stock QR). Each successful scan adds +1 to
             inventory. Optional: scan or type the device serial.
           </p>
         </CardHeader>
@@ -330,7 +330,7 @@ export default function StockScanPage() {
           )}
           {intakeRaw.trim() && !intakeLabel && !intakeExistingItem && (
             <p className="text-xs text-amber-700">
-              No pending label found. Generate a batch on Generate QR first.
+              No pending label found. Generate a batch on Stock QR first.
             </p>
           )}
           <div className="space-y-1">

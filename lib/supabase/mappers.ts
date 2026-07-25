@@ -16,6 +16,7 @@ import type {
   StockSundry,
   Tower,
   TowerOutage,
+  TowerSite,
   User,
   UserFormData,
 } from "@/lib/types";
@@ -35,6 +36,7 @@ import type {
   TeamMemberRow,
   TowerOutageRow,
   TowerRow,
+  TowerSiteRow,
 } from "@/lib/supabase/database.types";
 import { normalizeRoleAndDepartment } from "@/lib/permissions";
 
@@ -306,6 +308,78 @@ export function towerUpdatesToRow(updates: Partial<Tower>): Partial<TowerRow> {
   if (updates.status !== undefined) row.status = updates.status;
   if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt;
   if (updates.updatedById !== undefined) row.updated_by_id = updates.updatedById ?? null;
+  return row;
+}
+
+function mapEquipment(equipmentRaw: unknown): TowerSite["equipment"] {
+  const equipmentList = Array.isArray(equipmentRaw) ? equipmentRaw : [];
+  return equipmentList.map((raw, index) => {
+    const item =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : {};
+    return {
+      id: typeof item.id === "string" ? item.id : `eq-${index}`,
+      name: typeof item.name === "string" ? item.name : "",
+      category: typeof item.category === "string" ? item.category : "",
+      quantity: typeof item.quantity === "number" ? item.quantity : 1,
+      notes: typeof item.notes === "string" ? item.notes : "",
+    };
+  });
+}
+
+export function towerSiteFromRow(row: TowerSiteRow): TowerSite {
+  return {
+    id: row.id,
+    areaId: row.area_id,
+    name: row.name,
+    voltage: row.voltage ?? "",
+    throughputMbps:
+      row.throughput_mbps == null || Number.isNaN(Number(row.throughput_mbps))
+        ? null
+        : Number(row.throughput_mbps),
+    equipment: mapEquipment(row.equipment),
+    maintenanceNotes: row.maintenance_notes ?? "",
+    upgradePlan: row.upgrade_plan ?? "",
+    status: row.status as TowerSite["status"],
+    updatedAt: row.updated_at,
+    updatedById: row.updated_by_id,
+    createdAt: row.created_at,
+  };
+}
+
+export function towerSiteToRow(site: TowerSite): TowerSiteRow {
+  return {
+    id: site.id,
+    area_id: site.areaId,
+    name: site.name,
+    voltage: site.voltage ?? "",
+    throughput_mbps: site.throughputMbps,
+    equipment: (site.equipment ?? []) as unknown as TowerSiteRow["equipment"],
+    maintenance_notes: site.maintenanceNotes ?? "",
+    upgrade_plan: site.upgradePlan ?? "",
+    status: site.status,
+    updated_at: site.updatedAt,
+    updated_by_id: site.updatedById ?? null,
+    created_at: site.createdAt,
+  };
+}
+
+export function towerSiteUpdatesToRow(updates: Partial<TowerSite>): Partial<TowerSiteRow> {
+  const row: Partial<TowerSiteRow> = {};
+  if (updates.areaId !== undefined) row.area_id = updates.areaId;
+  if (updates.name !== undefined) row.name = updates.name;
+  if (updates.voltage !== undefined) row.voltage = updates.voltage;
+  if (updates.throughputMbps !== undefined) row.throughput_mbps = updates.throughputMbps;
+  if (updates.equipment !== undefined) {
+    row.equipment = updates.equipment as unknown as TowerSiteRow["equipment"];
+  }
+  if (updates.maintenanceNotes !== undefined) row.maintenance_notes = updates.maintenanceNotes;
+  if (updates.upgradePlan !== undefined) row.upgrade_plan = updates.upgradePlan;
+  if (updates.status !== undefined) row.status = updates.status;
+  if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt;
+  if (updates.updatedById !== undefined) row.updated_by_id = updates.updatedById ?? null;
+  if (updates.createdAt !== undefined) row.created_at = updates.createdAt;
   return row;
 }
 

@@ -15,13 +15,20 @@ import {
   insertActivity,
   insertTowerOutage,
   patchLead,
+  patchTower,
+  createTowerViaApi,
   patchTowerOutage,
+  createTowerSiteViaApi,
+  patchTowerSiteViaApi,
+  deleteTowerSiteViaApi,
   setTowerStatusViaApi,
+  setSiteStatusViaApi,
   subscribeToCrmChanges,
   upsertLead,
 } from "@/lib/supabase/data";
 import { leadFormToLead } from "@/lib/supabase/mappers";
 import { migrateLead } from "@/lib/utils/migrate";
+import { deriveAreaStatus } from "@/lib/utils/tower-status";
 import { useAuth } from "@/lib/auth-context";
 import { useStaffStore } from "@/lib/store/staff-store";
 import { shouldLoadCrmLeads } from "@/lib/store/load-gates";
@@ -36,6 +43,7 @@ import type {
   LostReason,
   Tower,
   TowerOutage,
+  TowerSite,
   TowerStatus,
   User,
 } from "@/lib/types";
@@ -45,6 +53,7 @@ const EMPTY_SLICE: Omit<CrmData, "users"> = {
   activities: [],
   towers: [],
   towerOutages: [],
+  towerSites: [],
 };
 
 interface CrmStoreContextValue {
@@ -53,6 +62,7 @@ interface CrmStoreContextValue {
   activities: Activity[];
   towers: Tower[];
   towerOutages: TowerOutage[];
+  towerSites: TowerSite[];
   isLoaded: boolean;
   dbError: string | null;
   updateLead: (id: string, updates: Partial<Lead>) => void;
@@ -70,7 +80,8 @@ interface CrmStoreContextValue {
     title: string,
     message: string,
     affectedAreas: string[],
-    createdById: string
+    createdById: string,
+    siteId?: string | null
   ) => void;
   resolveOutage: (outageId: string, towerId: string) => void;
   setTowerStatus: (
@@ -78,6 +89,16 @@ interface CrmStoreContextValue {
     status: Exclude<TowerStatus, "offline">,
     updatedById: string
   ) => void;
+  setSiteStatus: (
+    siteId: string,
+    status: Exclude<TowerStatus, "offline">,
+    updatedById: string
+  ) => void;
+  updateTower: (towerId: string, updates: Partial<Tower>) => void;
+  createCoverageArea: (tower: Tower) => void;
+  createTowerSite: (site: TowerSite) => void;
+  updateTowerSite: (siteId: string, updates: Partial<TowerSite>) => void;
+  deleteTowerSite: (siteId: string) => void;
   assignLeadTower: (leadId: string, towerId: string | null) => void;
   exportToCsv: () => void;
   importFromCsv: (csv: string) => void;
@@ -85,6 +106,7 @@ interface CrmStoreContextValue {
   getLeadActivities: (leadId: string) => Activity[];
   getVisibleLeads: () => Lead[];
   getTowerById: (id: string) => Tower | undefined;
+  getSitesForArea: (areaId: string) => TowerSite[];
   getActiveOutages: () => TowerOutage[];
 }
 
@@ -96,6 +118,7 @@ function normalizeSlice(data: CrmData): Omit<CrmData, "users"> {
     activities: data.activities,
     towers: data.towers,
     towerOutages: data.towerOutages,
+    towerSites: data.towerSites ?? [],
   };
 }
 
@@ -441,7 +464,8 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       title: string,
       message: string,
       affectedAreas: string[],
-      createdById: string
+      createdById: string,
+      siteId?: string | null
     ) => {
       const now = new Date().toISOString();
       const outageId = `outage-${Date.now()}`;
@@ -464,11 +488,18 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
             ? { ...tower, status: "offline", updatedAt: now, updatedById: createdById }
             : tower
         ),
+        towerSites: siteId
+          ? prev.towerSites.map((site) =>
+              site.id === siteId
+                ? { ...site, status: "offline", updatedAt: now, updatedById: createdById }
+                : site
+            )
+          : prev.towerSites,
       }));
 
       void (async () => {
         try {
-          await insertTowerOutage(outage, accessTokenRef.current);
+          await insertTowerOutage(outage, accessTokenRef.current, siteId);
         } catch (error) {
           setDbError(error instanceof Error ? error.message : "Outage create failed");
           await refreshFromSupabase();
@@ -482,17 +513,30 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     (outageId: string, towerId: string) => {
       const now = new Date().toISOString();
 
-      setSlice((prev) => ({
-        ...prev,
-        towerOutages: prev.towerOutages.map((outage) =>
+      setSlice((prev) => {
+        const nextOutages = prev.towerOutages.map((outage) =>
           outage.id === outageId ? { ...outage, resolvedAt: now } : outage
-        ),
-        towers: prev.towers.map((tower) =>
-          tower.id === towerId
-            ? { ...tower, status: "online", updatedAt: now }
-            : tower
-        ),
-      }));
+        );
+        const areaSites = prev.towerSites.filter((s) => s.areaId === towerId);
+        const hasActiveOutage = nextOutages.some(
+          (o) => o.towerId === towerId && !o.resolvedAt
+        );
+        const stored = prev.towers.find((t) => t.id === towerId)?.status ?? "online";
+        const areaStatus = deriveAreaStatus(
+          stored,
+          areaSites.map((s) => s.status),
+          hasActiveOutage
+        );
+        return {
+          ...prev,
+          towerOutages: nextOutages,
+          towers: prev.towers.map((tower) =>
+            tower.id === towerId
+              ? { ...tower, status: areaStatus, updatedAt: now }
+              : tower
+          ),
+        };
+      });
 
       void (async () => {
         try {
@@ -543,6 +587,170 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
           );
         } catch (error) {
           setDbError(error instanceof Error ? error.message : "Tower status update failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const setSiteStatus = useCallback(
+    (siteId: string, status: Exclude<TowerStatus, "offline">, updatedById: string) => {
+      const now = new Date().toISOString();
+
+      setSlice((prev) => {
+        const target = prev.towerSites.find((s) => s.id === siteId);
+        if (!target) return prev;
+
+        const nextSites = prev.towerSites.map((site) =>
+          site.id === siteId
+            ? { ...site, status, updatedAt: now, updatedById }
+            : site
+        );
+        const areaSites = nextSites.filter((s) => s.areaId === target.areaId);
+        const anyOffline = areaSites.some((s) => s.status === "offline");
+        const nextOutages =
+          !anyOffline
+            ? prev.towerOutages.map((outage) =>
+                outage.towerId === target.areaId && !outage.resolvedAt
+                  ? { ...outage, resolvedAt: now }
+                  : outage
+              )
+            : prev.towerOutages;
+        const hasActiveOutage = nextOutages.some(
+          (o) => o.towerId === target.areaId && !o.resolvedAt
+        );
+        const stored = prev.towers.find((t) => t.id === target.areaId)?.status ?? "online";
+        const areaStatus = deriveAreaStatus(
+          stored,
+          areaSites.map((s) => s.status),
+          hasActiveOutage
+        );
+
+        return {
+          ...prev,
+          towerSites: nextSites,
+          towerOutages: nextOutages,
+          towers: prev.towers.map((tower) =>
+            tower.id === target.areaId
+              ? { ...tower, status: areaStatus, updatedAt: now, updatedById }
+              : tower
+          ),
+        };
+      });
+
+      void (async () => {
+        try {
+          await setSiteStatusViaApi(
+            siteId,
+            status,
+            updatedById,
+            accessTokenRef.current
+          );
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Site status update failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const updateTower = useCallback(
+    (towerId: string, updates: Partial<Tower>) => {
+      const now = new Date().toISOString();
+      const withMeta = { ...updates, updatedAt: updates.updatedAt ?? now };
+
+      setSlice((prev) => ({
+        ...prev,
+        towers: prev.towers.map((tower) =>
+          tower.id === towerId ? { ...tower, ...withMeta } : tower
+        ),
+      }));
+
+      void (async () => {
+        try {
+          await patchTower(towerId, withMeta, accessTokenRef.current);
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Tower update failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const createCoverageArea = useCallback(
+    (tower: Tower) => {
+      setSlice((prev) => ({
+        ...prev,
+        towers: [...prev.towers, tower].sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+      void (async () => {
+        try {
+          await createTowerViaApi(tower, accessTokenRef.current);
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Coverage area create failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const createTowerSite = useCallback(
+    (site: TowerSite) => {
+      setSlice((prev) => ({
+        ...prev,
+        towerSites: [...prev.towerSites, site].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        ),
+      }));
+      void (async () => {
+        try {
+          await createTowerSiteViaApi(site, accessTokenRef.current);
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Site create failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const updateTowerSite = useCallback(
+    (siteId: string, updates: Partial<TowerSite>) => {
+      const now = new Date().toISOString();
+      const withMeta = { ...updates, updatedAt: updates.updatedAt ?? now };
+      setSlice((prev) => ({
+        ...prev,
+        towerSites: prev.towerSites.map((site) =>
+          site.id === siteId ? { ...site, ...withMeta } : site
+        ),
+      }));
+      void (async () => {
+        try {
+          await patchTowerSiteViaApi(siteId, withMeta, accessTokenRef.current);
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Site update failed");
+          await refreshFromSupabase();
+        }
+      })();
+    },
+    [refreshFromSupabase]
+  );
+
+  const deleteTowerSite = useCallback(
+    (siteId: string) => {
+      setSlice((prev) => ({
+        ...prev,
+        towerSites: prev.towerSites.filter((site) => site.id !== siteId),
+      }));
+      void (async () => {
+        try {
+          await deleteTowerSiteViaApi(siteId, accessTokenRef.current);
+        } catch (error) {
+          setDbError(error instanceof Error ? error.message : "Site delete failed");
           await refreshFromSupabase();
         }
       })();
@@ -649,6 +857,14 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
     [slice.towers]
   );
 
+  const getSitesForArea = useCallback(
+    (areaId: string) =>
+      slice.towerSites
+        .filter((s) => s.areaId === areaId)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [slice.towerSites]
+  );
+
   const getActiveOutages = useCallback(
     () => slice.towerOutages.filter((o) => !o.resolvedAt && o.isPublic),
     [slice.towerOutages]
@@ -664,6 +880,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       activities: slice.activities,
       towers: slice.towers,
       towerOutages: slice.towerOutages,
+      towerSites: slice.towerSites,
       isLoaded: combinedLoaded,
       dbError: combinedError,
       updateLead,
@@ -679,6 +896,12 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       createOutage,
       resolveOutage,
       setTowerStatus,
+      setSiteStatus,
+      updateTower,
+      createCoverageArea,
+      createTowerSite,
+      updateTowerSite,
+      deleteTowerSite,
       assignLeadTower,
       exportToCsv,
       importFromCsv,
@@ -686,6 +909,7 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       getLeadActivities,
       getVisibleLeads,
       getTowerById,
+      getSitesForArea,
       getActiveOutages,
     }),
     [
@@ -707,12 +931,19 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
       createOutage,
       resolveOutage,
       setTowerStatus,
+      setSiteStatus,
+      updateTower,
+      createCoverageArea,
+      createTowerSite,
+      updateTowerSite,
+      deleteTowerSite,
       assignLeadTower,
       exportToCsv,
       importFromCsv,
       getLeadActivities,
       getVisibleLeads,
       getTowerById,
+      getSitesForArea,
       getActiveOutages,
     ]
   );

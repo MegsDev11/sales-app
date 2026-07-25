@@ -12,6 +12,7 @@ import {
   PageShell,
   Panel,
 } from "@/components/layout/page-shell";
+import { NetworkOperationsSection } from "@/components/owner/network-operations-section";
 import { buttonVariants } from "@/components/ui/button";
 import {
   getDepartmentManagers,
@@ -62,7 +63,6 @@ export default function CompanyPage() {
     { icon: typeof Wifi; stat: string }
   > = {
     fiber: { icon: Cable, stat: "Fiber operations" },
-    financial: { icon: Wallet, stat: "Financial management" },
     general: { icon: Briefcase, stat: "General management" },
     accounts: { icon: BookUser, stat: "Clients & packages" },
     reception: { icon: ConciergeBell, stat: "Walk-in clients" },
@@ -113,6 +113,15 @@ export default function CompanyPage() {
       manager: getDepartmentManagers(users, "wireless")[0]?.name ?? "Not assigned",
       staffCount: getDepartmentStaff(users, "wireless").length,
       stat: "Network layouts & Ruijie",
+    },
+    {
+      id: "financial",
+      label: "Financial",
+      icon: Wallet,
+      href: "/financial",
+      manager: getDepartmentManagers(users, "financial")[0]?.name ?? "Not assigned",
+      staffCount: getDepartmentStaff(users, "financial").length,
+      stat: "Fuel & financial reporting",
     },
     ...PLACEHOLDER_DEPARTMENTS.map((dept) => ({
       id: dept,
@@ -168,6 +177,8 @@ export default function CompanyPage() {
           </span>
         </AlertBanner>
       ) : null}
+
+      <NetworkOperationsSection />
 
       <Panel title="Departments" description="Managers, headcount, and shortcuts" padded={false}>
         <div className="divide-y divide-border">

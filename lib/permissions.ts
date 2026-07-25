@@ -17,7 +17,6 @@ export type OwnerSection =
 /** Departments that currently only have placeholder home pages. */
 export const PLACEHOLDER_DEPARTMENTS = [
   "fiber",
-  "financial",
   "general",
   "accounts",
   "reception",
@@ -43,7 +42,6 @@ export function isPlaceholderDepartment(
 ): department is PlaceholderDepartment {
   return (
     department === "fiber" ||
-    department === "financial" ||
     department === "general" ||
     department === "accounts" ||
     department === "reception"

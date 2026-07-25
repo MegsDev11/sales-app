@@ -126,7 +126,7 @@ export default function TechHome() {
             label="Updates"
             icon="✉️"
             bg={colors.accentSoft}
-            onPress={() => router.push("/(tech)/search")}
+            onPress={() => router.push("/(tech)/updates")}
           />
           <QuickAction
             label="Time Clock"

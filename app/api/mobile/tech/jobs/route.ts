@@ -10,6 +10,14 @@ function isFieldTech(user: { role: string; department: string | null }) {
   );
 }
 
+function techIdsFor(user: { id: string; authUserId?: string }) {
+  const ids = [user.id];
+  if (user.authUserId && user.authUserId !== user.id) {
+    ids.push(user.authUserId);
+  }
+  return ids;
+}
+
 export async function GET(request: Request) {
   const user = await requireAuthenticated(request);
   if (!user || !isFieldTech(user)) {
@@ -17,14 +25,16 @@ export async function GET(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
+  const techIds = techIdsFor(user);
+
   try {
     const { data: assignments, error: aErr } = await supabase
       .from("job_assignments")
       .select("job_id")
-      .eq("technician_id", user.id);
+      .in("technician_id", techIds);
     if (aErr) throw new Error(migrationHint(aErr.message, "021_field_jobs_timesheets.sql"));
 
-    const jobIds = (assignments ?? []).map((a) => a.job_id);
+    const jobIds = [...new Set((assignments ?? []).map((a) => a.job_id))];
     if (!jobIds.length) return NextResponse.json({ jobs: [] });
 
     const { data: jobs, error } = await supabase
@@ -32,7 +42,7 @@ export async function GET(request: Request) {
       .select("*")
       .in("id", jobIds)
       .neq("status", "cancelled")
-      .order("scheduled_start", { ascending: true });
+      .order("updated_at", { ascending: false });
     if (error) throw new Error(migrationHint(error.message, "021_field_jobs_timesheets.sql"));
 
     return NextResponse.json({
@@ -56,6 +66,7 @@ export async function POST(request: Request) {
   const action = String(body.action ?? "");
   const supabase = createSupabaseAdminClient();
   const now = new Date().toISOString();
+  const techIds = techIdsFor(user);
 
   try {
     if (action === "update_status") {
@@ -65,7 +76,8 @@ export async function POST(request: Request) {
         .from("job_assignments")
         .select("id")
         .eq("job_id", jobId)
-        .eq("technician_id", user.id)
+        .in("technician_id", techIds)
+        .limit(1)
         .maybeSingle();
       if (!assignment) {
         return NextResponse.json({ error: "Not assigned to this job" }, { status: 403 });

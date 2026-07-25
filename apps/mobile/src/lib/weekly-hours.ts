@@ -149,3 +149,30 @@ export function buildWeeklyHours(
     progress: totalMinutes / (40 * 60),
   };
 }
+
+/** Format minutes as H:MM (Connecteam-style, e.g. 4:52). */
+export function formatHoursLabel(totalMinutes: number) {
+  const mins = Math.max(0, Math.round(totalMinutes));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/** Total worked minutes for the local calendar day of `now`. */
+export function todayWorkMinutes(entries: TimeEntry[], now = new Date()) {
+  const dayStart = startOfLocalDay(now);
+  const dayEnd = addLocalDays(dayStart, 1);
+  let total = 0;
+  for (const entry of entries) {
+    const startMs = new Date(entry.clockInAt).getTime();
+    if (Number.isNaN(startMs)) continue;
+    const endMs = entry.clockOutAt
+      ? new Date(entry.clockOutAt).getTime()
+      : now.getTime();
+    if (Number.isNaN(endMs) || endMs <= startMs) continue;
+    const from = Math.max(startMs, dayStart.getTime());
+    const to = Math.min(endMs, dayEnd.getTime());
+    if (to > from) total += (to - from) / 60000;
+  }
+  return total;
+}

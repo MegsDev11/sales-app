@@ -1,16 +1,46 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAuthUserFromRequest } from "@/lib/supabase/server-auth";
-import { canAccessCoordination, isOwner } from "@/lib/permissions";
+import { canAccessCoordination, canAccessSupport, isOwner } from "@/lib/permissions";
 import { jobFromRow, makeId, migrationHint } from "@/lib/mobile/field-mappers";
+import { appNotificationToRow } from "@/lib/supabase/mappers";
+import type { AppNotification } from "@/lib/types";
 import type { Database } from "@/lib/supabase/database.types";
+import type { JobSource } from "@megs/shared";
 
 type JobUpdate = Database["public"]["Tables"]["jobs"]["Update"];
 
-async function requireCoord(request: Request) {
+async function requireJobsAccess(
+  request: Request,
+  opts?: { allowSupportJobCreate?: boolean }
+) {
   const user = await getAuthUserFromRequest(request);
-  if (!user || (!canAccessCoordination(user) && !isOwner(user))) return null;
-  return user;
+  if (!user) return null;
+  if (canAccessCoordination(user) || isOwner(user)) return user;
+  if (opts?.allowSupportJobCreate && canAccessSupport(user)) return user;
+  return null;
+}
+
+function isSupportDispatchJob(body: Record<string, unknown>, action: string) {
+  if (action !== "create") return false;
+  const jobType = String(body.jobType ?? "");
+  if (jobType === "tower_work" && (Boolean(body.towerId) || Boolean(body.towerSiteId))) {
+    return true;
+  }
+  if (jobType === "service_call") return true;
+  return false;
+}
+
+function resolveSource(
+  bodySource: unknown,
+  user: { role: string; department?: string | null }
+): JobSource {
+  if (bodySource === "owner" || bodySource === "support" || bodySource === "coordination") {
+    return bodySource;
+  }
+  if (user.role === "owner") return "owner";
+  if (user.department === "support") return "support";
+  return "coordination";
 }
 
 async function loadJobs(technicianId?: string) {
@@ -37,7 +67,7 @@ async function loadJobs(technicianId?: string) {
 }
 
 export async function GET(request: Request) {
-  const user = await requireCoord(request);
+  const user = await requireJobsAccess(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   try {
     const jobs = await loadJobs();
@@ -51,34 +81,80 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireCoord(request);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-
   const body = (await request.json()) as Record<string, unknown>;
   const action = String(body.action ?? "");
+  const supportDispatch = isSupportDispatchJob(body, action);
+
+  const user = await requireJobsAccess(request, {
+    allowSupportJobCreate: supportDispatch,
+  });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
   const supabase = createSupabaseAdminClient();
   const now = new Date().toISOString();
 
   try {
     if (action === "create") {
+      // Support may create unassigned tower / service-call cards for coordination
+      if (
+        !canAccessCoordination(user) &&
+        !isOwner(user) &&
+        !(supportDispatch && canAccessSupport(user))
+      ) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+      const source = resolveSource(body.source, user);
+      const towerId = (body.towerId as string) || null;
+      const towerSiteId = (body.towerSiteId as string) || null;
+      const jobType = String(
+        body.jobType ?? (towerSiteId || towerId ? "tower_work" : "general")
+      );
+      const title = String(body.title ?? "Job");
+      const notes = String(body.notes ?? "");
+      let technicianIds = (Array.isArray(body.technicianIds) ? body.technicianIds : []) as string[];
+
+      // Support-only users submit unassigned tower cards for coordination to dispatch
+      if (!canAccessCoordination(user) && !isOwner(user)) {
+        technicianIds = [];
+      }
+
       const id = makeId("job");
-      const technicianIds = (Array.isArray(body.technicianIds) ? body.technicianIds : []) as string[];
+      const locationLat =
+        typeof body.locationLat === "number" && Number.isFinite(body.locationLat)
+          ? body.locationLat
+          : null;
+      const locationLng =
+        typeof body.locationLng === "number" && Number.isFinite(body.locationLng)
+          ? body.locationLng
+          : null;
+
       const { error } = await supabase.from("jobs").insert({
         id,
         lead_id: (body.leadId as string) || null,
-        title: String(body.title ?? "Job"),
+        title,
         address: String(body.address ?? ""),
         client_name: (body.clientName as string) || null,
         scheduled_start: (body.scheduledStart as string) || null,
         scheduled_end: (body.scheduledEnd as string) || null,
         status: "scheduled",
-        notes: String(body.notes ?? ""),
+        notes,
         stock_request_id: (body.stockRequestId as string) || null,
         created_by: user.id,
         created_at: now,
         updated_at: now,
+        source,
+        tower_id: towerId,
+        tower_site_id: towerSiteId,
+        job_type: jobType,
+        location_lat: locationLat,
+        location_lng: locationLng,
+        client_pppoe: String(body.clientPppoe ?? "").trim(),
       });
-      if (error) throw new Error(migrationHint(error.message, "021_field_jobs_timesheets.sql"));
+      if (error) {
+        throw new Error(
+          migrationHint(error.message, "031_job_client_pppoe.sql")
+        );
+      }
 
       if (technicianIds.length) {
         await supabase.from("job_assignments").insert(
@@ -90,6 +166,33 @@ export async function POST(request: Request) {
             created_at: now,
           }))
         );
+      }
+
+      if (source === "owner" || source === "support") {
+        const isServiceCall = jobType === "service_call";
+        const notif: AppNotification = {
+          id: makeId("notif"),
+          department: "coordination",
+          type: isServiceCall ? "service_call_request" : "tower_work_request",
+          title:
+            source === "owner"
+              ? `Owner job request: ${title}`
+              : isServiceCall
+                ? `Service call request: ${title}`
+                : `Support job request: ${title}`,
+          body:
+            notes.slice(0, 240) ||
+            (isServiceCall
+              ? "New service call awaiting tech assignment"
+              : "New tower work request awaiting tech assignment"),
+          link: "/coordination/jobs",
+          createdAt: now,
+        };
+        try {
+          await supabase.from("app_notifications").insert(appNotificationToRow(notif));
+        } catch {
+          /* notifications table optional */
+        }
       }
 
       const jobs = await loadJobs();
@@ -107,6 +210,25 @@ export async function POST(request: Request) {
       if (body.scheduledEnd !== undefined) updates.scheduled_end = (body.scheduledEnd as string) || null;
       if ("leadId" in body) updates.lead_id = (body.leadId as string) || null;
       if ("clientName" in body) updates.client_name = (body.clientName as string) || null;
+      if ("towerId" in body) updates.tower_id = (body.towerId as string) || null;
+      if ("towerSiteId" in body) updates.tower_site_id = (body.towerSiteId as string) || null;
+      if (body.jobType !== undefined) updates.job_type = String(body.jobType);
+      if (body.source !== undefined) updates.source = String(body.source);
+      if (body.clientPppoe !== undefined) {
+        updates.client_pppoe = String(body.clientPppoe ?? "").trim();
+      }
+      if ("locationLat" in body) {
+        updates.location_lat =
+          typeof body.locationLat === "number" && Number.isFinite(body.locationLat)
+            ? body.locationLat
+            : null;
+      }
+      if ("locationLng" in body) {
+        updates.location_lng =
+          typeof body.locationLng === "number" && Number.isFinite(body.locationLng)
+            ? body.locationLng
+            : null;
+      }
 
       const { error } = await supabase.from("jobs").update(updates).eq("id", jobId);
       if (error) throw new Error(migrationHint(error.message, "021_field_jobs_timesheets.sql"));

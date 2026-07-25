@@ -21,11 +21,22 @@
         {
           "cameraPermission": "MEGS uses the camera to scan stock QR codes."
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MEGS uses photos for technician job cards.",
+          "cameraPermission": "MEGS uses the camera for job card photos."
+        }
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "za.co.megswaterberg.field"
+      "bundleIdentifier": "za.co.megswaterberg.field",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["whatsapp", "whatsapp-business"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,7 +47,9 @@
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
       ]
     },
     "web": {

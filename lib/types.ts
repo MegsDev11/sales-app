@@ -127,6 +127,15 @@ export interface Lead {
   towerId?: string | null;
 }
 
+export interface TowerEquipmentItem {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  notes: string;
+}
+
+/** Public coverage area (town) — shown on landing page status only. */
 export interface Tower {
   id: string;
   name: string;
@@ -134,6 +143,22 @@ export interface Tower {
   status: TowerStatus;
   updatedAt: string;
   updatedById?: string | null;
+}
+
+/** Private physical tower site nested under a coverage area — dashboard only. */
+export interface TowerSite {
+  id: string;
+  areaId: string;
+  name: string;
+  voltage: string;
+  throughputMbps: number | null;
+  equipment: TowerEquipmentItem[];
+  maintenanceNotes: string;
+  upgradePlan: string;
+  status: TowerStatus;
+  updatedAt: string;
+  updatedById?: string | null;
+  createdAt: string;
 }
 
 export interface TowerOutage {
@@ -294,7 +319,9 @@ export interface StockRequest {
 export type AppNotificationType =
   | "stock_request_sent"
   | "stock_shortfall"
-  | "client_support_request";
+  | "client_support_request"
+  | "tower_work_request"
+  | "service_call_request";
 
 export interface AppNotification {
   id: string;
@@ -323,6 +350,7 @@ export interface CrmData {
   activities: Activity[];
   towers: Tower[];
   towerOutages: TowerOutage[];
+  towerSites: TowerSite[];
 }
 
 export interface StageConfig {

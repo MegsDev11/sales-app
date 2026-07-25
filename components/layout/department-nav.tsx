@@ -8,6 +8,7 @@ import { useCrmStore } from "@/lib/store/crm-store";
 import { isInLeadInbox } from "@/lib/utils/leads";
 import {
   canAccessCoordination,
+  canAccessFinancial,
   canAccessStock,
   canAccessSupport,
   canAccessWireless,
@@ -27,6 +28,7 @@ import {
 } from "@/components/layout/page-shell";
 import {
   coordinationNavItems,
+  financialNavItems,
   isNavActive,
   salesManagerNavItems,
   salesStaffNavItems,
@@ -179,6 +181,7 @@ function OwnerNav({ variant }: { variant: "sidebar" | "mobile" }) {
   const stockPaths = stockNavItems.map((i) => i.href);
   const coordinationPaths = coordinationNavItems.map((i) => i.href);
   const wirelessPaths = wirelessNavItems.map((i) => i.href);
+  const financialPaths = financialNavItems.map((i) => i.href);
   const placeholderPaths = PLACEHOLDER_DEPARTMENTS.map((dept) => `/${dept}`);
 
   const showSalesNav = activeSection === "sales" || salesPaths.some((p) => pathname.startsWith(p));
@@ -191,6 +194,8 @@ function OwnerNav({ variant }: { variant: "sidebar" | "mobile" }) {
     coordinationPaths.some((p) => pathname.startsWith(p));
   const showWirelessNav =
     activeSection === "wireless" || wirelessPaths.some((p) => pathname.startsWith(p));
+  const showFinancialNav =
+    activeSection === "financial" || financialPaths.some((p) => pathname.startsWith(p));
   const activePlaceholder = PLACEHOLDER_DEPARTMENTS.find(
     (dept) =>
       activeSection === dept ||
@@ -211,6 +216,7 @@ function OwnerNav({ variant }: { variant: "sidebar" | "mobile" }) {
           (section.id === "coordination" &&
             coordinationPaths.some((p) => pathname.startsWith(p))) ||
           (section.id === "wireless" && wirelessPaths.some((p) => pathname.startsWith(p))) ||
+          (section.id === "financial" && financialPaths.some((p) => pathname.startsWith(p))) ||
           (placeholderPaths.includes(section.href) &&
             (pathname === section.href || pathname.startsWith(`${section.href}/`)));
         return (
@@ -282,6 +288,17 @@ function OwnerNav({ variant }: { variant: "sidebar" | "mobile" }) {
             items={wirelessNavItems}
             root="/wireless"
             onNavigate={() => setActiveSection("wireless")}
+          />
+        </>
+      ) : null}
+
+      {showFinancialNav ? (
+        <>
+          <NavSectionLabel className="mt-3">Financial</NavSectionLabel>
+          <NavLinks
+            items={financialNavItems}
+            root="/financial"
+            onNavigate={() => setActiveSection("financial")}
           />
         </>
       ) : null}
@@ -404,15 +421,17 @@ export function DashboardNav({ variant }: { variant: "sidebar" | "mobile" }) {
         mobileLabelFn={(item) =>
           item.href === "/stock/qr"
             ? "QR"
-            : item.href === "/stock/client-qrs"
-              ? "Clients"
-              : item.href === "/stock/inventory"
-                ? "Stock"
-                : item.href === "/stock/booked-out"
-                  ? "Out"
-                  : item.href === "/stock/requests"
-                    ? "Lists"
-                    : item.label
+            : item.href === "/stock/vehicles"
+              ? "Fleet"
+              : item.href === "/stock/client-qrs"
+                ? "Clients"
+                : item.href === "/stock/inventory"
+                  ? "Stock"
+                  : item.href === "/stock/booked-out"
+                    ? "Out"
+                    : item.href === "/stock/requests"
+                      ? "Lists"
+                      : item.label
         }
       />
     );
@@ -437,6 +456,17 @@ export function DashboardNav({ variant }: { variant: "sidebar" | "mobile" }) {
         label="Wireless"
         items={wirelessNavItems}
         root="/wireless"
+      />
+    );
+  }
+
+  if (canAccessFinancial(currentUser) && currentUser.department === "financial") {
+    return (
+      <DepartmentLinks
+        variant={variant}
+        label="Financial"
+        items={financialNavItems}
+        root="/financial"
       />
     );
   }

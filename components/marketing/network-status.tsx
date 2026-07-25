@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Activity, Clock, Phone, RadioTower } from "lucide-react";
+import { Phone, RadioTower } from "lucide-react";
 import { TOWER_SEED } from "@/lib/data/towers-seed";
 import { usePublicNetworkStatus } from "@/lib/hooks/use-public-network-status";
 import type { TowerStatus } from "@/lib/types";
@@ -27,22 +26,8 @@ const STATUS_STYLES: Record<
   },
 };
 
-function formatRelative(msAgo: number) {
-  const sec = Math.max(0, Math.floor(msAgo / 1000));
-  if (sec < 60) return `${sec} sec ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} min ago`;
-  return `${Math.floor(min / 60)} hr ago`;
-}
-
 export function NetworkStatus() {
-  const { outages, towers: apiTowers, loaded, fetchedAt } = usePublicNetworkStatus();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const tick = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(tick);
-  }, []);
+  const { outages, towers: apiTowers, loaded } = usePublicNetworkStatus();
 
   const towers =
     apiTowers.length > 0
@@ -53,15 +38,7 @@ export function NetworkStatus() {
           status: "online" as const,
         }));
 
-  const onlineCount = towers.filter((t) => t.status === "online").length;
   const hasOutages = outages.length > 0;
-  const uptime =
-    towers.length === 0
-      ? "—"
-      : `${((onlineCount / towers.length) * 100).toFixed(onlineCount === towers.length ? 2 : 1)}%`;
-  const updatedLabel =
-    fetchedAt == null ? "…" : formatRelative(now - fetchedAt);
-
   const outageByTower = new Map(outages.map((o) => [o.towerId, o]));
 
   return (
@@ -97,7 +74,7 @@ export function NetworkStatus() {
               const outage = outageByTower.get(tower.id);
 
               return (
-                <li key={tower.id} className="py-3.5 first:pt-2">
+                <li key={tower.id} className="py-3.5 first:pt-2 last:pb-0">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <RadioTower className="h-4 w-4 shrink-0 text-slate-400" />
@@ -119,27 +96,6 @@ export function NetworkStatus() {
               );
             })}
           </ul>
-
-          <div className="mt-2 grid grid-cols-2 gap-4 border-t border-white/10 pt-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-sky-400/30 bg-sky-400/10 text-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
-                <Activity className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xl font-bold tabular-nums text-white sm:text-2xl">{uptime}</p>
-                <p className="text-xs text-slate-400">Uptime</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 border-l border-white/10 pl-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-sky-400/30 bg-sky-400/10 text-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.35)]">
-                <Clock className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">Last updated:</p>
-                <p className="font-semibold tabular-nums text-white">{updatedLabel}</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {hasOutages && (

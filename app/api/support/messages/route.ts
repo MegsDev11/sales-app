@@ -13,7 +13,7 @@ function threadFromRow(
     last_message_at: string | null;
     created_at: string;
   },
-  clientName?: string
+  extras?: { clientName?: string; clientAddress?: string }
 ): SupportThread {
   return {
     id: row.id,
@@ -22,7 +22,8 @@ function threadFromRow(
     status: row.status === "closed" ? "closed" : "open",
     lastMessageAt: row.last_message_at,
     createdAt: row.created_at,
-    clientName,
+    clientName: extras?.clientName,
+    clientAddress: extras?.clientAddress,
   };
 }
 
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
 
       const { data: lead } = await supabase
         .from("leads")
-        .select("client_name")
+        .select("client_name, address")
         .eq("id", thread.lead_id)
         .maybeSingle();
 
@@ -76,7 +77,10 @@ export async function GET(request: Request) {
       if (error) throw new Error(error.message);
 
       return NextResponse.json({
-        thread: threadFromRow(thread, lead?.client_name),
+        thread: threadFromRow(thread, {
+          clientName: lead?.client_name,
+          clientAddress: lead?.address ?? undefined,
+        }),
         messages: (messages ?? []).map(messageFromRow),
       });
     }
@@ -89,12 +93,20 @@ export async function GET(request: Request) {
 
     const leadIds = [...new Set((threads ?? []).map((t) => t.lead_id))];
     const { data: leads } = leadIds.length
-      ? await supabase.from("leads").select("id, client_name").in("id", leadIds)
+      ? await supabase.from("leads").select("id, client_name, address").in("id", leadIds)
       : { data: [] };
-    const names = new Map((leads ?? []).map((l) => [l.id, l.client_name]));
+    const byLead = new Map(
+      (leads ?? []).map((l) => [l.id, { name: l.client_name, address: l.address }])
+    );
 
     return NextResponse.json({
-      threads: (threads ?? []).map((t) => threadFromRow(t, names.get(t.lead_id))),
+      threads: (threads ?? []).map((t) => {
+        const lead = byLead.get(t.lead_id);
+        return threadFromRow(t, {
+          clientName: lead?.name,
+          clientAddress: lead?.address ?? undefined,
+        });
+      }),
     });
   } catch (e) {
     return NextResponse.json(

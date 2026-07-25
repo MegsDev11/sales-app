@@ -2,6 +2,7 @@
 
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
@@ -31,15 +32,6 @@ export default function StockQrPage() {
   const [stockBrand, setStockBrand] = useState("");
   const [stockDeviceName, setStockDeviceName] = useState("");
   const [stockSerialNumber, setStockSerialNumber] = useState("");
-  const [productId, setProductId] = useState("");
-  const [brand, setBrand] = useState("");
-  const [deviceName, setDeviceName] = useState("");
-  const [serialNumber, setSerialNumber] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientAddress, setClientAddress] = useState("");
-  const [clientPppoe, setClientPppoe] = useState("");
-  const [wifiName, setWifiName] = useState("");
-  const [wifiPassword, setWifiPassword] = useState("");
   const [batchProductId, setBatchProductId] = useState("");
   const [batchBrand, setBatchBrand] = useState("");
   const [batchDeviceName, setBatchDeviceName] = useState("");
@@ -132,50 +124,6 @@ export default function StockQrPage() {
     }
   }
 
-  async function handleCreate() {
-    if (!productId) {
-      setMsg("Choose a product");
-      return;
-    }
-    setBusy(true);
-    setMsg("");
-    try {
-      const { item, clientPin } = await createItem({
-        productId,
-        brand,
-        deviceName,
-        serialNumber,
-        clientName,
-        clientAddress,
-        clientPppoe,
-        wifiName,
-        wifiPassword,
-      });
-      if (!item) {
-        setMsg("Create failed");
-        return;
-      }
-      setCreated(item);
-      setBrand("");
-      setDeviceName("");
-      setSerialNumber("");
-      setClientName("");
-      setClientAddress("");
-      setClientPppoe("");
-      setWifiName("");
-      setWifiPassword("");
-      setMsg(
-        clientPin
-          ? `Unit created — client PIN: ${clientPin} (give this to the client for QR access)`
-          : "Unit created — QR ready below."
-      );
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Create failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleBatchLabels() {
     if (!batchProductId) {
       setMsg("Choose a product for the batch");
@@ -212,8 +160,8 @@ export default function StockQrPage() {
     <PageShell>
       <PageHeader
         className="print:hidden"
-        title="Generate QR"
-        description="Print batch labels first, then book units in on Scan — or create a registered unit now"
+        title="Stock QR"
+        description="Print batch labels first, then book units in on Scan — or create a stock inventory unit now"
         actions={
           <Button
             type="button"
@@ -312,7 +260,7 @@ export default function StockQrPage() {
         </CardContent>
       </Card>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2 print:hidden">
+      <div className="grid items-start gap-4 lg:grid-cols-1 print:hidden max-w-xl">
         <Card className="bg-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -320,7 +268,11 @@ export default function StockQrPage() {
               Stock inventory QR
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              For booking units in and out of inventory.
+              For booking units in and out of inventory. Client installation QRs live under{" "}
+              <Link href="/stock/client-qrs" className="underline">
+                Client QRs
+              </Link>
+              .
             </p>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -385,116 +337,6 @@ export default function StockQrPage() {
               onClick={() => void handleCreateStock()}
             >
               Generate stock QR
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <QrCode className="h-4 w-4" />
-              Client installation QR
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              For installed units with client and WiFi details.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-          <div className="space-y-1">
-            <label className="font-medium">Product</label>
-            <Select
-              value={productId}
-              onValueChange={(v) => {
-                if (!v) return;
-                setProductId(v);
-                const product = products.find((p) => p.id === v);
-                if (product?.brandDefault && !brand) setBrand(product.brandDefault);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue>
-                  {(value) =>
-                    value ? products.find((p) => p.id === value)?.name ?? "Product" : "Product"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="font-medium">Brand</label>
-              <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="MikroTik" />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">Device / model</label>
-              <Input
-                value={deviceName}
-                onChange={(e) => setDeviceName(e.target.value)}
-                placeholder="LHG XL 5 ac"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">Serial number</label>
-              <Input
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                placeholder="SN…"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">Client name</label>
-              <Input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Client name"
-              />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <label className="font-medium">Client address</label>
-              <Input
-                value={clientAddress}
-                onChange={(e) => setClientAddress(e.target.value)}
-                placeholder="Street, town"
-              />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <label className="font-medium">Client PPPoE</label>
-              <Input
-                value={clientPppoe}
-                onChange={(e) => setClientPppoe(e.target.value)}
-                placeholder="client@megs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">WiFi name</label>
-              <Input
-                value={wifiName}
-                onChange={(e) => setWifiName(e.target.value)}
-                placeholder="SSID"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-medium">WiFi password</label>
-              <Input
-                value={wifiPassword}
-                onChange={(e) => setWifiPassword(e.target.value)}
-                placeholder="WiFi password"
-              />
-            </div>
-          </div>
-            <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={busy || !productId || !isLoaded}
-              onClick={() => void handleCreate()}
-            >
-              Generate client QR
             </Button>
           </CardContent>
         </Card>

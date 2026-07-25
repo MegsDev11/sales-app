@@ -9,6 +9,7 @@ import {
   towerOutageFromRow,
   towerOutageToRow,
   towerOutageUpdatesToRow,
+  towerSiteFromRow,
   towerUpdatesToRow,
   userFromRow,
   userToRow,
@@ -20,6 +21,7 @@ import type {
   Lead,
   Tower,
   TowerOutage,
+  TowerSite,
   User,
 } from "@/lib/types";
 
@@ -42,7 +44,7 @@ export type CrmFetchOptions = {
 async function fetchTowersBundle(
   supabase: NonNullable<ReturnType<typeof getSupabaseBrowserClient>>,
   accessToken?: string | null
-): Promise<{ towers: Tower[]; towerOutages: TowerOutage[] }> {
+): Promise<{ towers: Tower[]; towerOutages: TowerOutage[]; towerSites: TowerSite[] }> {
   if (accessToken) {
     const res = await fetch("/api/support/towers", {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -52,22 +54,26 @@ async function fetchTowersBundle(
       const body = (await res.json()) as {
         towers?: Tower[];
         towerOutages?: TowerOutage[];
+        towerSites?: TowerSite[];
       };
       return {
         towers: body.towers ?? [],
         towerOutages: body.towerOutages ?? [],
+        towerSites: body.towerSites ?? [],
       };
     }
   }
-  const [towersRes, outagesRes] = await Promise.all([
+  const [towersRes, outagesRes, sitesRes] = await Promise.all([
     supabase.from("towers").select("*").order("name"),
     supabase.from("tower_outages").select("*").order("started_at", { ascending: false }),
+    supabase.from("tower_sites").select("*").order("name"),
   ]);
   return {
     towers: towersRes.error ? [] : (towersRes.data ?? []).map(towerFromRow),
     towerOutages: outagesRes.error
       ? []
       : (outagesRes.data ?? []).map(towerOutageFromRow),
+    towerSites: sitesRes.error ? [] : (sitesRes.data ?? []).map(towerSiteFromRow),
   };
 }
 
@@ -91,6 +97,7 @@ export async function fetchCrmDataFromSupabase(
   let activities: Activity[] = [];
   let towers: Tower[] = [];
   let towerOutages: TowerOutage[] = [];
+  let towerSites: TowerSite[] = [];
 
   if (includeLeads) {
     const [leadsRes, activitiesRes] = await Promise.all([
@@ -107,6 +114,7 @@ export async function fetchCrmDataFromSupabase(
     const bundle = await fetchTowersBundle(supabase, accessToken);
     towers = bundle.towers;
     towerOutages = bundle.towerOutages;
+    towerSites = bundle.towerSites;
   }
 
   return {
@@ -115,6 +123,7 @@ export async function fetchCrmDataFromSupabase(
     activities,
     towers,
     towerOutages,
+    towerSites,
   };
 }
 
@@ -180,6 +189,16 @@ async function supportTowersRequest(
   }
 }
 
+export async function createTowerViaApi(
+  tower: Tower,
+  accessToken?: string | null
+): Promise<void> {
+  await supportTowersRequest(accessToken, {
+    action: "createTower",
+    tower,
+  });
+}
+
 export async function patchTower(
   id: string,
   updates: Partial<Tower>,
@@ -202,14 +221,48 @@ export async function patchTower(
   if (error) throw error;
 }
 
+export async function createTowerSiteViaApi(
+  site: TowerSite,
+  accessToken?: string | null
+): Promise<void> {
+  await supportTowersRequest(accessToken, {
+    action: "createSite",
+    site,
+  });
+}
+
+export async function patchTowerSiteViaApi(
+  siteId: string,
+  updates: Partial<TowerSite>,
+  accessToken?: string | null
+): Promise<void> {
+  await supportTowersRequest(accessToken, {
+    action: "patchSite",
+    siteId,
+    updates,
+  });
+}
+
+export async function deleteTowerSiteViaApi(
+  siteId: string,
+  accessToken?: string | null
+): Promise<void> {
+  await supportTowersRequest(accessToken, {
+    action: "deleteSite",
+    siteId,
+  });
+}
+
 export async function insertTowerOutage(
   outage: TowerOutage,
-  accessToken?: string | null
+  accessToken?: string | null,
+  siteId?: string | null
 ): Promise<void> {
   if (accessToken) {
     await supportTowersRequest(accessToken, {
       action: "createOutage",
       outage,
+      ...(siteId ? { siteId } : {}),
     });
     return;
   }
@@ -217,6 +270,20 @@ export async function insertTowerOutage(
   if (!supabase) return;
   const { error } = await supabase.from("tower_outages").insert(towerOutageToRow(outage));
   if (error) throw error;
+}
+
+export async function setSiteStatusViaApi(
+  siteId: string,
+  status: "online" | "maintenance",
+  updatedById: string,
+  accessToken: string | null | undefined
+): Promise<void> {
+  await supportTowersRequest(accessToken, {
+    action: "setSiteStatus",
+    siteId,
+    status,
+    updatedById,
+  });
 }
 
 export async function patchTowerOutage(
@@ -308,6 +375,11 @@ export function subscribeToCrmChanges(
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tower_outages" },
+        onChange
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tower_sites" },
         onChange
       );
   }

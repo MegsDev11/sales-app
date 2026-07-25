@@ -1,4 +1,14 @@
-import type { FieldJob, JobStatus, LeaveType, TimeEntry, TimeOffRequest, TimeOffStatus } from "@megs/shared";
+import type {
+  FieldJob,
+  JobStatus,
+  LeaveType,
+  OtMode,
+  OtSettings,
+  TimeEntry,
+  TimeOffRequest,
+  TimeOffStatus,
+} from "@megs/shared";
+import { DEFAULT_OT_SETTINGS } from "@megs/shared";
 
 export function jobFromRow(
   row: {
@@ -15,14 +25,33 @@ export function jobFromRow(
     created_by: string | null;
     created_at: string;
     updated_at: string;
+    source?: string | null;
+    tower_id?: string | null;
+    tower_site_id?: string | null;
+    job_type?: string | null;
+    location_lat?: number | null;
+    location_lng?: number | null;
+    client_pppoe?: string | null;
   },
   technicianIds: string[] = []
 ): FieldJob {
+  const source =
+    row.source === "owner" || row.source === "support" || row.source === "coordination"
+      ? row.source
+      : "coordination";
   return {
     id: row.id,
     leadId: row.lead_id,
     title: row.title,
     address: row.address ?? "",
+    locationLat:
+      typeof row.location_lat === "number" && Number.isFinite(row.location_lat)
+        ? row.location_lat
+        : null,
+    locationLng:
+      typeof row.location_lng === "number" && Number.isFinite(row.location_lng)
+        ? row.location_lng
+        : null,
     clientName: row.client_name,
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
@@ -33,6 +62,11 @@ export function jobFromRow(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     technicianIds,
+    source,
+    towerId: row.tower_id ?? null,
+    towerSiteId: row.tower_site_id ?? null,
+    jobType: row.job_type ?? "general",
+    clientPppoe: row.client_pppoe ?? "",
   };
 }
 
@@ -63,6 +97,31 @@ export function timeEntryFromRow(row: {
     source: row.source === "manual" ? "manual" : "mobile",
     editedBy: row.edited_by,
     createdAt: row.created_at,
+  };
+}
+
+export function otSettingsFromRow(row: {
+  id: string;
+  mode: string;
+  daily_threshold_minutes: number;
+  weekly_threshold_minutes: number;
+  weekend_as_ot: boolean;
+  updated_at: string;
+  updated_by: string | null;
+} | null | undefined): OtSettings {
+  if (!row) return { ...DEFAULT_OT_SETTINGS };
+  const mode: OtMode =
+    row.mode === "weekly" || row.mode === "both" || row.mode === "daily"
+      ? row.mode
+      : "daily";
+  return {
+    id: row.id,
+    mode,
+    dailyThresholdMinutes: row.daily_threshold_minutes,
+    weeklyThresholdMinutes: row.weekly_threshold_minutes,
+    weekendAsOt: row.weekend_as_ot,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
   };
 }
 

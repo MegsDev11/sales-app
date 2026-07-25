@@ -212,6 +212,51 @@ export interface Database {
         };
         Relationships: [];
       };
+      tower_sites: {
+        Row: {
+          id: string;
+          area_id: string;
+          name: string;
+          voltage: string;
+          throughput_mbps: number | null;
+          equipment: Json;
+          maintenance_notes: string;
+          upgrade_plan: string;
+          status: string;
+          updated_at: string;
+          updated_by_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          area_id: string;
+          name: string;
+          voltage?: string;
+          throughput_mbps?: number | null;
+          equipment?: Json;
+          maintenance_notes?: string;
+          upgrade_plan?: string;
+          status?: string;
+          updated_at?: string;
+          updated_by_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          area_id?: string;
+          name?: string;
+          voltage?: string;
+          throughput_mbps?: number | null;
+          equipment?: Json;
+          maintenance_notes?: string;
+          upgrade_plan?: string;
+          status?: string;
+          updated_at?: string;
+          updated_by_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       tower_outages: {
         Row: {
           id: string;
@@ -818,6 +863,13 @@ export interface Database {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          source: string;
+          tower_id: string | null;
+          job_type: string;
+          tower_site_id: string | null;
+          location_lat: number | null;
+          location_lng: number | null;
+          client_pppoe: string;
         };
         Insert: {
           id: string;
@@ -833,6 +885,13 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          source?: string;
+          tower_id?: string | null;
+          job_type?: string;
+          tower_site_id?: string | null;
+          location_lat?: number | null;
+          location_lng?: number | null;
+          client_pppoe?: string;
         };
         Update: {
           id?: string;
@@ -848,6 +907,13 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          source?: string;
+          tower_id?: string | null;
+          job_type?: string;
+          tower_site_id?: string | null;
+          location_lat?: number | null;
+          location_lng?: number | null;
+          client_pppoe?: string;
         };
         Relationships: [];
       };
@@ -904,6 +970,105 @@ export interface Database {
           changed_by?: string | null;
           lat?: number | null;
           lng?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      job_card_submissions: {
+        Row: {
+          id: string;
+          job_id: string;
+          technician_id: string;
+          status: string;
+          payload: Json;
+          submitted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          job_id: string;
+          technician_id: string;
+          status?: string;
+          payload?: Json;
+          submitted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          job_id?: string;
+          technician_id?: string;
+          status?: string;
+          payload?: Json;
+          submitted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      vehicles: {
+        Row: {
+          id: string;
+          brand: string;
+          number_plate: string;
+          technician_id: string;
+          qr_token: string;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          brand?: string;
+          number_plate: string;
+          technician_id: string;
+          qr_token: string;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          brand?: string;
+          number_plate?: string;
+          technician_id?: string;
+          qr_token?: string;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      fuel_entries: {
+        Row: {
+          id: string;
+          vehicle_id: string;
+          technician_id: string;
+          litres: number;
+          location: string;
+          price: number;
+          recorded_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          vehicle_id: string;
+          technician_id: string;
+          litres: number;
+          location?: string;
+          price: number;
+          recorded_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          vehicle_id?: string;
+          technician_id?: string;
+          litres?: number;
+          location?: string;
+          price?: number;
+          recorded_at?: string;
           created_at?: string;
         };
         Relationships: [];
@@ -998,6 +1163,36 @@ export interface Database {
           review_note?: string;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ot_settings: {
+        Row: {
+          id: string;
+          mode: string;
+          daily_threshold_minutes: number;
+          weekly_threshold_minutes: number;
+          weekend_as_ot: boolean;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          mode?: string;
+          daily_threshold_minutes?: number;
+          weekly_threshold_minutes?: number;
+          weekend_as_ot?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          mode?: string;
+          daily_threshold_minutes?: number;
+          weekly_threshold_minutes?: number;
+          weekend_as_ot?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
         };
         Relationships: [];
       };
@@ -1169,6 +1364,7 @@ export type TeamMemberRow = Database["public"]["Tables"]["team_members"]["Row"];
 export type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 export type ActivityRow = Database["public"]["Tables"]["activities"]["Row"];
 export type TowerRow = Database["public"]["Tables"]["towers"]["Row"];
+export type TowerSiteRow = Database["public"]["Tables"]["tower_sites"]["Row"];
 export type TowerOutageRow = Database["public"]["Tables"]["tower_outages"]["Row"];
 export type StockProductRow = Database["public"]["Tables"]["stock_products"]["Row"];
 export type StockSundryRow = Database["public"]["Tables"]["stock_sundries"]["Row"];

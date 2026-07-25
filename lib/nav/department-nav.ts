@@ -5,6 +5,8 @@ import {
   Briefcase,
   Building2,
   CalendarOff,
+  Car,
+  ClipboardCheck,
   ClipboardList,
   Clock,
   Contact,
@@ -60,15 +62,22 @@ export const stockNavItems: NavItem[] = [
   { href: "/stock", label: "Overview", icon: LayoutDashboard, stockOnly: true },
   { href: "/stock/inventory", label: "Inventory", icon: Package, stockOnly: true },
   { href: "/stock/booked-out", label: "Booked Out", icon: Truck, stockOnly: true },
-  { href: "/stock/qr", label: "Generate QR", icon: QrCode, stockOnly: true },
+  { href: "/stock/qr", label: "Stock QR", icon: QrCode, stockOnly: true },
+  { href: "/stock/vehicles", label: "Vehicle QRs", icon: Car, stockOnly: true },
   { href: "/stock/client-qrs", label: "Client QRs", icon: Contact, stockOnly: true },
   { href: "/stock/requests", label: "Requests", icon: ClipboardList, stockOnly: false },
   { href: "/stock/scan", label: "Scan", icon: ScanLine, stockOnly: true },
 ];
 
+export const financialNavItems: NavItem[] = [
+  { href: "/financial", label: "Overview", icon: LayoutDashboard },
+  { href: "/financial/fuel", label: "Fuel", icon: Truck },
+];
+
 export const coordinationNavItems: NavItem[] = [
   { href: "/coordination", label: "Overview", icon: LayoutDashboard, short: "Home" },
   { href: "/coordination/jobs", label: "Jobs", icon: Briefcase, short: "Jobs" },
+  { href: "/coordination/job-cards", label: "Job cards", icon: ClipboardCheck, short: "Cards" },
   { href: "/coordination/timesheets", label: "Timesheets", icon: Clock, short: "Time" },
   { href: "/coordination/time-off", label: "Time off", icon: CalendarOff, short: "Leave" },
   { href: "/coordination/requests", label: "Pick lists", icon: ClipboardList, short: "Lists" },

@@ -8,10 +8,12 @@ export function ScannerShell({
   title,
   help,
   onToken,
+  extractToken = extractStockQrToken,
 }: {
   title: string;
   help: string;
   onToken: (token: string) => Promise<void>;
+  extractToken?: (raw: string) => string;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [manual, setManual] = useState("");
@@ -20,7 +22,7 @@ export function ScannerShell({
 
   async function handleRaw(raw: string) {
     if (busy || locked) return;
-    const token = extractStockQrToken(raw);
+    const token = extractToken(raw);
     if (!token) return;
     setBusy(true);
     setLocked(true);

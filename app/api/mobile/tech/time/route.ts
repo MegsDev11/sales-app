@@ -1,38 +1,102 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_OT_SETTINGS } from "@megs/shared";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuthenticated } from "@/lib/supabase/server-auth";
-import { makeId, migrationHint, timeEntryFromRow } from "@/lib/mobile/field-mappers";
+import {
+  makeId,
+  migrationHint,
+  otSettingsFromRow,
+  timeEntryFromRow,
+} from "@/lib/mobile/field-mappers";
+
+async function loadOtSettings(
+  supabase: ReturnType<typeof createSupabaseAdminClient>
+) {
+  const { data, error } = await supabase
+    .from("ot_settings")
+    .select("*")
+    .eq("id", "default")
+    .maybeSingle();
+  if (error) {
+    // Table may not be migrated yet — fall back to defaults
+    if (/does not exist|schema cache/i.test(error.message)) {
+      return { ...DEFAULT_OT_SETTINGS };
+    }
+    throw new Error(migrationHint(error.message, "028_overtime_settings.sql"));
+  }
+  return otSettingsFromRow(data);
+}
 
 export async function GET(request: Request) {
   const user = await requireAuthenticated(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
+  const url = new URL(request.url);
+  const fromParam = url.searchParams.get("from");
+  const toParam = url.searchParams.get("to");
+
   const supabase = createSupabaseAdminClient();
   try {
-    // Prefer team_members.id; also match auth uuid if older rows used it
     const techIds = [user.id];
     if (user.authUserId && user.authUserId !== user.id) {
       techIds.push(user.authUserId);
     }
 
-    // From start of current week (UTC-safe lower bound: 8 days ago)
-    const since = new Date();
-    since.setDate(since.getDate() - 8);
-    since.setHours(0, 0, 0, 0);
+    let since: Date;
+    let until: Date | null = null;
+    if (fromParam) {
+      since = new Date(fromParam);
+      if (Number.isNaN(since.getTime())) {
+        return NextResponse.json({ error: "Invalid from" }, { status: 400 });
+      }
+    } else {
+      since = new Date();
+      since.setDate(1);
+      since.setHours(0, 0, 0, 0);
+    }
+    if (toParam) {
+      until = new Date(toParam);
+      if (Number.isNaN(until.getTime())) {
+        return NextResponse.json({ error: "Invalid to" }, { status: 400 });
+      }
+    }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("time_entries")
       .select("*")
       .in("technician_id", techIds)
       .gte("clock_in_at", since.toISOString())
       .order("clock_in_at", { ascending: false })
-      .limit(200);
+      .limit(500);
+    if (until) {
+      query = query.lt("clock_in_at", until.toISOString());
+    }
+
+    const [{ data, error }, otSettings] = await Promise.all([
+      query,
+      loadOtSettings(supabase),
+    ]);
     if (error) throw new Error(migrationHint(error.message, "021_field_jobs_timesheets.sql"));
 
-    const open = (data ?? []).find((e) => !e.clock_out_at);
+    // Active open shift may start before `from` — fetch separately
+    const { data: openRows } = await supabase
+      .from("time_entries")
+      .select("*")
+      .in("technician_id", techIds)
+      .is("clock_out_at", null)
+      .order("clock_in_at", { ascending: false })
+      .limit(1);
+
+    const entries = (data ?? []).map(timeEntryFromRow);
+    const open = openRows?.[0] ? timeEntryFromRow(openRows[0]) : null;
+    if (open && !entries.some((e) => e.id === open.id)) {
+      entries.unshift(open);
+    }
+
     return NextResponse.json({
-      entries: (data ?? []).map(timeEntryFromRow),
-      active: open ? timeEntryFromRow(open) : null,
+      entries,
+      active: open,
+      otSettings,
     });
   } catch (e) {
     return NextResponse.json(

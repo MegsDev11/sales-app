@@ -24,13 +24,13 @@ export default function TechProfile() {
             icon="🕘"
             iconBg="#EDE9FE"
             label="My submissions"
-            onPress={() => router.push("/(tech)/search")}
+            onPress={() => router.push("/(tech)/updates")}
           />
           <MenuRow
             icon="📥"
             iconBg="#CCFBF1"
             label="Shared with me"
-            onPress={() => router.push("/(tech)/search")}
+            onPress={() => router.push("/(tech)/updates")}
           />
         </View>
 

@@ -35,3 +35,8 @@ export function stockItemPublicUrl(qrToken: string) {
   if (typeof window === "undefined") return `/i/${qrToken}`;
   return `${window.location.origin}/i/${qrToken}`;
 }
+
+export function vehiclePublicUrl(qrToken: string) {
+  if (typeof window === "undefined") return `/v/${qrToken}`;
+  return `${window.location.origin}/v/${qrToken}`;
+}

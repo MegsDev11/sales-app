@@ -3,8 +3,10 @@
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Send } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useSupportAccess } from "@/lib/hooks/use-support-access";
+import { isOwner } from "@/lib/permissions";
 import type { ClientSupportRequest, ClientSupportRequestStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  CoordinationJobRequestDialog,
+  type CoordinationJobRequestPayload,
+} from "@/components/support/coordination-job-request-dialog";
 
 const STATUS_LABELS: Record<ClientSupportRequestStatus, string> = {
   new: "New",
@@ -33,13 +39,16 @@ const CATEGORY_LABELS: Record<ClientSupportRequest["category"], string> = {
 
 export default function SupportRequestsPage() {
   const { allowed, isLoading } = useSupportAccess();
-  const { accessToken } = useAuth();
+  const { accessToken, currentUser, isOwner: ownerFlag } = useAuth();
   const [requests, setRequests] = useState<ClientSupportRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [success, setSuccess] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [jobRequest, setJobRequest] = useState<ClientSupportRequest | null>(null);
+  const [jobBusy, setJobBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -103,6 +112,43 @@ export default function SupportRequestsPage() {
     }
   }
 
+  async function submitServiceCall(payload: CoordinationJobRequestPayload) {
+    if (!accessToken || !jobRequest || !currentUser) return;
+    setJobBusy(true);
+    setMsg("");
+    setSuccess("");
+    try {
+      const source = ownerFlag || isOwner(currentUser) ? "owner" : "support";
+      const res = await fetch("/api/coordination/jobs", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "create",
+          title: payload.title,
+          notes: payload.notes,
+          address: payload.address,
+          clientName: payload.clientName || jobRequest.clientName || null,
+          jobType: "service_call",
+          source,
+          technicianIds: [],
+          scheduledStart: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create job");
+      const clientLabel = jobRequest.clientName || "client";
+      setJobRequest(null);
+      setSuccess(`Service call sent to coordination for ${clientLabel}.`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Failed to send service call");
+    } finally {
+      setJobBusy(false);
+    }
+  }
+
   return (
     <PageShell>
       <PageHeader
@@ -113,6 +159,11 @@ export default function SupportRequestsPage() {
       {msg && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {msg}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {success}
         </div>
       )}
 
@@ -127,7 +178,9 @@ export default function SupportRequestsPage() {
           <SelectTrigger className="w-[200px]">
             <SelectValue>
               {(value) =>
-                !value || value === "all" ? "All statuses" : STATUS_LABELS[value as ClientSupportRequestStatus]
+                !value || value === "all"
+                  ? "All statuses"
+                  : STATUS_LABELS[value as ClientSupportRequestStatus]
               }
             </SelectValue>
           </SelectTrigger>
@@ -183,19 +236,63 @@ export default function SupportRequestsPage() {
                       key={status}
                       size="sm"
                       variant={req.status === status ? "default" : "outline"}
-                      className={req.status === status ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
+                      className={
+                        req.status === status
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                          : ""
+                      }
                       disabled={busyId === req.id || req.status === status}
                       onClick={() => void updateStatus(req.id, status)}
                     >
                       {STATUS_LABELS[status]}
                     </Button>
                   ))}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSuccess("");
+                      setMsg("");
+                      setJobRequest(req);
+                    }}
+                  >
+                    <Send className="mr-1 h-4 w-4" />
+                    Send to coordination
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      <CoordinationJobRequestDialog
+        open={!!jobRequest}
+        onOpenChange={(open) => !open && setJobRequest(null)}
+        onSubmit={submitServiceCall}
+        busy={jobBusy}
+        heading={`Book service call — ${jobRequest?.clientName || "Client"}`}
+        description="Sends a job card to coordination (tagged from support). They can assign a technician to book the visit."
+        defaultTitle={`Service call — ${jobRequest?.clientName || "Client"}`}
+        defaultNotes={
+          jobRequest
+            ? [
+                `${CATEGORY_LABELS[jobRequest.category]}: ${jobRequest.description}`,
+                jobRequest.productName
+                  ? `Device: ${jobRequest.productName}${
+                      jobRequest.deviceLabel ? ` · ${jobRequest.deviceLabel}` : ""
+                    }`
+                  : "",
+                `QR support request: ${jobRequest.id}`,
+              ]
+                .filter(Boolean)
+                .join("\n\n")
+            : ""
+        }
+        defaultAddress={jobRequest?.clientAddress ?? ""}
+        defaultClientName={jobRequest?.clientName ?? ""}
+        submitLabel="Send to coordination"
+      />
     </PageShell>
   );
 }

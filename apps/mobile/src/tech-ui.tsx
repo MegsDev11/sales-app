@@ -152,6 +152,8 @@ export function GradientJobCard({
   dateLabel,
   category = "Jobs",
   index = 0,
+  statusLabel,
+  sourceLabel,
   onPress,
 }: {
   title: string;
@@ -160,6 +162,8 @@ export function GradientJobCard({
   dateLabel: string;
   category?: string;
   index?: number;
+  statusLabel?: string;
+  sourceLabel?: string;
   onPress?: () => void;
 }) {
   const gradient = jobGradients[index % jobGradients.length];
@@ -195,6 +199,20 @@ export function GradientJobCard({
           <Text style={styles.jobSubtitle} numberOfLines={1}>
             {subtitle}
           </Text>
+        ) : null}
+        {statusLabel || sourceLabel ? (
+          <View style={styles.jobBadges}>
+            {statusLabel ? (
+              <View style={styles.jobBadge}>
+                <Text style={styles.jobBadgeText}>{statusLabel}</Text>
+              </View>
+            ) : null}
+            {sourceLabel ? (
+              <View style={[styles.jobBadge, styles.jobBadgeSource]}>
+                <Text style={styles.jobBadgeText}>{sourceLabel}</Text>
+              </View>
+            ) : null}
+          </View>
         ) : null}
       </LinearGradient>
     </Pressable>
@@ -532,6 +550,28 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.85)",
     marginTop: 6,
     fontSize: 13,
+  },
+  jobBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10,
+    justifyContent: "center",
+  },
+  jobBadge: {
+    backgroundColor: "rgba(0,0,0,0.22)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  jobBadgeSource: {
+    backgroundColor: "rgba(255,255,255,0.22)",
+  },
+  jobBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "capitalize",
   },
   quickAction: {
     flex: 1,
