@@ -1,20 +1,25 @@
-import type { Department, User, UserRole } from "@/lib/types";
+import { can, canAny, homeRoute, isOwnerRole } from "@/lib/access";
+import { moduleForDepartment } from "@/lib/modules";
+import type { Department, ModuleKey, User, UserRole } from "@/lib/types";
 
-export type OwnerSection =
-  | "company"
-  | "sales"
-  | "stock"
-  | "coordination"
-  | "support"
-  | "wireless"
-  | "fiber"
-  | "financial"
-  | "general"
-  | "accounts"
-  | "reception"
-  | "staff";
+/**
+ * COMPATIBILITY LAYER.
+ *
+ * Every function here keeps the exact name and signature it had under the old
+ * one-department-per-user model, but is now backed by module grants (lib/access.ts).
+ * 48 files import from here, so preserving the surface avoided a 48-file rewrite in
+ * the same change that swapped the security model — one risky thing at a time.
+ *
+ * For new code, prefer the direct API:
+ *   can(user, 'wireless', 'edit')      instead of   canAccessWireless(user)
+ *   visibleModules(user)               instead of   the OwnerSection list
+ *
+ * These wrappers can be inlined and deleted incrementally.
+ */
 
-/** Departments that currently only have placeholder home pages. */
+export type OwnerSection = ModuleKey | "company";
+
+/** Modules with no real screens yet — they render the placeholder shell. */
 export const PLACEHOLDER_DEPARTMENTS = [
   "fiber",
   "general",
@@ -48,6 +53,13 @@ export function isPlaceholderDepartment(
   );
 }
 
+/**
+ * Legacy role/department normaliser.
+ *
+ * The 'admin'/'sales' role values predate the owner/manager/staff hierarchy in
+ * migration 003. Kept because rows written before that migration may still carry
+ * them; safe to delete once the database has no such rows.
+ */
 export function normalizeRoleAndDepartment(
   role: string,
   department: string | null | undefined
@@ -67,89 +79,99 @@ export function normalizeRoleAndDepartment(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Role helpers
+// ---------------------------------------------------------------------------
+
 export function isOwner(user: User | null | undefined): boolean {
-  return user?.role === "owner";
+  return isOwnerRole(user);
 }
 
+/**
+ * "Manager" now means `manage` on the module, not the legacy role column.
+ * A Finance manager granted Wireless at `manage` is a wireless manager too, which
+ * is the whole point of the new model.
+ */
 export function isManager(user: User | null | undefined, department?: Department): boolean {
-  if (!user || user.role !== "manager") return false;
-  if (!department) return true;
-  return user.department === department;
+  if (!user) return false;
+  if (!department) {
+    return isOwnerRole(user) || user.role === "manager";
+  }
+  const moduleKey = moduleForDepartment(department);
+  return moduleKey ? can(user, moduleKey, "manage") : false;
 }
 
 export function isSalesManager(user: User | null | undefined): boolean {
-  return isManager(user, "sales");
+  return can(user, "crm", "manage");
 }
 
 export function isSupportManager(user: User | null | undefined): boolean {
-  return isManager(user, "support");
+  return can(user, "support", "manage");
 }
 
 export function isSalesStaff(user: User | null | undefined): boolean {
-  return user?.role === "staff" && user.department === "sales";
+  return can(user, "crm", "edit") && !can(user, "crm", "manage");
 }
 
 export function isSupportStaff(user: User | null | undefined): boolean {
-  return user?.role === "staff" && user.department === "support";
+  return can(user, "support", "edit") && !can(user, "support", "manage");
 }
+
+// ---------------------------------------------------------------------------
+// Module access
+// ---------------------------------------------------------------------------
 
 export function canCreateAccounts(user: User | null | undefined): boolean {
-  return isOwner(user);
+  return can(user, "admin", "manage");
 }
 
+/** Sales management screens: team, analytics, overview. */
 export function canAccessSalesAdmin(user: User | null | undefined): boolean {
-  return isOwner(user) || isSalesManager(user);
-}
-
-export function canAccessSupport(user: User | null | undefined): boolean {
-  if (!user) return false;
-  if (isOwner(user)) return true;
-  return user.department === "support";
-}
-
-export function canAccessStock(user: User | null | undefined): boolean {
-  if (!user) return false;
-  if (isOwner(user)) return true;
-  return user.department === "stock";
-}
-
-export function canAccessCoordination(user: User | null | undefined): boolean {
-  if (!user) return false;
-  if (isOwner(user)) return true;
-  return user.department === "coordination";
+  return can(user, "crm", "manage");
 }
 
 export function canAccessDepartment(
   user: User | null | undefined,
   department: Department
 ): boolean {
-  if (!user) return false;
-  if (isOwner(user)) return true;
-  return user.department === department;
+  const moduleKey = moduleForDepartment(department);
+  return moduleKey ? can(user, moduleKey) : false;
+}
+
+export function canAccessSupport(user: User | null | undefined): boolean {
+  return can(user, "support");
+}
+
+export function canAccessStock(user: User | null | undefined): boolean {
+  return can(user, "stock");
+}
+
+export function canAccessCoordination(user: User | null | undefined): boolean {
+  return can(user, "coordination");
 }
 
 export function canAccessWireless(user: User | null | undefined): boolean {
-  return canAccessDepartment(user, "wireless");
+  return can(user, "wireless");
 }
 
 export function canAccessFiber(user: User | null | undefined): boolean {
-  return canAccessDepartment(user, "fiber");
+  return can(user, "fiber");
 }
 
 export function canAccessFinancial(user: User | null | undefined): boolean {
-  return canAccessDepartment(user, "financial");
+  return can(user, "financial");
 }
 
 export function canAccessGeneral(user: User | null | undefined): boolean {
-  return canAccessDepartment(user, "general");
+  return can(user, "general");
 }
 
 export function canAccessAccounts(user: User | null | undefined): boolean {
-  return canAccessDepartment(user, "accounts");
+  return can(user, "accounts");
 }
 
 export function canAccessReception(user: User | null | undefined): boolean {
-  return canAccessDepartment(user, "reception");
+  return can(user, "reception");
 }
 
 export function canAccessPlaceholderDepartment(
@@ -159,26 +181,33 @@ export function canAccessPlaceholderDepartment(
   return canAccessDepartment(user, department);
 }
 
-/** Stock dashboard pages (inventory, scan, fulfill). */
+/** Stock dashboard pages (inventory, scan, fulfil). */
 export function canManageStock(user: User | null | undefined): boolean {
-  return canAccessStock(user);
+  return can(user, "stock", "edit");
 }
 
-/** Create / view stock pick lists (coordination + stock + owner). */
+/** Create / view stock pick lists — stock or coordination. */
 export function canAccessStockRequests(user: User | null | undefined): boolean {
-  return canAccessStock(user) || canAccessCoordination(user);
+  return canAny(user, ["stock", "coordination"]);
 }
+
+// ---------------------------------------------------------------------------
+// User management
+// ---------------------------------------------------------------------------
 
 export function canManageUser(actor: User, target: User): boolean {
-  if (isOwner(actor)) return true;
-  if (isSalesManager(actor) && target.role === "staff" && target.department === "sales") {
+  if (can(actor, "admin", "manage")) return true;
+  if (actor.id === target.id) return true;
+  // A module manager may manage staff whose home department maps to that module.
+  const targetModule = moduleForDepartment(target.department);
+  if (targetModule && can(actor, targetModule, "manage") && target.role === "staff") {
     return true;
   }
-  return actor.id === target.id;
+  return false;
 }
 
 export function getVisibleUsers(actor: User, allUsers: User[]): User[] {
-  if (isOwner(actor)) return allUsers;
+  if (can(actor, "staff", "view") || can(actor, "admin", "view")) return allUsers;
   if (isSalesManager(actor)) {
     return allUsers.filter((u) => u.department === "sales" || u.role === "owner");
   }
@@ -207,8 +236,12 @@ export function getFieldTechnicians(users: User[]): User[] {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Labels and routing
+// ---------------------------------------------------------------------------
+
 export function getDepartmentLabel(department: Department): string {
-  return DEPARTMENT_LABELS[department];
+  return DEPARTMENT_LABELS[department] ?? department;
 }
 
 export function getUserBadgeLabel(user: User): string | null {
@@ -228,12 +261,5 @@ export function getDefaultTitle(role: UserRole, department: Department | null): 
 }
 
 export function getHomeRoute(user: User): string {
-  if (isOwner(user)) return "/company";
-  if (user.department === "support") return "/support";
-  if (user.department === "stock") return "/stock";
-  if (user.department === "coordination") return "/coordination";
-  if (user.department === "wireless") return "/wireless";
-  if (isPlaceholderDepartment(user.department)) return `/${user.department}`;
-  if (canAccessSalesAdmin(user)) return "/dashboard";
-  return "/board";
+  return homeRoute(user);
 }

@@ -30,7 +30,7 @@ export async function fetchStaffUsersFromSupabase(): Promise<User[]> {
   if (!supabase) throw new Error("Supabase client unavailable");
   const usersRes = await supabase.from("team_members").select("*").order("name");
   if (usersRes.error) throw usersRes.error;
-  return (usersRes.data ?? []).map(userFromRow);
+  return (usersRes.data ?? []).map((row) => userFromRow(row));
 }
 
 export type CrmFetchOptions = {

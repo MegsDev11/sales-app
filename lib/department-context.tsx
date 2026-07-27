@@ -8,21 +8,16 @@ import {
   useMemo,
   useState,
 } from "react";
+import { MODULE_KEYS } from "@/lib/modules";
 import type { OwnerSection } from "@/lib/permissions";
-import { PLACEHOLDER_DEPARTMENTS } from "@/lib/permissions";
 
 const STORAGE_KEY = "megs-owner-section";
 
-const VALID_SECTIONS: OwnerSection[] = [
-  "company",
-  "sales",
-  "stock",
-  "coordination",
-  "support",
-  "wireless",
-  ...PLACEHOLDER_DEPARTMENTS,
-  "staff",
-];
+/**
+ * Which module the sidebar is currently expanded into. Derived from the module
+ * registry, so adding a module needs no change here.
+ */
+const VALID_SECTIONS: OwnerSection[] = ["company", ...MODULE_KEYS];
 
 interface DepartmentContextValue {
   activeSection: OwnerSection;

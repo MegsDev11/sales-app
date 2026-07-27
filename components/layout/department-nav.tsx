@@ -2,22 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Building2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useOwnerSection } from "@/lib/department-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { isInLeadInbox } from "@/lib/utils/leads";
-import {
-  canAccessCoordination,
-  canAccessFinancial,
-  canAccessStock,
-  canAccessSupport,
-  canAccessWireless,
-  getDepartmentLabel,
-  isPlaceholderDepartment,
-  PLACEHOLDER_DEPARTMENTS,
-  type OwnerSection,
-  type PlaceholderDepartment,
-} from "@/lib/permissions";
+import { can, navItemsFor } from "@/lib/access";
+import { moduleForPath, type ModuleDef } from "@/lib/modules";
+import type { OwnerSection } from "@/lib/permissions";
 import {
   MobileNavShell,
   NavSectionLabel,
@@ -26,52 +18,23 @@ import {
   navBadgeClass,
   navItemClass,
 } from "@/components/layout/page-shell";
-import {
-  coordinationNavItems,
-  financialNavItems,
-  isNavActive,
-  salesManagerNavItems,
-  salesStaffNavItems,
-  stockNavItems,
-  supportNavItems,
-  type NavItem,
-  wirelessNavItems,
-} from "@/lib/nav/department-nav";
-import {
-  BookUser,
-  Briefcase,
-  Building2,
-  Cable,
-  ConciergeBell,
-  Headphones,
-  Kanban,
-  LayoutDashboard,
-  Network,
-  Package,
-  UserCog,
-  Wallet,
-  Wifi,
-} from "lucide-react";
+import { isNavActive, type NavItem } from "@/lib/nav/department-nav";
 
-const ownerSections: {
-  id: OwnerSection;
-  label: string;
-  icon: typeof Building2;
-  href: string;
-}[] = [
-  { id: "company", label: "Company", icon: Building2, href: "/company" },
-  { id: "sales", label: "Sales", icon: Kanban, href: "/dashboard" },
-  { id: "support", label: "Support", icon: Headphones, href: "/support" },
-  { id: "stock", label: "Stock", icon: Package, href: "/stock" },
-  { id: "coordination", label: "Coordination", icon: Network, href: "/coordination" },
-  { id: "wireless", label: "Wireless", icon: Wifi, href: "/wireless" },
-  { id: "fiber", label: "Fiber", icon: Cable, href: "/fiber" },
-  { id: "financial", label: "Financial", icon: Wallet, href: "/financial" },
-  { id: "general", label: "General", icon: Briefcase, href: "/general" },
-  { id: "accounts", label: "Accounts", icon: BookUser, href: "/accounts" },
-  { id: "reception", label: "Reception", icon: ConciergeBell, href: "/reception" },
-  { id: "staff", label: "Staff Accounts", icon: UserCog, href: "/staff" },
-];
+/**
+ * Registry-driven navigation.
+ *
+ * This file used to be 510 lines: a hardcoded `ownerSections` array, a `showXNav`
+ * boolean per department, and an if-chain in DashboardNav with one branch per
+ * department. Adding a module meant editing all three. It now renders whatever
+ * `visibleModules(user)` returns, so a module appears the moment someone is granted
+ * it — no code change, no deployment.
+ */
+
+const GROUP_LABELS: Record<ModuleDef["group"], string> = {
+  commercial: "Commercial",
+  operations: "Operations",
+  admin: "Administration",
+};
 
 function NavLinks({
   items,
@@ -111,21 +74,13 @@ function NavLinks({
   );
 }
 
-function MobileLinks({
-  items,
-  root,
-  labelFn,
-}: {
-  items: NavItem[];
-  root: string;
-  labelFn?: (item: NavItem) => string;
-}) {
+function MobileLinks({ items, root }: { items: NavItem[]; root: string }) {
   const pathname = usePathname();
   return (
     <>
       {items.map((item) => {
         const Icon = item.icon;
-        const label = labelFn?.(item) ?? item.short ?? item.label.split(" ")[0];
+        const label = item.short ?? item.label.split(" ")[0];
         return (
           <Link
             key={item.href}
@@ -141,369 +96,161 @@ function MobileLinks({
   );
 }
 
-function OwnerNav({ variant }: { variant: "sidebar" | "mobile" }) {
+/** Sidebar for anyone with more than one module: switcher plus the active sub-nav. */
+function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const { activeSection, setActiveSection } = useOwnerSection();
+  const { currentUser, isOwner } = useAuth();
   const { leads } = useCrmStore();
-  const unassignedCount = leads.filter(isInLeadInbox).length;
+  const unassignedCount = can(currentUser, "crm", "manage")
+    ? leads.filter(isInLeadInbox).length
+    : 0;
 
-  if (variant === "mobile") {
-    const items = [
-      { href: "/company", label: "Company", section: "company" as const },
-      { href: "/dashboard", label: "Sales", section: "sales" as const },
-      { href: "/staff", label: "Staff", section: "staff" as const },
-    ];
-    return (
-      <MobileNavShell>
-        {items.map((item) => {
-          const active = pathname.startsWith(item.href);
-          return (
-            <button
-              key={item.href}
-              type="button"
-              onClick={() => {
-                setActiveSection(item.section);
-                router.push(item.href);
-              }}
-              className={mobileNavItemClass(active)}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </MobileNavShell>
-    );
-  }
+  // The module owning the current URL beats the remembered section, so deep links
+  // and browser-back land on the correct sub-nav.
+  const pathModule = moduleForPath(pathname);
+  const activeKey: OwnerSection =
+    pathModule && modules.some((m) => m.key === pathModule.key)
+      ? pathModule.key
+      : activeSection;
 
-  const salesPaths = salesManagerNavItems.map((i) => i.href);
-  const supportPaths = supportNavItems.map((i) => i.href);
-  const stockPaths = stockNavItems.map((i) => i.href);
-  const coordinationPaths = coordinationNavItems.map((i) => i.href);
-  const wirelessPaths = wirelessNavItems.map((i) => i.href);
-  const financialPaths = financialNavItems.map((i) => i.href);
-  const placeholderPaths = PLACEHOLDER_DEPARTMENTS.map((dept) => `/${dept}`);
+  const activeModule = modules.find((m) => m.key === activeKey) ?? null;
 
-  const showSalesNav = activeSection === "sales" || salesPaths.some((p) => pathname.startsWith(p));
-  const showSupportNav =
-    activeSection === "support" || supportPaths.some((p) => pathname.startsWith(p));
-  const showStockNav =
-    activeSection === "stock" || stockPaths.some((p) => pathname.startsWith(p));
-  const showCoordinationNav =
-    activeSection === "coordination" ||
-    coordinationPaths.some((p) => pathname.startsWith(p));
-  const showWirelessNav =
-    activeSection === "wireless" || wirelessPaths.some((p) => pathname.startsWith(p));
-  const showFinancialNav =
-    activeSection === "financial" || financialPaths.some((p) => pathname.startsWith(p));
-  const activePlaceholder = PLACEHOLDER_DEPARTMENTS.find(
-    (dept) =>
-      activeSection === dept ||
-      pathname === `/${dept}` ||
-      pathname.startsWith(`/${dept}/`)
-  );
+  let lastGroup: ModuleDef["group"] | null = null;
 
   return (
     <SidebarShell>
-      <NavSectionLabel>Departments</NavSectionLabel>
-      {ownerSections.map((section) => {
-        const Icon = section.icon;
-        const isActive =
-          section.id === activeSection ||
-          (section.id === "sales" && salesPaths.some((p) => pathname.startsWith(p))) ||
-          (section.id === "support" && supportPaths.some((p) => pathname.startsWith(p))) ||
-          (section.id === "stock" && stockPaths.some((p) => pathname.startsWith(p))) ||
-          (section.id === "coordination" &&
-            coordinationPaths.some((p) => pathname.startsWith(p))) ||
-          (section.id === "wireless" && wirelessPaths.some((p) => pathname.startsWith(p))) ||
-          (section.id === "financial" && financialPaths.some((p) => pathname.startsWith(p))) ||
-          (placeholderPaths.includes(section.href) &&
-            (pathname === section.href || pathname.startsWith(`${section.href}/`)));
-        return (
+      {isOwner ? (
+        <>
+          <NavSectionLabel>Company</NavSectionLabel>
           <button
-            key={section.id}
             type="button"
             onClick={() => {
-              setActiveSection(section.id);
-              router.push(section.href);
+              setActiveSection("company");
+              router.push("/company");
             }}
-            className={navItemClass(isActive)}
+            className={navItemClass(pathname === "/company")}
           >
-            <Icon className="h-4 w-4 shrink-0" />
-            {section.label}
+            <Building2 className="h-4 w-4 shrink-0" />
+            Company Overview
           </button>
+        </>
+      ) : null}
+
+      {modules.map((mod) => {
+        const Icon = mod.icon;
+        const showGroup = mod.group !== lastGroup;
+        lastGroup = mod.group;
+        return (
+          <div key={mod.key}>
+            {showGroup ? (
+              <NavSectionLabel className="mt-3">{GROUP_LABELS[mod.group]}</NavSectionLabel>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection(mod.key);
+                router.push(mod.root);
+              }}
+              className={navItemClass(activeKey === mod.key)}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {mod.label}
+            </button>
+          </div>
         );
       })}
 
-      {showSalesNav ? (
+      {activeModule ? (
         <>
-          <NavSectionLabel className="mt-3">Sales</NavSectionLabel>
+          <NavSectionLabel className="mt-3">{activeModule.label}</NavSectionLabel>
           <NavLinks
-            items={salesManagerNavItems}
-            root="/dashboard"
+            items={navItemsFor(currentUser, activeModule.key)}
+            root={activeModule.root}
             badgeHref="/inbox"
-            badgeCount={unassignedCount}
-            onNavigate={() => setActiveSection("sales")}
+            badgeCount={activeModule.key === "crm" ? unassignedCount : 0}
+            onNavigate={() => setActiveSection(activeModule.key)}
           />
-        </>
-      ) : null}
-
-      {showSupportNav ? (
-        <>
-          <NavSectionLabel className="mt-3">Support</NavSectionLabel>
-          <NavLinks
-            items={supportNavItems}
-            root="/support"
-            onNavigate={() => setActiveSection("support")}
-          />
-        </>
-      ) : null}
-
-      {showStockNav ? (
-        <>
-          <NavSectionLabel className="mt-3">Stock</NavSectionLabel>
-          <NavLinks
-            items={stockNavItems}
-            root="/stock"
-            onNavigate={() => setActiveSection("stock")}
-          />
-        </>
-      ) : null}
-
-      {showCoordinationNav ? (
-        <>
-          <NavSectionLabel className="mt-3">Coordination</NavSectionLabel>
-          <NavLinks
-            items={coordinationNavItems}
-            root="/coordination"
-            onNavigate={() => setActiveSection("coordination")}
-          />
-        </>
-      ) : null}
-
-      {showWirelessNav ? (
-        <>
-          <NavSectionLabel className="mt-3">Wireless</NavSectionLabel>
-          <NavLinks
-            items={wirelessNavItems}
-            root="/wireless"
-            onNavigate={() => setActiveSection("wireless")}
-          />
-        </>
-      ) : null}
-
-      {showFinancialNav ? (
-        <>
-          <NavSectionLabel className="mt-3">Financial</NavSectionLabel>
-          <NavLinks
-            items={financialNavItems}
-            root="/financial"
-            onNavigate={() => setActiveSection("financial")}
-          />
-        </>
-      ) : null}
-
-      {activePlaceholder ? (
-        <>
-          <NavSectionLabel className="mt-3">
-            {ownerSections.find((s) => s.id === activePlaceholder)?.label}
-          </NavSectionLabel>
-          <Link
-            href={`/${activePlaceholder}`}
-            onClick={() => setActiveSection(activePlaceholder)}
-            className={navItemClass(
-              pathname === `/${activePlaceholder}` ||
-                pathname.startsWith(`/${activePlaceholder}/`)
-            )}
-          >
-            <LayoutDashboard className="h-4 w-4 shrink-0" />
-            Overview
-          </Link>
         </>
       ) : null}
     </SidebarShell>
   );
 }
 
-function DepartmentLinks({
-  variant,
-  label,
-  items,
-  root,
-  badgeHref,
-  badgeCount,
-  mobileLabelFn,
-}: {
-  variant: "sidebar" | "mobile";
-  label: string;
-  items: NavItem[];
-  root: string;
-  badgeHref?: string;
-  badgeCount?: number;
-  mobileLabelFn?: (item: NavItem) => string;
-}) {
-  if (variant === "mobile") {
-    return (
-      <MobileNavShell>
-        <MobileLinks items={items} root={root} labelFn={mobileLabelFn} />
-      </MobileNavShell>
-    );
-  }
-  return (
-    <SidebarShell>
-      <NavSectionLabel>{label}</NavSectionLabel>
-      <NavLinks items={items} root={root} badgeHref={badgeHref} badgeCount={badgeCount} />
-    </SidebarShell>
-  );
-}
-
-function PlaceholderNav({
-  variant,
-  department,
-}: {
-  variant: "sidebar" | "mobile";
-  department: PlaceholderDepartment;
-}) {
-  const pathname = usePathname();
-  const href = `/${department}`;
-  const label = getDepartmentLabel(department);
-  const active = pathname === href || pathname.startsWith(`${href}/`);
-
-  if (variant === "mobile") {
-    return (
-      <MobileNavShell>
-        <Link href={href} className={mobileNavItemClass(active)}>
-          {label}
-        </Link>
-      </MobileNavShell>
-    );
-  }
-
-  return (
-    <SidebarShell>
-      <NavSectionLabel>{label}</NavSectionLabel>
-      <Link href={href} className={navItemClass(active)}>
-        <LayoutDashboard className="h-4 w-4 shrink-0" />
-        Overview
-      </Link>
-    </SidebarShell>
-  );
-}
-
-/** Single nav entry for all department shells (sidebar or bottom mobile). */
-export function DashboardNav({ variant }: { variant: "sidebar" | "mobile" }) {
-  const { isOwner, isAdmin, currentUser } = useAuth();
+/** Sidebar for a single-module user — no switcher, straight to the pages. */
+function SingleModuleSidebar({ module }: { module: ModuleDef }) {
+  const { currentUser } = useAuth();
   const { leads } = useCrmStore();
+  const unassignedCount = can(currentUser, "crm", "manage")
+    ? leads.filter(isInLeadInbox).length
+    : 0;
 
-  if (!currentUser) return null;
-
-  if (isOwner) return <OwnerNav variant={variant} />;
-
-  if (canAccessSupport(currentUser) && currentUser.department === "support") {
-    return (
-      <DepartmentLinks
-        variant={variant}
-        label="Support"
-        items={supportNavItems}
-        root="/support"
-        mobileLabelFn={(item) => item.label.split(" ")[0]}
+  return (
+    <SidebarShell>
+      <NavSectionLabel>{module.label}</NavSectionLabel>
+      <NavLinks
+        items={navItemsFor(currentUser, module.key)}
+        root={module.root}
+        badgeHref="/inbox"
+        badgeCount={module.key === "crm" ? unassignedCount : 0}
       />
-    );
-  }
+    </SidebarShell>
+  );
+}
 
-  if (canAccessStock(currentUser) && currentUser.department === "stock") {
-    return (
-      <DepartmentLinks
-        variant={variant}
-        label="Stock"
-        items={stockNavItems}
-        root="/stock"
-        mobileLabelFn={(item) =>
-          item.href === "/stock/qr"
-            ? "QR"
-            : item.href === "/stock/vehicles"
-              ? "Fleet"
-              : item.href === "/stock/client-qrs"
-                ? "Clients"
-                : item.href === "/stock/inventory"
-                  ? "Stock"
-                  : item.href === "/stock/booked-out"
-                    ? "Out"
-                    : item.href === "/stock/requests"
-                      ? "Lists"
-                      : item.label
-        }
-      />
-    );
-  }
+function MobileNav({ modules }: { modules: ModuleDef[] }) {
+  const pathname = usePathname();
+  const { currentUser } = useAuth();
 
-  if (canAccessCoordination(currentUser) && currentUser.department === "coordination") {
-    return (
-      <DepartmentLinks
-        variant={variant}
-        label="Coordination"
-        items={coordinationNavItems}
-        root="/coordination"
-        mobileLabelFn={(item) => item.short ?? item.label}
-      />
-    );
-  }
+  const pathModule = moduleForPath(pathname);
+  const activeModule =
+    (pathModule && modules.find((m) => m.key === pathModule.key)) ??
+    (modules.length === 1 ? modules[0] : null);
 
-  if (canAccessWireless(currentUser) && currentUser.department === "wireless") {
-    return (
-      <DepartmentLinks
-        variant={variant}
-        label="Wireless"
-        items={wirelessNavItems}
-        root="/wireless"
-      />
-    );
-  }
-
-  if (canAccessFinancial(currentUser) && currentUser.department === "financial") {
-    return (
-      <DepartmentLinks
-        variant={variant}
-        label="Financial"
-        items={financialNavItems}
-        root="/financial"
-      />
-    );
-  }
-
-  if (isPlaceholderDepartment(currentUser.department)) {
-    return (
-      <PlaceholderNav
-        variant={variant}
-        department={currentUser.department as PlaceholderDepartment}
-      />
-    );
-  }
-
-  const salesItems = isAdmin ? salesManagerNavItems : salesStaffNavItems;
-  const unassignedCount = isAdmin ? leads.filter(isInLeadInbox).length : 0;
-  const mobileItems = salesItems.slice(0, 5);
-
-  if (variant === "mobile") {
+  // Inside a module: show its pages. Otherwise: show the modules themselves.
+  if (activeModule) {
     return (
       <MobileNavShell>
         <MobileLinks
-          items={mobileItems}
-          root="/dashboard"
-          labelFn={(item) => item.label.split(" ")[0]}
+          items={navItemsFor(currentUser, activeModule.key).slice(0, 5)}
+          root={activeModule.root}
         />
       </MobileNavShell>
     );
   }
 
   return (
-    <DepartmentLinks
-      variant="sidebar"
-      label="Sales"
-      items={salesItems}
-      root="/dashboard"
-      badgeHref="/inbox"
-      badgeCount={unassignedCount}
-    />
+    <MobileNavShell>
+      {modules.slice(0, 5).map((mod) => {
+        const Icon = mod.icon;
+        return (
+          <Link
+            key={mod.key}
+            href={mod.root}
+            className={mobileNavItemClass(pathname.startsWith(mod.root))}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="truncate px-1">{mod.label.split(" ")[0]}</span>
+          </Link>
+        );
+      })}
+    </MobileNavShell>
   );
+}
+
+/** Single nav entry point for every dashboard shell. */
+export function DashboardNav({ variant }: { variant: "sidebar" | "mobile" }) {
+  const { currentUser, modules, isOwner } = useAuth();
+
+  if (!currentUser) return null;
+  if (modules.length === 0) return null;
+
+  if (variant === "mobile") return <MobileNav modules={modules} />;
+
+  if (modules.length === 1 && !isOwner) {
+    return <SingleModuleSidebar module={modules[0]} />;
+  }
+
+  return <MultiModuleSidebar modules={modules} />;
 }

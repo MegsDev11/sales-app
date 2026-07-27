@@ -17,7 +17,9 @@ import {
   getHomeRoute,
   isOwner,
 } from "@/lib/permissions";
-import type { User } from "@/lib/types";
+import { accessLevel, can as canAccess, visibleModules } from "@/lib/access";
+import type { ModuleDef } from "@/lib/modules";
+import type { AccessLevel, ModuleKey, User } from "@/lib/types";
 
 interface AuthContextValue {
   currentUser: User | null;
@@ -28,22 +30,60 @@ interface AuthContextValue {
   isAdmin: boolean;
   canCreateAccounts: boolean;
   accessToken: string | null;
+  /** `can('wireless', 'edit')` — bound to the signed-in user. */
+  can: (module: ModuleKey, level?: AccessLevel) => boolean;
+  /** Resolved level for a module, for showing "View only" style hints. */
+  levelFor: (module: ModuleKey) => AccessLevel;
+  /** Modules this user may open, in display order — drives the sidebar. */
+  modules: ModuleDef[];
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/**
+ * Load the signed-in staff member together with their module grants.
+ *
+ * The grants must come down with the session — the entire sidebar, every route
+ * guard and every `can(...)` check reads them. RLS on `user_module_access` limits
+ * this to the caller's own rows (migration 040), so no extra filtering is needed.
+ */
 async function fetchTeamMember(authUserId: string): Promise<User | null> {
   const supabase = getSupabaseAuthClient();
   if (!supabase) return null;
 
+  // team_members.id normally holds the Auth UUID, but rows created before
+  // migration 002 link through auth_user_id instead. Try both.
   const { data, error } = await supabase
     .from("team_members")
     .select("*")
-    .eq("id", authUserId)
+    .or(`id.eq.${authUserId},auth_user_id.eq.${authUserId}`)
+    .limit(1)
     .maybeSingle();
 
   if (error || !data) return null;
-  return userFromRow(data);
+
+  const memberId = data.id as string;
+  const templateId = (data as { template_id?: string | null }).template_id ?? null;
+
+  const [grantsResult, templateResult] = await Promise.all([
+    supabase
+      .from("user_module_access")
+      .select("module_key, level, expires_at")
+      .eq("user_id", memberId),
+    templateId
+      ? supabase
+          .from("access_template_modules")
+          .select("module_key, level")
+          .eq("template_id", templateId)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  // A missing table means migration 040 has not been applied yet. Fall back to a
+  // grant-less user rather than locking everyone out of the app.
+  const grants = grantsResult.error ? [] : (grantsResult.data ?? []);
+  const templateGrants = templateResult.error ? [] : (templateResult.data ?? []);
+
+  return userFromRow(data, grants, templateGrants);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -140,6 +180,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAdmin: canAccessSalesAdmin(currentUser),
       canCreateAccounts: canCreateAccounts(currentUser),
       accessToken,
+      can: (module: ModuleKey, level: AccessLevel = "view") =>
+        canAccess(currentUser, module, level),
+      levelFor: (module: ModuleKey) => accessLevel(currentUser, module),
+      modules: visibleModules(currentUser),
     }),
     [currentUser, isLoading, login, logout, accessToken]
   );

@@ -1,3 +1,8 @@
+/**
+ * Org structure — where a person sits in the company. Since migration 040 this is a
+ * foreign key to the `departments` table, so new departments are rows, not a schema
+ * change. It no longer decides what the software shows you; module grants do.
+ */
 export type Department =
   | "sales"
   | "stock"
@@ -9,6 +14,58 @@ export type Department =
   | "general"
   | "accounts"
   | "reception";
+
+/**
+ * A feature area of the software. Granted per user, independently of department —
+ * this is what the super admin ticks on/off in /admin.
+ *
+ * Note `crm` is the module behind the `sales` department (the only rename); every
+ * other module key matches its department key.
+ */
+export type ModuleKey =
+  | "crm"
+  | "reception"
+  | "accounts"
+  | "support"
+  | "coordination"
+  | "scheduler"
+  | "stock"
+  | "procurement"
+  | "wireless"
+  | "fiber"
+  | "projects"
+  | "financial"
+  | "general"
+  | "staff"
+  | "admin";
+
+/** Ordered. Each level includes everything below it. */
+export type AccessLevel = "none" | "view" | "edit" | "manage";
+
+/** Resolved grants for a user: module -> level. Absent key means "none". */
+export type AccessMap = Partial<Record<ModuleKey, AccessLevel>>;
+
+export interface ModuleGrant {
+  moduleKey: ModuleKey;
+  level: AccessLevel;
+  expiresAt?: string | null;
+}
+
+export interface AccessTemplate {
+  id: string;
+  name: string;
+  description: string;
+  modules: ModuleGrant[];
+}
+
+export interface DepartmentRecord {
+  key: string;
+  label: string;
+  managerId?: string | null;
+  parentKey?: string | null;
+  sortOrder: number;
+  active: boolean;
+}
 
 export type TowerStatus = "online" | "offline" | "maintenance";
 
@@ -80,8 +137,20 @@ export interface User {
   technicianLevel?: "junior" | "senior";
   phone?: string;
   idNumber?: string;
-  /** Decrypted only for owner via /api/users credentials. */
+  /**
+   * A freshly generated password, returned ONCE at creation or reset time so the
+   * owner can hand it over. Never persisted in plaintext or recoverable later —
+   * see migration 044 and app/api/users/route.ts.
+   */
   loginPassword?: string;
+  /**
+   * Resolved module grants (direct grants merged over the template).
+   * Populated by userFromRow when grant rows are supplied; owners resolve to
+   * "manage" everywhere via the access helpers regardless of what is stored here.
+   */
+  access?: AccessMap;
+  /** Access template applied to this user, if any. */
+  templateId?: string | null;
 }
 
 export type UserFormData = Omit<User, "id" | "authUserId">;

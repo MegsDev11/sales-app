@@ -151,6 +151,12 @@ export async function POST(request: Request) {
       if (!account) {
         return NextResponse.json({ error: "Account not found" }, { status: 404 });
       }
+      if (!account.auth_user_id) {
+        return NextResponse.json(
+          { error: "This account has no linked auth user." },
+          { status: 400 }
+        );
+      }
 
       const { error: updateErr } = await supabase.auth.admin.updateUserById(
         account.auth_user_id,

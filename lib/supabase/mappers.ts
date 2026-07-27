@@ -38,12 +38,33 @@ import type {
   TowerRow,
   TowerSiteRow,
 } from "@/lib/supabase/database.types";
+import { buildAccessMap } from "@/lib/access";
 import { normalizeRoleAndDepartment } from "@/lib/permissions";
 
-export function userFromRow(row: TeamMemberRow): User {
+/**
+ * Raw grant rows as they come back from `user_module_access` /
+ * `access_template_modules`. Kept loose so callers can pass Supabase rows straight in.
+ */
+export interface RawGrantRow {
+  module_key: string;
+  level: string;
+  expires_at?: string | null;
+}
+
+export function userFromRow(
+  row: TeamMemberRow,
+  grants?: RawGrantRow[],
+  templateGrants?: RawGrantRow[]
+): User {
   const { role, department } = normalizeRoleAndDepartment(row.role, row.department);
+  const templateId =
+    (row as TeamMemberRow & { template_id?: string | null }).template_id ?? null;
   return {
     id: row.id,
+    ...(grants || templateGrants
+      ? { access: buildAccessMap(grants ?? [], templateGrants ?? []) }
+      : {}),
+    templateId,
     name: row.name,
     email: row.email ?? "",
     role,

@@ -135,7 +135,7 @@ export default function StockRequestsPage() {
       );
     } else {
       setAllocLeadId("");
-      setAllocClientName(scannedItem.clientName || requestLead?.clientName || "");
+      setAllocClientName(scannedItem.clientName || "");
       setAllocClientAddress(scannedItem.clientAddress ?? "");
       setAllocPppoe(scannedItem.clientPppoe ?? "");
       setAllocWifiName(scannedItem.wifiName ?? "");
