@@ -138,4 +138,20 @@ export const STRUCTURE_KIND_LABELS: Record<NetworkStructureKind, string> = {
   fence: "Fence",
 };
 
-export type PaletteTool = NetworkNodeKind | "cable" | NetworkStructureKind;
+export type PaletteTool =
+  | "select"
+  | NetworkNodeKind
+  | "cable"
+  | NetworkStructureKind;
+
+/** Accent colour per device kind — used for node cards, palette, and the legend. */
+export const NODE_KIND_ACCENT: Record<NetworkNodeKind, string> = {
+  network_point: "#2563eb",
+  server_rack: "#0f172a",
+  switch: "#0891b2",
+  ptz_camera: "#7c3aed",
+  printer: "#475569",
+  nec_phone: "#0d9488",
+  ruijie_router: "#c83733",
+  label: "#94a3b8",
+};

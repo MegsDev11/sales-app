@@ -4,11 +4,13 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
-import { PageShell } from "@/components/layout/page-shell";
+import { PageShell, Panel } from "@/components/layout/page-shell";
 import { LayoutCanvas } from "@/components/wireless/layout-canvas";
 import { DeviceStatusBadge } from "@/components/wireless/device-status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { ChevronLeft, RefreshCw, Save, Send } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -130,58 +132,92 @@ export default function WirelessLayoutEditorPage({
     );
   }
 
+  const status = layout?.status ?? "draft";
+  const clientName = leadId
+    ? clients.find((c) => c.id === leadId)?.clientName ?? null
+    : null;
+
   return (
     <PageShell>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/wireless/layouts" className="text-sm text-primary hover:underline">
-            ← Layouts
-          </Link>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="max-w-md font-semibold"
-            />
-            <span className="text-xs uppercase text-muted-foreground">
-              {layout?.status ?? "draft"}
-            </span>
+      {/* Header */}
+      <div className="flex flex-col gap-3 border-b border-border pb-4">
+        <Link
+          href="/wireless/layouts"
+          className="inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" /> All layouts
+        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Untitled layout"
+                className="h-9 max-w-md border-transparent bg-transparent px-1 text-lg font-semibold tracking-tight shadow-none hover:border-border focus:border-border"
+              />
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+                  status === "published"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-900"
+                )}
+              >
+                {status}
+              </span>
+            </div>
+            <p className="mt-1 px-1 text-xs text-muted-foreground">
+              {clientName ? `Client: ${clientName}` : "No client assigned"}
+              {devices.length > 0 && ` · ${devices.length} Ruijie device${devices.length === 1 ? "" : "s"}`}
+            </p>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => void doSync()}>
-            Sync Ruijie
-          </Button>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void save()}>
-            Save
-          </Button>
-          <Button
-            type="button"
-            disabled={busy}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => void save("published")}
-          >
-            Publish
-          </Button>
-          {leadId && (
-            <Link
-              href={`/wireless/clients/${leadId}`}
-              className={buttonVariants({ variant: "ghost", size: "sm" })}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void doSync()}>
+              <RefreshCw className="h-3.5 w-3.5" /> Sync Ruijie
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void save()}
             >
-              Client profile
-            </Link>
-          )}
+              <Save className="h-3.5 w-3.5" /> Save
+            </Button>
+            <Button type="button" size="sm" disabled={busy} onClick={() => void save("published")}>
+              <Send className="h-3.5 w-3.5" /> Publish
+            </Button>
+            {leadId && (
+              <Link
+                href={`/wireless/clients/${leadId}`}
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                Client profile
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
       {(error || msg || ruijieMsg) && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+        <div
+          className={cn(
+            "rounded-md border px-3 py-2.5 text-sm",
+            error
+              ? "border-red-200 bg-red-50 text-red-900"
+              : "border-emerald-200 bg-emerald-50 text-emerald-900"
+          )}
+        >
           {error || msg || ruijieMsg}
         </div>
       )}
 
+      {/* Client assignment */}
       <div className="max-w-sm">
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">Client</label>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Assigned client
+        </label>
         <Select
           value={leadId || "__none__"}
           onValueChange={(v) => setLeadId(!v || v === "__none__" ? "" : String(v))}
@@ -212,67 +248,76 @@ export default function WirelessLayoutEditorPage({
         onChange={setCanvas}
       />
 
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Ruijie devices on this layout</h2>
-        {devices.length === 0 && (
-          <p className="text-sm text-muted-foreground">
+      {/* Ruijie device provisioning */}
+      <Panel
+        title="Ruijie devices on this layout"
+        description="Serial and external ID map canvas nodes to live gear. Status can be overridden manually."
+        padded={false}
+      >
+        {devices.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-muted-foreground">
             Place Ruijie Router / AP nodes, then Save — device rows are created automatically.
           </p>
-        )}
-        {devices.map((d) => (
-          <div
-            key={d.id}
-            className="flex flex-wrap items-center gap-2 rounded border px-3 py-2 text-sm"
-          >
-            <span className="font-medium">{d.label || d.nodeId}</span>
-            <DeviceStatusBadge status={d.status} />
-            {d.manualOverride && (
-              <span className="text-[10px] uppercase text-muted-foreground">manual</span>
-            )}
-            <Input
-              className="h-8 max-w-[140px]"
-              placeholder="Serial"
-              value={d.serialNumber ?? ""}
-              onChange={(e) =>
-                setDevices((prev) =>
-                  prev.map((x) =>
-                    x.id === d.id ? { ...x, serialNumber: e.target.value || null } : x
-                  )
-                )
-              }
-            />
-            <Input
-              className="h-8 max-w-[140px]"
-              placeholder="External ID"
-              value={d.externalId ?? ""}
-              onChange={(e) =>
-                setDevices((prev) =>
-                  prev.map((x) =>
-                    x.id === d.id ? { ...x, externalId: e.target.value || null } : x
-                  )
-                )
-              }
-            />
-            <Select
-              value={d.status}
-              onValueChange={(v) =>
-                void overrideStatus(d.id, (v as NetworkDeviceStatus) || "unknown")
-              }
-            >
-              <SelectTrigger className="h-8 w-[120px]">
-                <SelectValue>
-                  {(value) => String(value ?? "unknown")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="online">online</SelectItem>
-                <SelectItem value="offline">offline</SelectItem>
-                <SelectItem value="unknown">unknown</SelectItem>
-              </SelectContent>
-            </Select>
+        ) : (
+          <div className="divide-y divide-border">
+            {devices.map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm"
+              >
+                <div className="flex min-w-[140px] items-center gap-2">
+                  <span className="font-medium">{d.label || d.nodeId}</span>
+                  {d.manualOverride && (
+                    <span className="rounded bg-muted px-1 text-[10px] uppercase text-muted-foreground">
+                      manual
+                    </span>
+                  )}
+                </div>
+                <DeviceStatusBadge status={d.status} />
+                <Input
+                  className="h-8 max-w-[150px]"
+                  placeholder="Serial"
+                  value={d.serialNumber ?? ""}
+                  onChange={(e) =>
+                    setDevices((prev) =>
+                      prev.map((x) =>
+                        x.id === d.id ? { ...x, serialNumber: e.target.value || null } : x
+                      )
+                    )
+                  }
+                />
+                <Input
+                  className="h-8 max-w-[150px]"
+                  placeholder="External ID"
+                  value={d.externalId ?? ""}
+                  onChange={(e) =>
+                    setDevices((prev) =>
+                      prev.map((x) =>
+                        x.id === d.id ? { ...x, externalId: e.target.value || null } : x
+                      )
+                    )
+                  }
+                />
+                <Select
+                  value={d.status}
+                  onValueChange={(v) =>
+                    void overrideStatus(d.id, (v as NetworkDeviceStatus) || "unknown")
+                  }
+                >
+                  <SelectTrigger className="h-8 w-[120px]">
+                    <SelectValue>{(value) => String(value ?? "unknown")}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="online">online</SelectItem>
+                    <SelectItem value="offline">offline</SelectItem>
+                    <SelectItem value="unknown">unknown</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+      </Panel>
     </PageShell>
   );
 }
