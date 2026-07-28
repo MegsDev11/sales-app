@@ -11,6 +11,11 @@ import {
 } from "@/components/coordination/technician-create-form";
 import { TechnicianCreateDialog } from "@/components/coordination/technician-create-dialog";
 import { TechnicianEditDialog } from "@/components/coordination/technician-edit-dialog";
+import {
+  TechnicianDocsDialog,
+  expiryStatus,
+  type TechnicianDocument,
+} from "@/components/coordination/technician-docs-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +33,7 @@ import {
   Mail,
   Pencil,
   Phone,
+  FileText,
   Plus,
   Radio,
   Search,
@@ -126,6 +132,10 @@ export default function CoordinationTechniciansPage() {
   const [editMsg, setEditMsg] = useState("");
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [revealedCodes, setRevealedCodes] = useState<Record<string, boolean>>({});
+  const [docsFor, setDocsFor] = useState<User | null>(null);
+  const [docMeta, setDocMeta] = useState<
+    Pick<TechnicianDocument, "id" | "technician_id" | "expires_on">[]
+  >([]);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -138,9 +148,37 @@ export default function CoordinationTechniciansPage() {
     setLoaded(true);
   }, [accessToken]);
 
+  const loadDocMeta = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const res = await fetch("/api/coordination/technicians/documents", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (res.ok) setDocMeta(data.documents ?? []);
+    } catch {
+      // Documents are additive — a missing migration shouldn't break the roster.
+    }
+  }, [accessToken]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadDocMeta();
+  }, [load, loadDocMeta]);
+
+  const docSummary = useMemo(() => {
+    const map = new Map<string, { count: number; expired: number; soon: number }>();
+    for (const d of docMeta) {
+      const entry = map.get(d.technician_id) ?? { count: 0, expired: 0, soon: 0 };
+      entry.count += 1;
+      const status = expiryStatus(d.expires_on);
+      if (status?.tone === "danger") entry.expired += 1;
+      else if (status?.tone === "warn") entry.soon += 1;
+      map.set(d.technician_id, entry);
+    }
+    return map;
+  }, [docMeta]);
 
   const activeTechs = useMemo(() => techs.filter((u) => u.active !== false), [techs]);
   const inactiveTechs = useMemo(() => techs.filter((u) => u.active === false), [techs]);
@@ -518,6 +556,35 @@ export default function CoordinationTechniciansPage() {
                       </div>
                     </div>
 
+                    {/* Docs & qualifications */}
+                    {(() => {
+                      const summary = docSummary.get(tech.id);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setDocsFor(tech)}
+                          className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-2.5 py-2 text-xs transition-colors hover:bg-muted"
+                        >
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                            Docs &amp; qualifications
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            {summary?.expired ? (
+                              <Badge className="border-red-200 bg-red-50 text-[10px] text-red-700">
+                                {summary.expired} expired
+                              </Badge>
+                            ) : summary?.soon ? (
+                              <Badge className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+                                {summary.soon} expiring
+                              </Badge>
+                            ) : null}
+                            <span className="text-muted-foreground">{summary?.count ?? 0}</span>
+                          </span>
+                        </button>
+                      );
+                    })()}
+
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => openEdit(tech)}>
@@ -613,6 +680,14 @@ export default function CoordinationTechniciansPage() {
         msg={addMsg}
         busy={busy}
         onAdd={() => void handleAdd()}
+      />
+
+      <TechnicianDocsDialog
+        technician={docsFor}
+        open={!!docsFor}
+        onOpenChange={(open) => !open && setDocsFor(null)}
+        accessToken={accessToken ?? ""}
+        onChanged={() => void loadDocMeta()}
       />
 
       <TechnicianEditDialog
