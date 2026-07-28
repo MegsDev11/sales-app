@@ -283,7 +283,7 @@ export default function StaffPage() {
                 autoComplete="new-password"
               />
             </div>
-            {changeError && <p className="text-sm text-primary">{changeError}</p>}
+            {changeError && <p className="text-sm text-destructive">{changeError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangeUser(null)}>

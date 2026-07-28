@@ -24,7 +24,7 @@ import {
   winRate,
 } from "@/lib/analytics/metrics";
 import type { Department } from "@/lib/types";
-import { AlertTriangle, Radio, Target, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, Calendar, Lock, Radio, ShieldCheck, Target, TrendingUp, Users } from "lucide-react";
 
 /**
  * Company overview — the owner's landing page.
@@ -35,7 +35,7 @@ import { AlertTriangle, Radio, Target, TrendingUp, Users } from "lucide-react";
  */
 export default function CompanyPage() {
   const { isOwner, can } = useAuth();
-  const { users, leads, towers, towerOutages } = useCrmStore();
+  const { users, leads, towers, towerOutages, isLoaded, dbError } = useCrmStore();
 
   const metrics = useMemo(() => {
     const revenue = revenueByMonth(leads, 6);
@@ -83,12 +83,40 @@ export default function CompanyPage() {
   if (!isOwner) {
     return (
       <PageShell>
-        <PageHeader title="Company Overview" />
+        <PageHeader
+          title="Company Overview"
+          description="Company-wide performance across every department"
+        />
         <Panel title="Owner only">
-          <p className="text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4 shrink-0" />
             This page is limited to the company owner.
           </p>
         </Panel>
+      </PageShell>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <PageShell>
+        <PageHeader
+          title="Company Overview"
+          description="Megs Waterberg — every department at a glance"
+        />
+        <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+          <div className="h-40 animate-pulse rounded-lg border border-border bg-muted/40" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-lg border border-border bg-muted/40" />
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-64 animate-pulse rounded-lg border border-border bg-muted/40" />
+          ))}
+        </div>
       </PageShell>
     );
   }
@@ -125,7 +153,7 @@ export default function CompanyPage() {
         actions={
           <div className="flex gap-2">
             <Link href="/scheduler" className={buttonVariants({ variant: "outline" })}>
-              Scheduler
+              <Calendar className="mr-1.5 h-4 w-4" /> Scheduler
             </Link>
             <Link
               href="/admin"
@@ -133,11 +161,18 @@ export default function CompanyPage() {
                 className: "bg-primary text-primary-foreground hover:bg-primary/90",
               })}
             >
-              Access control
+              <ShieldCheck className="mr-1.5 h-4 w-4" /> Access control
             </Link>
           </div>
         }
       />
+
+      {dbError ? (
+        <AlertBanner tone="danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">Could not load company data — {dbError}</span>
+        </AlertBanner>
+      ) : null}
 
       {alerts.length > 0 ? (
         <div className="space-y-2">

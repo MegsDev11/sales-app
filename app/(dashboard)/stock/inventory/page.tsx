@@ -349,7 +349,7 @@ function StockInventoryPageInner() {
       ) : products.length === 0 ? (
         <Card className="bg-white">
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No products yet. Run the stock migration (`007_stock_inventory.sql`) in Supabase.
+            No products are set up yet. Ask an administrator to configure the product catalogue.
           </CardContent>
         </Card>
       ) : (

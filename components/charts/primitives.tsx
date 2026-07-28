@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import { CHROME, MARKS, STATUS, compact, type StatusKey } from "@/components/charts/tokens";
@@ -153,9 +154,9 @@ export function StatTile({
 
   if (href) {
     return (
-      <a href={href} className={className}>
+      <Link href={href} className={className}>
         {body}
-      </a>
+      </Link>
     );
   }
   return <div className={className}>{body}</div>;

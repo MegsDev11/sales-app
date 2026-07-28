@@ -47,7 +47,7 @@ import { AlertTriangle, Calendar, Inbox, Kanban, Target, TrendingUp } from "luci
  */
 export default function SalesDashboardPage() {
   const { currentUser, can } = useAuth();
-  const { leads, users, activities } = useCrmStore();
+  const { leads, users, activities, isLoaded, dbError } = useCrmStore();
 
   const m = useMemo(() => {
     const revenue = revenueByMonth(leads, 6);
@@ -87,15 +87,36 @@ export default function SalesDashboardPage() {
   const focusList = (isManager ? m.overdue : myLeads.filter(isFollowUpOverdue))
     .slice(0, 6);
 
+  const headerDescription = isManager
+    ? "Pipeline health, conversion and team performance"
+    : "Your pipeline and what needs attention";
+
+  if (!isLoaded) {
+    return (
+      <PageShell>
+        <PageHeader
+          title={isManager ? "Sales Command Centre" : "Sales Overview"}
+          description={headerDescription}
+        />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-lg border border-border bg-muted/40" />
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-64 animate-pulse rounded-lg border border-border bg-muted/40" />
+          ))}
+        </div>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell>
       <PageHeader
         title={isManager ? "Sales Command Centre" : "Sales Overview"}
-        description={
-          isManager
-            ? "Pipeline health, conversion and team performance"
-            : "Your pipeline and what needs attention"
-        }
+        description={headerDescription}
         actions={
           <div className="flex gap-2">
             <Link href="/board" className={buttonVariants({ variant: "outline" })}>
@@ -115,6 +136,13 @@ export default function SalesDashboardPage() {
           </div>
         }
       />
+
+      {dbError ? (
+        <AlertBanner tone="danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">Could not load dashboard data — {dbError}</span>
+        </AlertBanner>
+      ) : null}
 
       {m.overdue.length > 0 ? (
         <AlertBanner tone="warn">
@@ -314,7 +342,13 @@ export default function SalesDashboardPage() {
         </Panel>
       ) : null}
 
-      {focusList.length > 0 ? (
+      {focusList.length === 0 ? (
+        <Panel title="Needs attention" description="Overdue follow-ups, oldest first">
+          <p className="text-sm text-muted-foreground">
+            You&apos;re all caught up — no overdue follow-ups.
+          </p>
+        </Panel>
+      ) : (
         <Panel
           title="Needs attention"
           description="Overdue follow-ups, oldest first"
@@ -342,7 +376,7 @@ export default function SalesDashboardPage() {
             ))}
           </ul>
         </Panel>
-      ) : null}
+      )}
     </PageShell>
   );
 }
