@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { Building2, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useOwnerSection } from "@/lib/department-context";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -114,7 +116,50 @@ function MobileLinks({ items, root }: { items: NavItem[]; root: string }) {
   );
 }
 
-/** Sidebar for anyone with more than one module: switcher plus the active sub-nav. */
+const COLLAPSE_KEY = "megs.nav.collapsed-groups";
+
+/** Collapsible group heading. Looks like NavSectionLabel, but it is a control. */
+function GroupHeader({
+  label,
+  collapsed,
+  count,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  count: number;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      className="group mt-3 mb-1.5 flex w-full items-center gap-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <ChevronRight
+        className={cn(
+          "h-3 w-3 shrink-0 transition-transform",
+          !collapsed && "rotate-90"
+        )}
+      />
+      <span className="flex-1 text-left">{label}</span>
+      {collapsed ? (
+        <span className="tabular-nums opacity-70">{count}</span>
+      ) : null}
+    </button>
+  );
+}
+
+/**
+ * Sidebar for anyone with more than one module.
+ *
+ * The owner holds every module, which made this a flat list of 16 buttons with
+ * the active module's pages stranded at the very bottom — so choosing Stock put
+ * its pages a screen away from the Stock button. Three changes fix that:
+ * the active module's pages now nest directly beneath it, groups collapse (the
+ * choice is remembered), and the owner-only destinations are pinned to the top.
+ */
 function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -125,6 +170,31 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
     ? leads.filter(isInLeadInbox).length
     : 0;
 
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+
+  // Read after mount rather than during render so server and client markup agree.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(COLLAPSE_KEY);
+      if (raw) setCollapsed(JSON.parse(raw) as string[]);
+    } catch {
+      // A malformed or unavailable store just means "nothing collapsed".
+    }
+  }, []);
+
+  const toggleGroup = (group: string) =>
+    setCollapsed((prev) => {
+      const next = prev.includes(group)
+        ? prev.filter((g) => g !== group)
+        : [...prev, group];
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        // Persistence is a convenience; the session still works without it.
+      }
+      return next;
+    });
+
   // The module owning the current URL beats the remembered section, so deep links
   // and browser-back land on the correct sub-nav.
   const pathModule = moduleForPath(pathname);
@@ -134,7 +204,49 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
       : activeSection;
 
   const activeModule = modules.find((m) => m.key === activeKey) ?? null;
-  const groups = groupModules(modules);
+
+  // Administration is owner-only in practice, and it is where accounts are made,
+  // so the owner gets it beside Company Overview instead of buried at the bottom.
+  const pinnedAdmin = isOwner ? modules.find((m) => m.key === "admin") ?? null : null;
+  const groups = groupModules(modules.filter((m) => m.key !== pinnedAdmin?.key));
+
+  const renderModule = (mod: ModuleDef) => {
+    const Icon = mod.icon;
+    const isActive = activeKey === mod.key;
+    const allPages = isActive ? navItemsFor(currentUser, mod.key) : [];
+    // A single page that IS the module root (Administration, Staff Performance,
+    // the placeholders) would just repeat the button's own label underneath it.
+    const pages =
+      allPages.length === 1 && allPages[0].href === mod.root ? [] : allPages;
+    return (
+      <div key={mod.key}>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSection(mod.key);
+            router.push(mod.root);
+          }}
+          className={navItemClass(isActive)}
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+          {mod.label}
+        </button>
+
+        {/* The module's pages sit under the module, not at the end of the list. */}
+        {pages.length > 0 ? (
+          <div className="mt-0.5 mb-1 ml-[1.0625rem] flex flex-col gap-0.5 border-l border-border pl-2">
+            <NavLinks
+              items={pages}
+              root={mod.root}
+              badgeHref="/inbox"
+              badgeCount={mod.key === "crm" ? unassignedCount : 0}
+              onNavigate={() => setActiveSection(mod.key)}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <SidebarShell>
@@ -152,35 +264,34 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
             <Building2 className="h-4 w-4 shrink-0" />
             Company Overview
           </button>
+          {pinnedAdmin ? renderModule(pinnedAdmin) : null}
         </>
       ) : null}
 
-      {groups.map(({ group, modules: groupModuleList }) => (
-        <div key={group}>
-          <NavSectionLabel className="mt-3">{GROUP_LABELS[group]}</NavSectionLabel>
-          <div className="flex flex-col gap-0.5">
-            {groupModuleList.map((mod) => {
-              const Icon = mod.icon;
-              return (
-                <button
-                  key={mod.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveSection(mod.key);
-                    router.push(mod.root);
-                  }}
-                  className={navItemClass(activeKey === mod.key)}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {mod.label}
-                </button>
-              );
-            })}
+      {groups.map(({ group, modules: groupModuleList }) => {
+        // Never hide the section the user is standing in.
+        const holdsActive = groupModuleList.some((m) => m.key === activeKey);
+        const isCollapsed = collapsed.includes(group) && !holdsActive;
+        return (
+          <div key={group}>
+            <GroupHeader
+              label={GROUP_LABELS[group]}
+              collapsed={isCollapsed}
+              count={groupModuleList.length}
+              onToggle={() => toggleGroup(group)}
+            />
+            {!isCollapsed ? (
+              <div className="flex flex-col gap-0.5">
+                {groupModuleList.map(renderModule)}
+              </div>
+            ) : null}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
-      {activeModule ? (
+      {/* A non-owner multi-module user has no pinned section, so if their active
+          module somehow sits outside the rendered groups, fall back to its pages. */}
+      {activeModule && !modules.some((m) => m.key === activeModule.key) ? (
         <>
           <NavSectionLabel className="mt-3">{activeModule.label}</NavSectionLabel>
           <NavLinks
