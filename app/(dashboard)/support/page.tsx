@@ -15,9 +15,30 @@ import { AlertTriangle, Radio, Users, Wifi } from "lucide-react";
 
 export default function SupportOverviewPage() {
   const { allowed, isLoading } = useSupportAccess();
-  const { towers, getActiveOutages, leads } = useCrmStore();
+  const { towers, getActiveOutages, leads, isLoaded, dbError } = useCrmStore();
 
   if (isLoading || !allowed) return null;
+
+  if (!isLoaded) {
+    return (
+      <PageShell>
+        <PageHeader
+          title="Support Overview"
+          description="Manage tower outages and client connectivity assignments"
+        />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-lg border border-border bg-muted/40" />
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-48 animate-pulse rounded-lg border border-border bg-muted/40" />
+          ))}
+        </div>
+      </PageShell>
+    );
+  }
 
   const activeOutages = getActiveOutages();
   const offlineTowers = towers.filter((t) => t.status === "offline");
@@ -39,6 +60,13 @@ export default function SupportOverviewPage() {
           </Link>
         }
       />
+
+      {dbError ? (
+        <AlertBanner tone="danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">Could not load support data — {dbError}</span>
+        </AlertBanner>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Towers" value={towers.length} icon={Radio} accent="var(--primary)" />

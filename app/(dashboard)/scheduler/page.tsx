@@ -177,7 +177,7 @@ export default function SchedulerPage() {
         }
       />
 
-      {error ? <AlertBanner tone="warn">{error}</AlertBanner> : null}
+      {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 
       {/* One filter row above everything it scopes — never per-card filters. */}
       <div className="flex flex-wrap items-center gap-2">
