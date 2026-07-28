@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
+import { AdminTabs } from "@/components/admin/admin-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -193,6 +194,8 @@ export default function AdminTemplatesPage() {
           </Button>
         }
       />
+
+      <AdminTabs />
 
       {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 

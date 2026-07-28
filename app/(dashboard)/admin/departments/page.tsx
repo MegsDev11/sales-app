@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
+import { AdminTabs } from "@/components/admin/admin-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +140,8 @@ export default function AdminDepartmentsPage() {
           </Button>
         }
       />
+
+      <AdminTabs />
 
       {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 

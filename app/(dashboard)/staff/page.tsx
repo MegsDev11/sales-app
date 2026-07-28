@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -9,7 +10,7 @@ import { getDepartmentLabel } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -20,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
-import { UserPlus, Pencil, Eye, EyeOff, KeyRound, Copy, Check } from "lucide-react";
+import { UserPlus, Pencil, Eye, EyeOff, KeyRound, Copy, Check, ShieldCheck } from "lucide-react";
 
 export default function StaffPage() {
   const { isOwner, canCreateAccounts, accessToken } = useAuth();
@@ -124,19 +125,34 @@ export default function StaffPage() {
     <PageShell>
       <PageHeader
         title="Staff Accounts"
-        description="Create and manage login accounts — owner only"
+        description="Directory of staff logins — owner only"
         actions={
           canCreateAccounts ? (
-            <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => setShowAdd(true)}
+            <Link
+              href="/admin"
+              className={buttonVariants({
+                className: "bg-primary text-primary-foreground hover:bg-primary/90",
+              })}
             >
               <UserPlus className="mr-1 h-4 w-4" />
-              Create Account
-            </Button>
+              New staff account
+            </Link>
           ) : undefined
         }
       />
+
+      {canCreateAccounts ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-4 py-2.5 text-sm">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+          <span className="flex-1 text-muted-foreground">
+            Accounts are created in <strong className="text-foreground">Administration</strong>,
+            where the login and module access are set in one step.
+          </span>
+          <Link href="/admin" className="font-medium text-primary hover:underline">
+            Open Administration
+          </Link>
+        </div>
+      ) : null}
 
       {passwordHint && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

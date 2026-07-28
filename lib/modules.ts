@@ -288,11 +288,9 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
     icon: ShieldCheck,
     group: "admin",
     root: "/admin",
-    nav: [
-      { href: "/admin", label: "Access Control", icon: ShieldCheck },
-      { href: "/admin/templates", label: "Role Templates", icon: Users },
-      { href: "/admin/departments", label: "Departments", icon: Briefcase },
-    ],
+    // One sidebar entry: staff accounts, access, templates and departments are one
+    // job done in one place, so the sections are in-page tabs rather than nav items.
+    nav: [{ href: "/admin", label: "Administration", icon: ShieldCheck }],
     pathPrefixes: ["/admin"],
     minLevel: "manage",
     sortOrder: 140,

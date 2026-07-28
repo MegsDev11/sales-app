@@ -3,12 +3,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
+import { AdminTabs } from "@/components/admin/admin-tabs";
+import { StaffAccountDialog } from "@/components/admin/staff-account-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ACCESS_LABELS, ACCESS_LEVELS } from "@/lib/access";
 import { MODULE_LIST } from "@/lib/modules";
 import type { AccessLevel, ModuleKey } from "@/lib/types";
-import { Check, Loader2, Search, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  Copy,
+  KeyRound,
+  Loader2,
+  Search,
+  ShieldCheck,
+  UserPlus,
+} from "lucide-react";
 
 interface AdminUser {
   id: string;
@@ -55,7 +72,7 @@ const GROUP_ORDER: Array<{ key: "commercial" | "operations" | "admin"; label: st
 ];
 
 export default function AdminAccessPage() {
-  const { accessToken, currentUser } = useAuth();
+  const { accessToken, currentUser, canCreateAccounts } = useAuth();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [grants, setGrants] = useState<GrantRow[]>([]);
@@ -69,7 +86,15 @@ export default function AdminAccessPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [pwUser, setPwUser] = useState<AdminUser | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwIssued, setPwIssued] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -156,28 +181,31 @@ export default function AdminAccessPage() {
     setSaved(false);
   };
 
+  async function postAccess(payload: Record<string, unknown>) {
+    if (!accessToken) throw new Error("Not signed in");
+    const res = await fetch("/api/admin/access", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? "Request failed");
+    return body;
+  }
+
   const save = async () => {
-    if (!selectedId || !accessToken) return;
+    if (!selectedId) return;
     setIsSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/access", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          action: "setAccess",
-          userId: selectedId,
-          modules: MODULE_LIST.map((m) => ({
-            moduleKey: m.key,
-            level: draft[m.key],
-          })),
-        }),
+      await postAccess({
+        action: "setAccess",
+        userId: selectedId,
+        modules: MODULE_LIST.map((m) => ({ moduleKey: m.key, level: draft[m.key] })),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to save");
       setSaved(true);
       await load();
     } catch (err) {
@@ -188,19 +216,10 @@ export default function AdminAccessPage() {
   };
 
   const applyTemplate = async (templateId: string | null) => {
-    if (!selectedId || !accessToken) return;
+    if (!selectedId) return;
     setIsSaving(true);
     try {
-      const res = await fetch("/api/admin/access", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ action: "applyTemplate", userId: selectedId, templateId }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to apply template");
+      await postAccess({ action: "applyTemplate", userId: selectedId, templateId });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to apply template");
@@ -209,17 +228,91 @@ export default function AdminAccessPage() {
     }
   };
 
+  const toggleActive = async (user: AdminUser) => {
+    setIsSaving(true);
+    try {
+      await postAccess({ action: "setActive", userId: user.id, active: !user.active });
+      setNotice(
+        user.active
+          ? `${user.name} deactivated — they can no longer sign in.`
+          : `${user.name} reactivated.`
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update account");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  async function setPassword() {
+    if (!pwUser || !accessToken) return;
+    if (newPassword.length < 8) {
+      setPwError("Password must be at least 8 characters");
+      return;
+    }
+    setIsSaving(true);
+    setPwError("");
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action: "setPassword",
+          userId: pwUser.id,
+          password: newPassword,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Could not update password");
+      setPwIssued(newPassword);
+      setNewPassword("");
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "Could not update password");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const grantedCount = (userId: string) =>
     grants.filter((g) => g.user_id === userId && g.level !== "none").length;
 
   return (
     <PageShell>
       <PageHeader
-        title="Access Control"
-        description="Grant any account access to any module. Changes take effect immediately — no redeploy."
+        title="Administration"
+        description="Staff accounts and what each of them can reach. Changes take effect immediately — no redeploy."
+        actions={
+          canCreateAccounts ? (
+            <Button
+              onClick={() => setCreateOpen(true)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <UserPlus className="mr-1.5 h-4 w-4" /> New staff account
+            </Button>
+          ) : undefined
+        }
       />
 
-      {error ? <AlertBanner tone="warn">{error}</AlertBanner> : null}
+      <AdminTabs />
+
+      {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
+      {notice ? (
+        <div className="flex items-start justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="shrink-0 text-emerald-500 hover:text-emerald-700"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Panel title="Staff" description={`${selectableUsers.length} accounts`} padded={false}>
@@ -241,7 +334,19 @@ export default function AdminAccessPage() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading…
               </div>
             ) : filteredUsers.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">No matching staff.</p>
+              <div className="p-6 text-center">
+                <UserPlus className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {selectableUsers.length === 0
+                    ? "No staff accounts yet."
+                    : "No staff match that search."}
+                </p>
+                {canCreateAccounts && selectableUsers.length === 0 ? (
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => setCreateOpen(true)}>
+                    Create the first account
+                  </Button>
+                ) : null}
+              </div>
             ) : (
               filteredUsers.map((user) => (
                 <button
@@ -280,6 +385,30 @@ export default function AdminAccessPage() {
                 ? "Ticked boxes are direct grants. Dimmed rows come from the applied template."
                 : "Tick a module to grant it, then choose how much they can do."
             }
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPwUser(selected);
+                    setNewPassword("");
+                    setPwError("");
+                    setPwIssued(null);
+                  }}
+                >
+                  <KeyRound className="mr-1 h-3.5 w-3.5" /> Set password
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSaving}
+                  onClick={() => void toggleActive(selected)}
+                >
+                  {selected.active ? "Deactivate" : "Reactivate"}
+                </Button>
+              </div>
+            }
           >
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">Template:</span>
@@ -287,6 +416,7 @@ export default function AdminAccessPage() {
                 value={selected.template_id ?? ""}
                 onChange={(e) => void applyTemplate(e.target.value || null)}
                 className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                aria-label="Role template"
               >
                 <option value="">No template</option>
                 {templates.map((t) => (
@@ -315,7 +445,6 @@ export default function AdminAccessPage() {
                         const level = draft[mod.key];
                         const inherited = inheritedLevels[mod.key];
                         const isOn = level !== "none";
-                        const effective = isOn ? level : (inherited ?? "none");
                         return (
                           <div
                             key={mod.key}
@@ -326,6 +455,12 @@ export default function AdminAccessPage() {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   toggleModule(mod.key);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === " " || e.key === "Enter") {
+                                    e.preventDefault();
+                                    toggleModule(mod.key);
+                                  }
                                 }}
                                 className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors ${
                                   isOn
@@ -367,6 +502,7 @@ export default function AdminAccessPage() {
                                 }
                                 className="h-8 rounded-md border border-border bg-background px-2 text-sm disabled:opacity-40"
                                 disabled={!isOn}
+                                aria-label={`${mod.label} access level`}
                               >
                                 {ACCESS_LEVELS.filter((l) => l !== "none").map((l) => (
                                   <option key={l} value={l}>
@@ -384,7 +520,7 @@ export default function AdminAccessPage() {
               })}
             </div>
 
-            <div className="mt-5 flex items-center gap-3">
+            <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
                 onClick={() => void save()}
                 disabled={isSaving}
@@ -399,7 +535,7 @@ export default function AdminAccessPage() {
                 )}
               </Button>
               {saved ? (
-                <span className="flex items-center gap-1 text-sm text-primary">
+                <span className="flex items-center gap-1 text-sm text-emerald-600">
                   <Check className="h-4 w-4" /> Saved — active immediately
                 </span>
               ) : null}
@@ -418,13 +554,107 @@ export default function AdminAccessPage() {
                 Choose someone on the left to grant or remove module access.
               </p>
               <p className="max-w-md text-xs text-muted-foreground">
-                Example: tick <strong>Wireless</strong> on a Finance account and they will see
-                the Wireless section the next time their session refreshes — no code change.
+                Creating an account here sets their login <em>and</em> their access in one
+                step — no need to visit a second page.
               </p>
+              {canCreateAccounts ? (
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => setCreateOpen(true)}>
+                  <UserPlus className="mr-1.5 h-4 w-4" /> New staff account
+                </Button>
+              ) : null}
             </div>
           </Panel>
         )}
       </div>
+
+      <StaffAccountDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        accessToken={accessToken ?? ""}
+        templates={templates}
+        templateModules={templateModules}
+        onCreated={(name) => {
+          setNotice(`${name} created — the account and its access are active now.`);
+          void load();
+        }}
+      />
+
+      {/* Set password */}
+      <Dialog
+        open={!!pwUser}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPwUser(null);
+            setPwIssued(null);
+            setNewPassword("");
+            setPwError("");
+          }
+        }}
+      >
+        <DialogContent className="bg-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set password{pwUser ? ` — ${pwUser.name}` : ""}</DialogTitle>
+          </DialogHeader>
+          {pwIssued ? (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                Password updated. It is shown once and never stored — copy it now.
+              </p>
+              <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+                <code className="flex-1 break-all font-mono text-sm">{pwIssued}</code>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Copy password"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(pwIssued);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 text-sm">
+              <p className="text-xs text-muted-foreground">
+                This updates their login immediately and is shown once — it is not stored in
+                readable form.
+              </p>
+              <div className="space-y-1">
+                <label className="font-medium">New password</label>
+                <Input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Min 8 characters"
+                  autoComplete="new-password"
+                />
+              </div>
+              {pwError ? <p className="text-sm text-destructive">{pwError}</p> : null}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwUser(null)}>
+              {pwIssued ? "Done" : "Cancel"}
+            </Button>
+            {!pwIssued ? (
+              <Button
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={isSaving}
+                onClick={() => void setPassword()}
+              >
+                Save password
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
