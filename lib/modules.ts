@@ -16,6 +16,7 @@ import {
   Package,
   ShieldCheck,
   ShoppingCart,
+  TrendingUp,
   Users,
   Wallet,
   Wifi,
@@ -270,14 +271,16 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
   },
   staff: {
     key: "staff",
-    label: "Staff",
-    description: "Staff directory and profiles",
-    icon: Users,
+    label: "Staff Performance",
+    description: "Performance analytics and reports per staff member",
+    icon: TrendingUp,
     group: "admin",
     root: "/staff",
-    nav: [{ href: "/staff", label: "Staff Accounts", icon: Users }],
+    // Account creation and access moved to Administration; this section is the
+    // reporting view. Its data comes from /api/staff/performance, so the CRM
+    // bundle no longer needs mounting here.
+    nav: [{ href: "/staff", label: "Performance", icon: TrendingUp }],
     pathPrefixes: ["/staff"],
-    stores: ["crm"],
     minLevel: "view",
     sortOrder: 130,
   },
