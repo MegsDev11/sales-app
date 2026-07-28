@@ -200,7 +200,12 @@ export default function AdminTemplatesPage() {
       {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <Panel title="Templates" description={`${templates.length} defined`} padded={false}>
+        <Panel
+          title="Templates"
+          description={`${templates.length} defined`}
+          padded={false}
+          className="overflow-hidden"
+        >
           <div className="max-h-[70vh] divide-y divide-border overflow-auto">
             {isLoading ? (
               <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">

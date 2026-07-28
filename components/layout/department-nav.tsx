@@ -36,6 +36,24 @@ const GROUP_LABELS: Record<ModuleDef["group"], string> = {
   admin: "Administration",
 };
 
+/** Sidebar group order. Modules keep their own sortOrder *within* a group. */
+const GROUP_ORDER: ModuleDef["group"][] = ["commercial", "operations", "admin"];
+
+/**
+ * Bucket modules under their group.
+ *
+ * MODULE_LIST is sorted by sortOrder, which interleaves groups — Financial (110,
+ * commercial) sorts after Projects (100, operations). Walking the flat list and
+ * emitting a label whenever the group changed therefore printed "Commercial" and
+ * "Operations" twice each, with Financial and General stranded at the bottom.
+ */
+function groupModules(modules: ModuleDef[]) {
+  return GROUP_ORDER.map((group) => ({
+    group,
+    modules: modules.filter((m) => m.group === group),
+  })).filter((entry) => entry.modules.length > 0);
+}
+
 function NavLinks({
   items,
   root,
@@ -116,8 +134,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
       : activeSection;
 
   const activeModule = modules.find((m) => m.key === activeKey) ?? null;
-
-  let lastGroup: ModuleDef["group"] | null = null;
+  const groups = groupModules(modules);
 
   return (
     <SidebarShell>
@@ -138,29 +155,30 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
         </>
       ) : null}
 
-      {modules.map((mod) => {
-        const Icon = mod.icon;
-        const showGroup = mod.group !== lastGroup;
-        lastGroup = mod.group;
-        return (
-          <div key={mod.key}>
-            {showGroup ? (
-              <NavSectionLabel className="mt-3">{GROUP_LABELS[mod.group]}</NavSectionLabel>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveSection(mod.key);
-                router.push(mod.root);
-              }}
-              className={navItemClass(activeKey === mod.key)}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {mod.label}
-            </button>
+      {groups.map(({ group, modules: groupModuleList }) => (
+        <div key={group}>
+          <NavSectionLabel className="mt-3">{GROUP_LABELS[group]}</NavSectionLabel>
+          <div className="flex flex-col gap-0.5">
+            {groupModuleList.map((mod) => {
+              const Icon = mod.icon;
+              return (
+                <button
+                  key={mod.key}
+                  type="button"
+                  onClick={() => {
+                    setActiveSection(mod.key);
+                    router.push(mod.root);
+                  }}
+                  className={navItemClass(activeKey === mod.key)}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {mod.label}
+                </button>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      ))}
 
       {activeModule ? (
         <>

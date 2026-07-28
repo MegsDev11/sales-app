@@ -315,7 +315,12 @@ export default function AdminAccessPage() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <Panel title="Staff" description={`${selectableUsers.length} accounts`} padded={false}>
+        <Panel
+          title="Staff"
+          description={`${selectableUsers.length} accounts`}
+          padded={false}
+          className="overflow-hidden"
+        >
           <div className="border-b border-border p-3">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

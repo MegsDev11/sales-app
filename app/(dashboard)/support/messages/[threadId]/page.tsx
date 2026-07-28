@@ -249,12 +249,12 @@ export default function SupportMessageThreadPage({
 
   return (
     <PageShell className="flex h-[calc(100vh-8rem)] max-w-none flex-col gap-4 space-y-0">
-      <div>
-        <Link href="/support/messages" className="text-sm text-primary hover:underline">
-          ← Messages
-        </Link>
-        <PageHeader
-          className="mt-1 border-b-0 pb-0"
+      <PageHeader
+          eyebrow={
+            <Link href="/support/messages" className="hover:text-foreground">
+              Messages
+            </Link>
+          }
           title={thread?.clientName ?? "Thread"}
           description={
             [
@@ -312,7 +312,6 @@ export default function SupportMessageThreadPage({
             </div>
           }
         />
-      </div>
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">{error}</div>
       )}

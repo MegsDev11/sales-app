@@ -161,7 +161,7 @@ export default function SchedulerPage() {
   };
 
   return (
-    <PageShell>
+    <PageShell dense>
       <PageHeader
         title="Scheduler"
         description="Meetings, project dates and department calendars in one place"

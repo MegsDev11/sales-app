@@ -66,7 +66,7 @@ export default function ProjectBoardPage() {
     : projects;
 
   return (
-    <PageShell>
+    <PageShell dense>
       <PageHeader
         title="Project board"
         description="Everything by stage"

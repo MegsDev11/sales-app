@@ -297,7 +297,12 @@ export default function CompanyPage() {
           data={headcount}
         />
 
-        <Panel title="Departments" description="Managers, headcount and shortcuts" padded={false}>
+        <Panel
+          title="Departments"
+          description="Managers, headcount and shortcuts"
+          padded={false}
+          className="overflow-hidden"
+        >
           <div className="max-h-[340px] divide-y divide-border overflow-auto">
             {MODULE_LIST.filter((m) => m.group !== "admin").map((mod) => {
               const Icon = mod.icon;
