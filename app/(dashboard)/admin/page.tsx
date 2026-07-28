@@ -283,6 +283,7 @@ export default function AdminAccessPage() {
   return (
     <PageShell>
       <PageHeader
+        eyebrow="System"
         title="Administration"
         description="Staff accounts and what each of them can reach. Changes take effect immediately — no redeploy."
         actions={

@@ -205,12 +205,24 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
 
   const activeModule = modules.find((m) => m.key === activeKey) ?? null;
 
-  // Administration is owner-only in practice, and it is where accounts are made,
-  // so the owner gets it beside Company Overview instead of buried at the bottom.
-  const pinnedAdmin = isOwner ? modules.find((m) => m.key === "admin") ?? null : null;
-  const groups = groupModules(modules.filter((m) => m.key !== pinnedAdmin?.key));
+  /*
+   * Administration and Staff Performance are not departments — they are the
+   * owner's control over accounts, roles and people, closer to a site admin role
+   * than to Sales or Stock. For the owner they are lifted out of the department
+   * switcher into their own Management block, so the department list below is
+   * exactly the business departments and nothing else.
+   */
+  const managementKeys = ["admin", "staff"] as const;
+  const management = isOwner
+    ? managementKeys
+        .map((key) => modules.find((m) => m.key === key))
+        .filter((m): m is ModuleDef => Boolean(m))
+    : [];
+  const managementSet = new Set(management.map((m) => m.key));
+  const groups = groupModules(modules.filter((m) => !managementSet.has(m.key)));
 
-  const renderModule = (mod: ModuleDef) => {
+  const renderModule = (mod: ModuleDef, opts: { isDepartment?: boolean } = {}) => {
+    const { isDepartment = true } = opts;
     const Icon = mod.icon;
     const isActive = activeKey === mod.key;
     const allPages = isActive ? navItemsFor(currentUser, mod.key) : [];
@@ -223,7 +235,10 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
         <button
           type="button"
           onClick={() => {
-            setActiveSection(mod.key);
+            // Management tools are not departments, so they must not become the
+            // remembered department — leaving Administration would otherwise
+            // leave no department selected.
+            if (isDepartment) setActiveSection(mod.key);
             router.push(mod.root);
           }}
           className={navItemClass(isActive)}
@@ -264,7 +279,18 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
             <Building2 className="h-4 w-4 shrink-0" />
             Company Overview
           </button>
-          {pinnedAdmin ? renderModule(pinnedAdmin) : null}
+
+          {management.length > 0 ? (
+            <>
+              <NavSectionLabel className="mt-3">Management</NavSectionLabel>
+              <div className="flex flex-col gap-0.5">
+                {management.map((mod) => renderModule(mod, { isDepartment: false }))}
+              </div>
+            </>
+          ) : null}
+
+          {/* Everything below this line is a business department. */}
+          <div className="mx-2.5 mt-4 border-t border-sidebar-border" />
         </>
       ) : null}
 
@@ -282,7 +308,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
             />
             {!isCollapsed ? (
               <div className="flex flex-col gap-0.5">
-                {groupModuleList.map(renderModule)}
+                {groupModuleList.map((mod) => renderModule(mod))}
               </div>
             ) : null}
           </div>

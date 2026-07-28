@@ -182,6 +182,7 @@ export default function AdminTemplatesPage() {
   return (
     <PageShell>
       <PageHeader
+        eyebrow="System"
         title="Role Templates"
         description="Reusable bundles of module access. Apply a template to a staff account in one click from Access Control."
         actions={

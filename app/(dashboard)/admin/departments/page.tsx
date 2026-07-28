@@ -129,6 +129,7 @@ export default function AdminDepartmentsPage() {
   return (
     <PageShell>
       <PageHeader
+        eyebrow="System"
         title="Departments"
         description="Org structure — who sits where and who manages them. Access to software is set separately in Access Control."
         actions={
