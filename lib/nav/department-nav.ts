@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Clock,
   Contact,
+  FolderKanban,
   Inbox,
   Kanban,
   LayoutDashboard,
@@ -41,12 +42,14 @@ export const salesManagerNavItems: NavItem[] = [
   { href: "/surveys", label: "Site Surveys", icon: MapPin },
   { href: "/team", label: "Team", icon: Users },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/sales/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const salesStaffNavItems: NavItem[] = [
   { href: "/board", label: "Pipeline Board", icon: Kanban },
   { href: "/surveys", label: "Site Surveys", icon: MapPin },
   { href: "/my-stats", label: "My Stats", icon: TrendingUp },
+  { href: "/sales/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const supportNavItems: NavItem[] = [
@@ -54,6 +57,7 @@ export const supportNavItems: NavItem[] = [
   { href: "/support/messages", label: "Messages", icon: MessagesSquare },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
+  { href: "/support/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const stockNavItems: NavItem[] = [
@@ -65,11 +69,13 @@ export const stockNavItems: NavItem[] = [
   { href: "/stock/client-qrs", label: "Client QRs", icon: Contact, stockOnly: true },
   { href: "/stock/requests", label: "Requests", icon: ClipboardList, stockOnly: false },
   { href: "/stock/scan", label: "Scan", icon: ScanLine, stockOnly: true },
+  { href: "/stock/projects", label: "Projects", icon: FolderKanban, short: "Proj", stockOnly: false },
 ];
 
 export const financialNavItems: NavItem[] = [
   { href: "/financial", label: "Overview", icon: LayoutDashboard },
   { href: "/financial/fuel", label: "Fuel", icon: Truck },
+  { href: "/financial/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const coordinationNavItems: NavItem[] = [
@@ -81,6 +87,7 @@ export const coordinationNavItems: NavItem[] = [
   { href: "/coordination/requests", label: "Pick lists", icon: ClipboardList, short: "Lists" },
   { href: "/coordination/technicians", label: "Technicians", icon: Users, short: "Techs" },
   { href: "/coordination/availability", label: "Availability", icon: Boxes, short: "Stock" },
+  { href: "/coordination/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const wirelessNavItems: NavItem[] = [
@@ -88,6 +95,7 @@ export const wirelessNavItems: NavItem[] = [
   { href: "/wireless/submissions", label: "Submissions", icon: Inbox },
   { href: "/wireless/layouts", label: "Layouts", icon: Map },
   { href: "/wireless/clients", label: "Clients", icon: Building2 },
+  { href: "/wireless/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 /** Exact match for department roots; nested match for children. */

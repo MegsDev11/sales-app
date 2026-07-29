@@ -77,6 +77,7 @@ export interface ModuleDef {
 
 const PLACEHOLDER_NAV = (root: string): NavItem[] => [
   { href: root, label: "Overview", icon: LayoutDashboard },
+  { href: `${root}/projects`, label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const MODULES: Record<ModuleKey, ModuleDef> = {
@@ -99,6 +100,7 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
       "/my-stats",
       "/leads",
       "/team",
+      "/sales",
     ],
     stores: ["crm"],
     minLevel: "view",
@@ -195,6 +197,7 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
       { href: "/procurement", label: "Overview", icon: LayoutDashboard },
       { href: "/procurement/suppliers", label: "Suppliers", icon: Users, short: "Suppliers" },
       { href: "/procurement/orders", label: "Purchase orders", icon: ClipboardList, short: "Orders" },
+      { href: "/procurement/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
     ],
     pathPrefixes: ["/procurement"],
     minLevel: "view",
