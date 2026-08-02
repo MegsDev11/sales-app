@@ -111,10 +111,16 @@ export default function WirelessClientProfilePage({
               canvas={published.canvas}
               devices={published.devices ?? []}
               readOnly
+              // Site markers are clickable here too — this page is where someone
+              // who has never been to the property looks it up.
+              layoutId={published.id}
+              assets={published.assets ?? []}
               backgroundUrl={
-                published.assets?.find((a) => a.kind === "sketch")?.publicUrl ??
-                published.assets?.[0]?.publicUrl ??
-                null
+                published.canvas.backdrop
+                  ? null
+                  : published.assets?.find((a) => a.kind === "sketch")?.publicUrl ??
+                    published.assets?.find((a) => !a.nodeId)?.publicUrl ??
+                    null
               }
             />
             <div className="mt-4 flex flex-wrap gap-2">

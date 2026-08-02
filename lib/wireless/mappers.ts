@@ -32,6 +32,11 @@ export interface NetworkLayoutRow {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  // Migration 050. Optional so a layout read back before the migration is applied
+  // still maps rather than throwing.
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_label?: string | null;
 }
 
 export interface NetworkLayoutAssetRow {
@@ -43,6 +48,9 @@ export interface NetworkLayoutAssetRow {
   public_url: string | null;
   caption: string;
   created_at: string;
+  // Migration 050.
+  node_id?: string | null;
+  sort_order?: number | null;
 }
 
 export interface NetworkDeviceRow {
@@ -69,6 +77,7 @@ function parseCanvas(raw: unknown): NetworkCanvasDocument {
     edges: Array.isArray(doc.edges) ? doc.edges : [],
     structures: Array.isArray(doc.structures) ? doc.structures : [],
     viewport: doc.viewport ?? { x: 0, y: 0, zoom: 1 },
+    backdrop: doc.backdrop ?? null,
     backgroundAssetId: doc.backgroundAssetId ?? null,
   };
 }
@@ -106,6 +115,14 @@ export function networkLayoutFromRow(
     submissionId: row.submission_id,
     createdBy: row.created_by,
     publishedAt: row.published_at,
+    location:
+      typeof row.location_lat === "number" && typeof row.location_lng === "number"
+        ? {
+            lat: row.location_lat,
+            lng: row.location_lng,
+            label: row.location_label ?? "",
+          }
+        : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     devices,
@@ -119,10 +136,12 @@ export function networkAssetFromRow(row: NetworkLayoutAssetRow): NetworkLayoutAs
     id: row.id,
     submissionId: row.submission_id,
     layoutId: row.layout_id,
+    nodeId: row.node_id ?? null,
     kind: row.kind as NetworkAssetKind,
     storagePath: row.storage_path,
     publicUrl: row.public_url,
     caption: row.caption ?? "",
+    sortOrder: row.sort_order ?? 0,
     createdAt: row.created_at,
   };
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { PageShell, Panel } from "@/components/layout/page-shell";
 import { LayoutCanvas } from "@/components/wireless/layout-canvas";
+import { SitePlanPanel } from "@/components/wireless/site-plan-panel";
 import { DeviceStatusBadge } from "@/components/wireless/device-status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +20,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type {
+  NetworkCanvasBackdrop,
   NetworkCanvasDocument,
   NetworkDevice,
   NetworkDeviceStatus,
+  NetworkLayoutLocation,
 } from "@/lib/wireless/layout-types";
-import { EMPTY_CANVAS } from "@/lib/wireless/layout-types";
+import { DEFAULT_BACKDROP, EMPTY_CANVAS } from "@/lib/wireless/layout-types";
+import { measureBackdrop } from "@/lib/wireless/measure-image";
 
 export default function WirelessLayoutEditorPage({
   params,
@@ -38,27 +42,87 @@ export default function WirelessLayoutEditorPage({
   const [title, setTitle] = useState("");
   const [leadId, setLeadId] = useState<string>("");
   const [canvas, setCanvas] = useState<NetworkCanvasDocument>(EMPTY_CANVAS);
+  const [location, setLocation] = useState<NetworkLayoutLocation | null>(null);
   const [devices, setDevices] = useState<NetworkDevice[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [ruijieMsg, setRuijieMsg] = useState<string | null>(null);
 
+  const assets = useMemo(() => layout?.assets ?? [], [layout]);
+
+  /**
+   * Load the layout into local editing state — ONCE per saved version.
+   *
+   * The guard is the whole point. `layout` is re-derived from a `layouts.find()`
+   * over a freshly parsed store bundle, so its identity changes on every refresh
+   * even when nothing about it changed. Every asset mutation refreshes. Keying the
+   * effect on the object therefore meant that uploading a photo reset the canvas to
+   * the last SAVED version — silently deleting every marker placed since, and
+   * orphaning the photo that had just been tagged onto one of them.
+   *
+   * `updatedAt` only moves when the row is actually written, which is exactly when
+   * re-reading the server's copy is correct.
+   */
+  const loadedVersion = useRef<string | null>(null);
   useEffect(() => {
     if (!layout) return;
+    const version = `${layout.id}:${layout.updatedAt}`;
+    if (loadedVersion.current === version) return;
+    loadedVersion.current = version;
+
     setTitle(layout.title);
     setLeadId(layout.leadId ?? "");
     setCanvas(layout.canvas);
+    setLocation(layout.location);
     setDevices(layout.devices ?? []);
   }, [layout]);
 
+  /**
+   * Adopt a backdrop the saved canvas has lost track of.
+   *
+   * Uploading writes the asset row immediately, but the canvas pointer to it only
+   * reaches the database on Save. Close the tab in between and the file is still in
+   * storage while the editor shows an empty Property panel — so the next upload
+   * silently makes a duplicate and pays for two.
+   *
+   * Keyed on a ref rather than cancelled on cleanup, because both matter here:
+   *  - the ref makes it idempotent, so StrictMode's mount/unmount/mount in dev (and
+   *    any store refresh landing mid-measure) cannot run it twice;
+   *  - NOT cancelling means the measure still lands. An `alive` flag flipped by the
+   *    cleanup silently threw the result away on the second StrictMode pass, and the
+   *    ref guard then blocked the retry — the image never came back at all.
+   * The updater re-checks `c.backdrop` so a real upload always wins the race.
+   */
+  const adoptedAsset = useRef<string | null>(null);
+  useEffect(() => {
+    if (!layout || canvas.backdrop) return;
+    const orphan = assets.find((a) => a.kind === "backdrop" && a.publicUrl);
+    if (!orphan?.publicUrl || adoptedAsset.current === orphan.id) return;
+
+    adoptedAsset.current = orphan.id;
+    void (async () => {
+      const { width, height } = await measureBackdrop(orphan.publicUrl as string);
+      setCanvas((c) =>
+        c.backdrop
+          ? c
+          : { ...c, backdrop: { ...DEFAULT_BACKDROP, assetId: orphan.id, width, height } }
+      );
+    })();
+  }, [layout, assets, canvas.backdrop]);
+
+  /**
+   * Legacy backdrop. Layouts drawn before positioned backdrops named an image but
+   * had nowhere to record its placement, so the canvas still falls back to the
+   * first sketch or photo when `canvas.backdrop` is unset.
+   */
   const backgroundUrl = useMemo(() => {
-    const assets = layout?.assets ?? [];
+    if (canvas.backdrop) return null;
     return (
       assets.find((a) => a.kind === "sketch")?.publicUrl ??
-      assets.find((a) => a.kind === "photo")?.publicUrl ??
+      assets.find((a) => a.kind === "photo" && !a.nodeId)?.publicUrl ??
       null
     );
-  }, [layout]);
+  }, [assets, canvas.backdrop]);
 
   if (isLoading || !allowed) return null;
 
@@ -96,6 +160,7 @@ export default function WirelessLayoutEditorPage({
         title,
         leadId: leadId || null,
         canvas,
+        location,
         devices: nextDevices,
         status,
       });
@@ -241,9 +306,22 @@ export default function WirelessLayoutEditorPage({
         </Select>
       </div>
 
+      <SitePlanPanel
+        layoutId={id}
+        assets={assets}
+        backdrop={canvas.backdrop ?? null}
+        location={location}
+        onBackdropChange={(backdrop: NetworkCanvasBackdrop | null) =>
+          setCanvas((c) => ({ ...c, backdrop, backgroundAssetId: null }))
+        }
+        onLocationChange={setLocation}
+      />
+
       <LayoutCanvas
         canvas={canvas}
         devices={devices}
+        layoutId={id}
+        assets={assets}
         backgroundUrl={backgroundUrl}
         onChange={setCanvas}
       />

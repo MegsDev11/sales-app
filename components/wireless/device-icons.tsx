@@ -170,6 +170,34 @@ export function LabelIcon({ size, className }: IconProps) {
   );
 }
 
+/**
+ * A place on the property, not a device — a map pin with a building in it. Reads
+ * as "go here and look" next to the hardware icons rather than as another box.
+ */
+export function SiteMarkerIcon({ size, className }: IconProps) {
+  return (
+    <SvgShell size={size} className={className}>
+      <path
+        d="M24 6c-7.2 0-13 5.6-13 12.5C11 28 24 42 24 42s13-14 13-23.5C37 11.6 31.2 6 24 6z"
+        fill="#FFF7ED"
+        stroke="#EA580C"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17.5 21.5v-4l6.5-4.5 6.5 4.5v4"
+        fill="none"
+        stroke="#EA580C"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M17.5 21.5h13" stroke="#EA580C" strokeWidth="2" strokeLinecap="round" />
+      <rect x="21.5" y="16" width="5" height="5.5" rx="1" fill="#EA580C" />
+    </SvgShell>
+  );
+}
+
 export function DeviceKindIcon({
   kind,
   size = 28,
@@ -196,6 +224,8 @@ export function DeviceKindIcon({
       return <RuijieRouterIcon size={size} className={className} />;
     case "label":
       return <LabelIcon size={size} className={className} />;
+    case "site_marker":
+      return <SiteMarkerIcon size={size} className={className} />;
     default:
       return <NetworkPointIcon size={size} className={className} />;
   }
