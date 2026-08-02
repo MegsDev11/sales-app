@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   requireAuthenticated,
@@ -187,6 +188,8 @@ type StockAction =
       title: string;
       technicianId: string;
       leadId?: string | null;
+      accountsClientId?: string | null;
+      clientName?: string | null;
       notes?: string;
       lines: { productId?: string; sundryId?: string; qtyNeeded: number }[];
     }
@@ -207,6 +210,7 @@ type StockAction =
     }
   | {
       action: "fulfillScan";
+      accountsClientId?: string | null;
       requestId: string;
       qrToken: string;
       serialNumber?: string;
@@ -432,11 +436,27 @@ export async function POST(request: Request) {
           title: body.title.trim(),
           technicianId: body.technicianId,
           leadId: body.leadId ?? null,
+          accountsClientId: body.accountsClientId ?? null,
+          clientName: body.clientName ?? null,
           status: "open",
           createdBy: user.id,
           createdAt: now,
           notes: body.notes?.trim() ?? ""};
-        const { error } = await supabase.from("stock_requests").insert(stockRequestToRow(stockRequest));
+
+        // Untyped view: migration 055's columns are ahead of the generated types.
+        const untypedDb = supabase as unknown as SupabaseClient;
+        const row = stockRequestToRow(stockRequest);
+        let { error } = await untypedDb.from("stock_requests").insert(row);
+
+        // Migration 055 adds `accounts_client_id` and `client_name`. Before it is
+        // applied those columns don't exist and the whole insert fails — which would
+        // stop technicians requesting stock at all. Losing the client link is far
+        // less costly than losing the request, so retry without them.
+        if (error && /accounts_client_id|client_name/.test(error.message)) {
+          delete row.accounts_client_id;
+          delete row.client_name;
+          ({ error } = await untypedDb.from("stock_requests").insert(row));
+        }
         if (error) throw error;
 
         if (body.lines.some((line) => !line.productId && !line.sundryId)) {
@@ -942,7 +962,16 @@ export async function POST(request: Request) {
           ? body.leadId.trim()
           : null) || requestRow.lead_id;
 
-      if (!bookingLeadId) {
+      // Stock is now booked out against the Accounts client book. A CRM lead is
+      // still accepted so older pick lists keep working.
+      const bookingClientId =
+        (typeof body.accountsClientId === "string" && body.accountsClientId.trim()
+          ? body.accountsClientId.trim()
+          : null) ||
+        (requestRow as { accounts_client_id?: string | null }).accounts_client_id ||
+        null;
+
+      if (!bookingLeadId && !bookingClientId) {
         return NextResponse.json(
           { error: "Select a client before booking out" },
           { status: 400 }
@@ -950,8 +979,8 @@ export async function POST(request: Request) {
       }
 
       const bookingId = `sbook-${Date.now()}`;
-      const { error: bookingError } = await supabase.from("stock_bookings").insert(
-        stockBookingToRow({
+      const bookingRow: Record<string, unknown> = {
+        ...stockBookingToRow({
           id: bookingId,
           itemId: itemRow.id,
           technicianId: requestRow.technician_id,
@@ -959,8 +988,24 @@ export async function POST(request: Request) {
           requestId: requestRow.id,
           bookedOutAt: now,
           bookedOutBy: user.id,
-          notes: ""})
-      );
+          notes: ""}),
+        accounts_client_id: bookingClientId,
+      };
+
+      // Untyped view: migration 055's `accounts_client_id` is ahead of the types.
+      const untypedBookings = supabase as unknown as SupabaseClient;
+      let { error: bookingError } = await untypedBookings
+        .from("stock_bookings")
+        .insert(bookingRow);
+
+      // Migration 055 column; without it the insert fails and the unit never leaves
+      // the shelf. Book the stock out and lose the link rather than block the tech.
+      if (bookingError && /accounts_client_id/.test(bookingError.message)) {
+        delete bookingRow.accounts_client_id;
+        ({ error: bookingError } = await untypedBookings
+          .from("stock_bookings")
+          .insert(bookingRow));
+      }
       if (bookingError) throw bookingError;
 
       const { error: itemUpdateError } = await supabase

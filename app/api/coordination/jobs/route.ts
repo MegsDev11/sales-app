@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAuthUserFromRequest } from "@/lib/supabase/server-auth";
 import { canAccessCoordination, canAccessSupport, isOwner } from "@/lib/permissions";
@@ -129,13 +130,22 @@ export async function POST(request: Request) {
           : null;
 
       const leadId = (body.leadId as string) || null;
+      // Jobs are now raised against the Accounts client book; `leadId` stays
+      // supported so anything still creating jobs from a CRM lead keeps working.
+      const accountsClientId = (body.accountsClientId as string) || null;
+
       let stockRequestId = (body.stockRequestId as string) || null;
-      if (!stockRequestId && leadId && technicianIds[0]) {
-        const { data: pick } = await supabase
+      if (!stockRequestId && technicianIds[0] && (accountsClientId || leadId)) {
+        // Find an open stock request this job should draw from, matching on
+        // whichever client reference the caller supplied.
+        const { data: pick } = await (supabase as unknown as SupabaseClient)
           .from("stock_requests")
           .select("id")
           .eq("technician_id", technicianIds[0])
-          .eq("lead_id", leadId)
+          .eq(
+            accountsClientId ? "accounts_client_id" : "lead_id",
+            accountsClientId ?? leadId
+          )
           .in("status", ["open", "partial", "fulfilled"])
           .order("created_at", { ascending: false })
           .limit(1)
@@ -143,9 +153,10 @@ export async function POST(request: Request) {
         if (pick?.id) stockRequestId = pick.id;
       }
 
-      const { error } = await supabase.from("jobs").insert({
+      const jobRow: Record<string, unknown> = {
         id,
         lead_id: leadId,
+        accounts_client_id: accountsClientId,
         title,
         address: String(body.address ?? ""),
         client_name: (body.clientName as string) || null,
@@ -164,7 +175,25 @@ export async function POST(request: Request) {
         location_lat: locationLat,
         location_lng: locationLng,
         client_pppoe: String(body.clientPppoe ?? "").trim(),
-      });
+      };
+
+      // `accounts_client_id` (migration 055) isn't in the generated Database types,
+      // so these two statements go through an untyped view of the same client —
+      // the convention this repo already uses for tables ahead of the type refresh.
+      const untyped = supabase as unknown as SupabaseClient;
+      let { error } = await untyped.from("jobs").insert(jobRow);
+
+      // `accounts_client_id` arrives with migration 055. Until that is applied the
+      // column does not exist, and an unknown column fails the whole insert — which
+      // would stop coordination booking any job at all. Dispatching a technician
+      // matters more than recording which client row it was for, so the job is saved
+      // without the link rather than refused. The client's NAME is on the job either
+      // way, so nothing a coordinator can see is lost.
+      if (error && /accounts_client_id/.test(error.message)) {
+        delete jobRow.accounts_client_id;
+        ({ error } = await untyped.from("jobs").insert(jobRow));
+      }
+
       if (error) {
         throw new Error(
           migrationHint(error.message, "031_job_client_pppoe.sql")
@@ -216,7 +245,9 @@ export async function POST(request: Request) {
 
     if (action === "update") {
       const jobId = String(body.jobId ?? "");
-      const updates: JobUpdate = { updated_at: now };
+      // Widened past the generated JobUpdate so migration 055's `accounts_client_id`
+      // can be set before the Database types are regenerated.
+      const updates: JobUpdate & Record<string, unknown> = { updated_at: now };
       if (body.title !== undefined) updates.title = String(body.title);
       if (body.address !== undefined) updates.address = String(body.address);
       if (body.notes !== undefined) updates.notes = String(body.notes);
@@ -224,6 +255,9 @@ export async function POST(request: Request) {
       if (body.scheduledStart !== undefined) updates.scheduled_start = (body.scheduledStart as string) || null;
       if (body.scheduledEnd !== undefined) updates.scheduled_end = (body.scheduledEnd as string) || null;
       if ("leadId" in body) updates.lead_id = (body.leadId as string) || null;
+      if ("accountsClientId" in body) {
+        updates.accounts_client_id = (body.accountsClientId as string) || null;
+      }
       if ("clientName" in body) updates.client_name = (body.clientName as string) || null;
       if ("towerId" in body) updates.tower_id = (body.towerId as string) || null;
       if ("towerSiteId" in body) updates.tower_site_id = (body.towerSiteId as string) || null;
@@ -245,7 +279,12 @@ export async function POST(request: Request) {
             : null;
       }
 
-      const { error } = await supabase.from("jobs").update(updates).eq("id", jobId);
+      // Untyped for the same reason as the insert above: `accounts_client_id` is
+      // ahead of the generated Database types.
+      const { error } = await (supabase as unknown as SupabaseClient)
+        .from("jobs")
+        .update(updates)
+        .eq("id", jobId);
       if (error) throw new Error(migrationHint(error.message, "021_field_jobs_timesheets.sql"));
 
       if (Array.isArray(body.technicianIds)) {

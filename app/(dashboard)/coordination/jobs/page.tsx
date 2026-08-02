@@ -21,20 +21,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MapsLocationPaste } from "@/components/maps/maps-location-paste";
+import { ClientPicker } from "@/components/clients/client-picker";
 
 const DEFAULT_JOB_KIND: JobKind = "service_call";
 
 export default function CoordinationJobsPage() {
   const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
-  const { users, leads, towers, towerSites } = useCrmStore();
+  // `leads` is no longer read here — clients come from the Accounts book via
+  // ClientPicker, which searches server-side rather than from the CRM bundle.
+  const { users, towers, towerSites } = useCrmStore();
   const techs = getFieldTechnicians(users);
   const [jobs, setJobs] = useState<FieldJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [locationLat, setLocationLat] = useState("");
   const [locationLng, setLocationLng] = useState("");
-  const [leadId, setLeadId] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientName, setClientName] = useState("");
   const [techId, setTechId] = useState("");
   const [jobType, setJobType] = useState<JobKind>(DEFAULT_JOB_KIND);
   const [clientPppoe, setClientPppoe] = useState("");
@@ -79,12 +83,8 @@ export default function CoordinationJobsPage() {
     }
     setBusy(true);
     try {
-      const lead = leads.find((l) => l.id === leadId);
       const title =
-        lead?.clientName?.trim() ||
-        address.trim() ||
-        jobKindLabel(jobType) ||
-        "Site visit";
+        clientName.trim() || address.trim() || jobKindLabel(jobType) || "Site visit";
       const res = await fetch("/api/coordination/jobs", {
         method: "POST",
         headers: {
@@ -94,11 +94,11 @@ export default function CoordinationJobsPage() {
         body: JSON.stringify({
           action: "create",
           title,
-          address: address || lead?.address || "",
+          address: address || "",
           locationLat: lat,
           locationLng: lng,
-          leadId: leadId || null,
-          clientName: lead?.clientName || null,
+          accountsClientId: clientId || null,
+          clientName: clientName || null,
           clientPppoe: clientPppoe.trim(),
           jobType,
           notes,
@@ -115,6 +115,8 @@ export default function CoordinationJobsPage() {
       setLocationLat("");
       setLocationLng("");
       setClientPppoe("");
+      setClientId("");
+      setClientName("");
       setJobType(DEFAULT_JOB_KIND);
       setError(null);
     } catch (e) {
@@ -307,47 +309,22 @@ export default function CoordinationJobsPage() {
             autoCapitalize="off"
             autoCorrect="off"
           />
-          <Select
-            value={leadId || "__none__"}
-            onValueChange={(v) => {
-              const nextId = !v || v === "__none__" ? "" : String(v);
-              setLeadId(nextId);
-              if (!nextId) {
-                setClientPppoe("");
-                return;
-              }
-              const lead = leads.find((l) => l.id === nextId);
-              if (!lead) return;
-              setClientPppoe(lead.clientPppoe?.trim() || "");
-              if (!address.trim() && lead.address?.trim()) {
-                setAddress(lead.address.trim());
+          {/* The Accounts client book, searched on the server. Replaces a dropdown
+              of CRM leads that was capped at 200 and held pipeline rows rather than
+              the 5 400 real customers a technician actually gets sent to. */}
+          <ClientPicker
+            value={clientId || null}
+            onChange={(client) => {
+              setClientId(client?.id ?? "");
+              setClientName(client?.name ?? "");
+              setClientPppoe(client?.pppoeUsername?.trim() ?? "");
+              // Only fill an empty address — never overwrite one already typed or
+              // pasted from a maps link.
+              if (client?.address?.trim() && !address.trim()) {
+                setAddress(client.address.trim());
               }
             }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Client">
-                {(value) => {
-                  if (!value || value === "__none__") return "Client";
-                  return (
-                    leads.find((l) => l.id === value)?.clientName ?? "Client"
-                  );
-                }}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__" label="No client">
-                No client
-              </SelectItem>
-              {leads
-                .filter((l) => !l.deleted)
-                .slice(0, 200)
-                .map((l) => (
-                  <SelectItem key={l.id} value={l.id} label={l.clientName}>
-                    {l.clientName}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+          />
           <MapsLocationPaste
             address={address}
             locationLat={locationLat}

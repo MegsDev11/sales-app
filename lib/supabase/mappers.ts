@@ -659,6 +659,12 @@ export function stockRequestFromRow(
     title: row.title,
     technicianId: row.technician_id,
     leadId: row.lead_id,
+    // Migration 055 columns; absent until it is applied, hence the guarded reads.
+    accountsClientId:
+      (row as StockRequestRow & { accounts_client_id?: string | null }).accounts_client_id ??
+      null,
+    clientName:
+      (row as StockRequestRow & { client_name?: string | null }).client_name ?? null,
     status: row.status as StockRequestStatus,
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -667,12 +673,16 @@ export function stockRequestFromRow(
   };
 }
 
-export function stockRequestToRow(request: Omit<StockRequest, "lines">): StockRequestRow {
+export function stockRequestToRow(
+  request: Omit<StockRequest, "lines">
+): StockRequestRow & Record<string, unknown> {
   return {
     id: request.id,
     title: request.title,
     technician_id: request.technicianId,
     lead_id: request.leadId ?? null,
+    accounts_client_id: request.accountsClientId ?? null,
+    client_name: request.clientName ?? null,
     status: request.status,
     created_by: request.createdBy ?? null,
     created_at: request.createdAt,
