@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookUser,
+  Bot,
   Briefcase,
   Cable,
   CalendarClock,
@@ -22,6 +23,7 @@ import {
   Wifi,
 } from "lucide-react";
 import {
+  aiNavItems,
   coordinationNavItems,
   financialNavItems,
   salesManagerNavItems,
@@ -101,6 +103,9 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
       "/leads",
       "/team",
       "/sales",
+      // Guarded at crm/manage inside the page and the API, not by minLevel — the
+      // module as a whole is still reachable at `view`.
+      "/commission",
     ],
     stores: ["crm"],
     minLevel: "view",
@@ -122,15 +127,20 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
   accounts: {
     key: "accounts",
     label: "Accounts",
-    description: "Client accounts and packages",
+    description: "Client book, billing and monthly invoicing",
     icon: BookUser,
     group: "commercial",
     root: "/accounts",
-    nav: PLACEHOLDER_NAV("/accounts"),
+    nav: [
+      { href: "/accounts", label: "Client book", icon: BookUser, short: "Clients" },
+      { href: "/accounts/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
+    ],
     pathPrefixes: ["/accounts"],
+    // No `stores`. The book is 5 400 rows and is paged server-side by
+    // /api/accounts/clients — mounting a client-side bundle would ship the whole
+    // table to render a hundred rows.
     minLevel: "view",
     sortOrder: 30,
-    placeholder: true,
   },
   support: {
     key: "support",
@@ -261,16 +271,22 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
   },
   general: {
     key: "general",
-    label: "General",
-    description: "General management",
+    label: "General Management",
+    description: "Every department's numbers on one screen",
     icon: Briefcase,
     group: "operations",
     root: "/general",
-    nav: PLACEHOLDER_NAV("/general"),
+    nav: [
+      { href: "/general", label: "Company pulse", icon: LayoutDashboard, short: "Pulse" },
+      { href: "/general/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
+    ],
     pathPrefixes: ["/general"],
+    // No `stores` on purpose. The overview reads /api/general/overview, which
+    // aggregates every department server-side — mounting the CRM, stock and
+    // wireless bundles here would ship thousands of rows to count a handful of
+    // numbers, and would still leave the API-backed departments unreachable.
     minLevel: "view",
     sortOrder: 120,
-    placeholder: true,
   },
   staff: {
     key: "staff",
@@ -300,6 +316,21 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
     pathPrefixes: ["/admin"],
     minLevel: "manage",
     sortOrder: 140,
+  },
+  ai: {
+    key: "ai",
+    label: "AI Agents",
+    description: "Website assistant settings, conversations and cost",
+    icon: Bot,
+    group: "admin",
+    root: "/ai",
+    // Owner-only in practice: 057_ai_agents.sql adds the module but grants it to no
+    // access template, and `manage` is the floor. Anyone else has to be given it by
+    // hand in /admin.
+    nav: aiNavItems,
+    pathPrefixes: ["/ai"],
+    minLevel: "manage",
+    sortOrder: 150,
   },
 };
 

@@ -1,9 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Bot,
   Boxes,
   Briefcase,
   Building2,
+  Calculator,
   CalendarOff,
   Car,
   ClipboardCheck,
@@ -37,16 +39,21 @@ export type NavItem = {
 
 export const salesManagerNavItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/board", label: "Pipeline Board", icon: Kanban },
+  { href: "/board", label: "Sales Tracker", icon: Kanban },
   { href: "/inbox", label: "Lead Inbox", icon: Inbox },
   { href: "/surveys", label: "Site Surveys", icon: MapPin },
   { href: "/team", label: "Team", icon: Users },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  // Manager-only by construction: this list is not used for users below `manage`,
+  // who get salesStaffNavItems instead. Commission is pay data.
+  { href: "/commission", label: "Commission", icon: Calculator, short: "Comm" },
+  // New-business enquiries the website assistant took after hours.
+  { href: "/sales/chatbot", label: "Chatbot", icon: Bot, short: "Bot" },
   { href: "/sales/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
 export const salesStaffNavItems: NavItem[] = [
-  { href: "/board", label: "Pipeline Board", icon: Kanban },
+  { href: "/board", label: "Sales Tracker", icon: Kanban },
   { href: "/surveys", label: "Site Surveys", icon: MapPin },
   { href: "/my-stats", label: "My Stats", icon: TrendingUp },
   { href: "/sales/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
@@ -57,6 +64,8 @@ export const supportNavItems: NavItem[] = [
   { href: "/support/messages", label: "Messages", icon: MessagesSquare },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
+  // Connectivity and general enquiries the website assistant could not close itself.
+  { href: "/support/chatbot", label: "Chatbot", icon: Bot },
   { href: "/support/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
 ];
 
@@ -75,7 +84,17 @@ export const stockNavItems: NavItem[] = [
 export const financialNavItems: NavItem[] = [
   { href: "/financial", label: "Overview", icon: LayoutDashboard },
   { href: "/financial/fuel", label: "Fuel", icon: Truck },
+  // Billing enquiries the assistant escalated — arrangements, disputes, credits.
+  { href: "/financial/chatbot", label: "Chatbot", icon: Bot },
   { href: "/financial/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
+];
+
+/**
+ * AI Agents is a management tool, not a department, so it follows Administration's
+ * pattern: one sidebar entry, sections as in-page tabs.
+ */
+export const aiNavItems: NavItem[] = [
+  { href: "/ai", label: "AI Agents", icon: Bot },
 ];
 
 export const coordinationNavItems: NavItem[] = [

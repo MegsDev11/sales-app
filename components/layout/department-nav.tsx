@@ -212,7 +212,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
    * switcher into their own Management block, so the department list below is
    * exactly the business departments and nothing else.
    */
-  const managementKeys = ["admin", "staff"] as const;
+  const managementKeys = ["admin", "staff", "ai"] as const;
   const management = isOwner
     ? managementKeys
         .map((key) => modules.find((m) => m.key === key))

@@ -142,6 +142,15 @@ export function canAccessSupport(user: User | null | undefined): boolean {
   return can(user, "support");
 }
 
+/**
+ * AI Agents is `manage`-only — there is no read-only view of a kill switch worth
+ * having, and the module is granted to no template, so this is the owner unless
+ * somebody is given it explicitly in /admin.
+ */
+export function canAccessAi(user: User | null | undefined): boolean {
+  return can(user, "ai", "manage");
+}
+
 export function canAccessStock(user: User | null | undefined): boolean {
   return can(user, "stock");
 }

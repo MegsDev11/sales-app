@@ -8,7 +8,7 @@ export default function BoardPage() {
           full-bleed band it used to fake one with. */}
       <div className="p-4 lg:px-6 lg:pb-4 lg:pt-6">
         <PageHeader
-          title="Pipeline Board"
+          title="Sales Tracker"
           description="Drag leads between stages to update their status"
         />
       </div>

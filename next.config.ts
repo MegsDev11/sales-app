@@ -21,6 +21,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * The commission importer reads PDFs and spreadsheets server-side. Both libraries
+   * lean on Node built-ins (pdf.js probes the runtime, exceljs streams), so they are
+   * loaded through native require rather than bundled into the route.
+   */
+  serverExternalPackages: ["unpdf", "exceljs"],
+
   async headers() {
     return [
       {

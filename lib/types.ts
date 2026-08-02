@@ -37,7 +37,8 @@ export type ModuleKey =
   | "financial"
   | "general"
   | "staff"
-  | "admin";
+  | "admin"
+  | "ai";
 
 /** Ordered. Each level includes everything below it. */
 export type AccessLevel = "none" | "view" | "edit" | "manage";
@@ -387,6 +388,10 @@ export interface StockRequest {
   title: string;
   technicianId: string;
   leadId?: string | null;
+  /** Accounts client book reference — the list every department now picks from. */
+  accountsClientId?: string | null;
+  /** Denormalised so a request still names its client without a second lookup. */
+  clientName?: string | null;
   status: StockRequestStatus;
   createdBy?: string | null;
   createdAt: string;
