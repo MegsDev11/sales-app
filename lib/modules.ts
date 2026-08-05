@@ -8,11 +8,12 @@ import {
   CalendarDays,
   ClipboardList,
   ConciergeBell,
+  FileSignature,
   FolderKanban,
   Headphones,
   Kanban,
   LayoutDashboard,
-  Lightbulb,
+  Link2,
   Network,
   Package,
   ShieldCheck,
@@ -64,8 +65,13 @@ export interface ModuleDef {
   /** Sidebar entries for users below `manage` (falls back to `nav`). */
   staffNav?: NavItem[];
   /**
-   * URL prefixes owned by this module. Used by middleware for server-side route
-   * protection and by the data providers to decide which stores to mount.
+   * URL prefixes owned by this module. Read through `moduleForPath` by the client
+   * route guard, the store load-gates and the sidebar.
+   *
+   * NOT by proxy.ts — that matches `/api/:path*` and only does CORS. Server-side
+   * route protection is still open (docs/OPS_PLATFORM_PLAN.md); until it lands,
+   * every dashboard page is guarded in the browser, and the API routes are what
+   * actually enforce access.
    */
   pathPrefixes: string[];
   /** Client stores this module needs loaded. */
@@ -133,6 +139,10 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
     root: "/accounts",
     nav: [
       { href: "/accounts", label: "Client book", icon: BookUser, short: "Clients" },
+      { href: "/accounts/quotes", label: "Quotes", icon: FileSignature, short: "Quotes" },
+      { href: "/accounts/ageing", label: "Age analysis", icon: CalendarClock, short: "Ageing" },
+      { href: "/accounts/collections", label: "Collections", icon: ShieldCheck, short: "Chase" },
+      { href: "/accounts/linking", label: "Client linking", icon: Link2, short: "Link" },
       { href: "/accounts/projects", label: "Projects", icon: FolderKanban, short: "Proj" },
     ],
     pathPrefixes: ["/accounts"],
@@ -246,11 +256,10 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
     icon: FolderKanban,
     group: "operations",
     root: "/projects",
-    nav: [
-      { href: "/projects", label: "All projects", icon: FolderKanban, short: "All" },
-      { href: "/projects/board", label: "Board", icon: Kanban, short: "Board" },
-      { href: "/projects/ideas", label: "Idea funnel", icon: Lightbulb, short: "Ideas" },
-    ],
+    // One destination. The list, the portfolio table, the board and the idea funnel
+    // are four arrangements of the same rows, so they are a view switcher on the
+    // page rather than four sidebar entries that each reprint the same names.
+    nav: [{ href: "/projects", label: "Projects", icon: FolderKanban, short: "Projects" }],
     pathPrefixes: ["/projects"],
     // Projects reference leads and jobs, so the CRM bundle is needed for names.
     stores: ["crm"],

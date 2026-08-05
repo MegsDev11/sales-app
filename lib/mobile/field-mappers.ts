@@ -32,6 +32,8 @@ export function jobFromRow(
     location_lat?: number | null;
     location_lng?: number | null;
     client_pppoe?: string | null;
+    project_id?: string | null;
+    project_block_id?: string | null;
   },
   technicianIds: string[] = []
 ): FieldJob {
@@ -67,6 +69,8 @@ export function jobFromRow(
     towerSiteId: row.tower_site_id ?? null,
     jobType: row.job_type ?? "general",
     clientPppoe: row.client_pppoe ?? "",
+    projectId: row.project_id ?? null,
+    projectBlockId: row.project_block_id ?? null,
   };
 }
 

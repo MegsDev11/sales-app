@@ -2,18 +2,30 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { isOwnerRole } from "@/lib/access";
 import { useStaffStore } from "@/lib/store/staff-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SelectField } from "@/components/ui/select-field";
 import { Meter, StatTile } from "@/components/charts/primitives";
 import { StackedBar } from "@/components/charts/bar-chart";
 import { SERIES, STATUS, compact } from "@/components/charts/tokens";
 import { MODULES } from "@/lib/modules";
 import { ProjectFormDialog } from "@/components/projects/project-form-dialog";
+import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog";
+import { DeliveryPanel } from "@/components/projects/delivery-panel";
+import { ProjectAdvisor } from "@/components/projects/project-advisor";
+import {
+  EMPTY_INTEGRATION,
+  ProjectIntegrationPanels,
+  ProjectLeadStrip,
+  type ProjectIntegration,
+} from "@/components/projects/integration-panels";
 import {
   COST_CATEGORIES,
   PROJECT_STATUSES,
@@ -24,16 +36,20 @@ import {
   typeLabel,
   type Project,
   type ProjectCost,
+  type ProjectDeliverySummary,
   type ProjectDepartment,
   type ProjectLink,
   type ProjectMember,
   type ProjectTask,
   type ProjectUpdate,
 } from "@/lib/projects/constants";
+import { delayLabel, percentLabel } from "@/lib/projects/progress";
 import type { ModuleKey } from "@/lib/types";
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarClock,
+  Gauge,
   Link2,
   Loader2,
   Lock,
@@ -63,6 +79,15 @@ const ENTITY_LABELS: Record<string, string> = {
   calendar_event: "Calendar event",
 };
 
+function shortDate(value: string | null | undefined): string {
+  if (!value) return "Not set";
+  return new Date(value).toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export default function ProjectDetailPage({
   params,
 }: {
@@ -70,6 +95,11 @@ export default function ProjectDetailPage({
 }) {
   const { id } = use(params);
   const { accessToken, currentUser } = useAuth();
+  const router = useRouter();
+  // Deleting is the business owner's alone — not the project's owner, and not a
+  // Projects `manage` grant. Mirrors migration 059 and the API's own check; this copy
+  // only decides whether the button is drawn.
+  const isOwner = isOwnerRole(currentUser);
   const { users } = useStaffStore();
   const { leads } = useCrmStore();
 
@@ -81,11 +111,17 @@ export default function ProjectDetailPage({
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
   const [costs, setCosts] = useState<ProjectCost[]>([]);
   const [canEdit, setCanEdit] = useState(false);
+  // Lifted out of the delivery panel so the header can show the same figures without
+  // recomputing them over a grid the header never loads.
+  const [delivery, setDelivery] = useState<ProjectDeliverySummary | null>(null);
+  // The Phase-2 slice: lead, field work, stock, commercial, staffing.
+  const [integration, setIntegration] = useState<ProjectIntegration>(EMPTY_INTEGRATION);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [newTask, setNewTask] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
@@ -115,6 +151,21 @@ export default function ProjectDetailPage({
       setUpdates(body.updates ?? []);
       setCosts(body.costs ?? []);
       setCanEdit(Boolean(body.canEdit));
+      setIntegration({
+        ...EMPTY_INTEGRATION,
+        lead: body.lead ?? null,
+        jobs: body.jobs ?? [],
+        jobCards: body.jobCards ?? [],
+        labour: body.labour ?? EMPTY_INTEGRATION.labour,
+        stockLines: body.stockLines ?? [],
+        stockRequests: body.stockRequests ?? [],
+        stockBookings: body.stockBookings ?? [],
+        invoices: body.invoices ?? [],
+        quotes: body.quotes ?? [],
+        phaseStaff: body.phaseStaff ?? [],
+        blocks: body.blocks ?? [],
+        stages: body.stages ?? [],
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project");
@@ -211,6 +262,13 @@ export default function ProjectDetailPage({
     project.budget_amount != null && Number(project.actual_cost) > Number(project.budget_amount);
   const done = tasks.filter((t) => t.status === "done").length;
 
+  // "Slipped" means the delay log has actually moved the date, which needs both a
+  // target to move and days to move it by. Without a target there is nothing to
+  // revise, and the tile falls back to showing the delay on its own.
+  const slipped = Boolean(
+    delivery && delivery.delay_days >= 1 && delivery.revised_target_date && project.target_date
+  );
+
   return (
     <PageShell>
       <PageHeader
@@ -225,18 +283,13 @@ export default function ProjectDetailPage({
             </Link>
             {canEdit ? (
               <>
-                <select
+                <SelectField
+                  aria-label="Project status"
                   value={project.status}
-                  onChange={(e) => void post({ action: "update", status: e.target.value })}
+                  onValueChange={(v) => void post({ action: "update", status: v })}
                   disabled={busy}
-                  className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-                >
-                  {PROJECT_STATUSES.map((st) => (
-                    <option key={st.value} value={st.value}>
-                      {st.label}
-                    </option>
-                  ))}
-                </select>
+                  options={PROJECT_STATUSES.map((st) => ({ value: st.value, label: st.label }))}
+                />
                 <Button
                   onClick={() => setEditOpen(true)}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -244,6 +297,20 @@ export default function ProjectDetailPage({
                   Edit
                 </Button>
               </>
+            ) : null}
+            {/* Owner only, and an icon rather than a labelled button: it sits beside
+                Edit, and a red "Delete" the same size as its neighbour is a misclick
+                waiting to happen. It opens a dialog, so the click itself is safe. */}
+            {isOwner ? (
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => setDeleteOpen(true)}
+                title="Delete this project"
+                aria-label="Delete this project"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             ) : null}
           </div>
         }
@@ -278,14 +345,49 @@ export default function ProjectDetailPage({
         ))}
       </div>
 
+      {/* The delay log has pushed the completion date out — say so before anything else. */}
+      {slipped ? (
+        <AlertBanner tone="warn">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {delayLabel(delivery!.delay_days)} lost to{" "}
+            {delivery!.total_issues} logged issue
+            {delivery!.total_issues === 1 ? "" : "s"} — this project is now tracking to{" "}
+            {new Date(delivery!.revised_target_date!).toLocaleDateString("en-ZA", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+            , not {shortDate(project.target_date)}.
+          </span>
+        </AlertBanner>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Tasks complete"
-          value={tasks.length > 0 ? `${done}/${tasks.length}` : "—"}
-          icon={CalendarClock}
-          accent={SERIES[2]}
+          label="Complete"
+          value={percentLabel(delivery?.percent_complete ?? null)}
+          icon={Gauge}
+          accent={SERIES[0]}
         />
-        <StatTile label="People involved" value={members.length} icon={Users} accent={SERIES[6]} />
+        <StatTile
+          label={slipped ? "Revised completion" : "Target date"}
+          value={
+            slipped
+              ? shortDate(delivery!.revised_target_date)
+              : shortDate(project.target_date)
+          }
+          raw={slipped ? `Was ${shortDate(project.target_date)}` : undefined}
+          icon={CalendarClock}
+          accent={slipped ? STATUS.critical : SERIES[3]}
+        />
+        <StatTile
+          label="Days lost to issues"
+          value={delivery ? Math.round(delivery.delay_days) : 0}
+          icon={AlertTriangle}
+          accent={delivery && delivery.delay_days > 0 ? STATUS.serious : SERIES[2]}
+          higherIsBetter={false}
+        />
         <StatTile
           label="Spent"
           value={Number(project.actual_cost)}
@@ -294,21 +396,35 @@ export default function ProjectDetailPage({
           accent={overBudget ? STATUS.critical : SERIES[0]}
           higherIsBetter={false}
         />
-        <StatTile
-          label="Target date"
-          value={
-            project.target_date
-              ? new Date(project.target_date).toLocaleDateString("en-ZA", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "Not set"
-          }
-          icon={CalendarClock}
-          accent={SERIES[3]}
-        />
       </div>
+
+      {/* The quote the project is being delivered against. */}
+      {project.quote_number || project.quote_amount != null ? (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-muted-foreground">
+          {project.quote_number ? (
+            <span>
+              Quote <span className="font-mono text-foreground">{project.quote_number}</span>
+            </span>
+          ) : null}
+          {project.quote_amount != null ? (
+            <span>
+              Quoted{" "}
+              <span className="font-medium text-foreground">
+                {compact(Number(project.quote_amount), true)}
+              </span>
+            </span>
+          ) : null}
+          {delivery && delivery.units_total > 0 ? (
+            <span>
+              {delivery.units_total} units across {delivery.blocks_total} blocks (
+              {delivery.blocks_done} finished)
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* How this work was won — lead, source, salesperson. */}
+      <ProjectLeadStrip lead={integration.lead} />
 
       {project.budget_amount != null ? (
         <Panel title="Budget">
@@ -321,12 +437,42 @@ export default function ProjectDetailPage({
         </Panel>
       ) : null}
 
+      {/* A second opinion on this job, argued from every other job on record. */}
+      <ProjectAdvisor
+        projectId={id}
+        projectName={project.name}
+        accessToken={accessToken ?? ""}
+        compact
+      />
+
+      {/* How the work is actually being delivered: the grid, the plant, the delays. */}
+      <DeliveryPanel
+        projectId={id}
+        accessToken={accessToken ?? ""}
+        targetDate={project.target_date}
+        users={users}
+        onSummary={setDelivery}
+      />
+
+      {/* Everything else this project touches: jobs, stock, money, people. */}
+      <ProjectIntegrationPanels
+        data={integration}
+        users={users}
+        canEdit={canEdit}
+        busy={busy}
+        post={post}
+      />
+
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <div className="space-y-4">
           {/* Tasks */}
           <Panel
             title="Tasks"
-            description="Assign work to anyone, in any department"
+            description={
+              tasks.length > 0
+                ? `${done} of ${tasks.length} done — one-off work that sits outside the grid`
+                : "One-off work that sits outside the delivery grid"
+            }
             padded={false}
           >
             {canEdit ? (
@@ -337,34 +483,28 @@ export default function ProjectDetailPage({
                   placeholder="What needs doing?"
                   className="min-w-[180px] flex-1"
                 />
-                <select
+                <SelectField
+                  aria-label="Assign the new task to"
                   value={newTaskAssignee}
-                  onChange={(e) => setNewTaskAssignee(e.target.value)}
-                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                >
-                  <option value="">Unassigned</option>
-                  {users
-                    .filter((u) => u.active !== false)
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                      </option>
-                    ))}
-                </select>
-                <select
+                  onValueChange={setNewTaskAssignee}
+                  options={[
+                    { value: "", label: "Unassigned" },
+                    ...users
+                      .filter((u) => u.active !== false)
+                      .map((u) => ({ value: u.id, label: u.name })),
+                  ]}
+                />
+                <SelectField
+                  aria-label="Department for the new task"
                   value={newTaskModule}
-                  onChange={(e) => setNewTaskModule(e.target.value)}
-                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                >
-                  <option value="">No department</option>
-                  {Object.values(MODULES)
-                    .filter((mod) => mod.group !== "admin")
-                    .map((mod) => (
-                      <option key={mod.key} value={mod.key}>
-                        {mod.label}
-                      </option>
-                    ))}
-                </select>
+                  onValueChange={setNewTaskModule}
+                  options={[
+                    { value: "", label: "No department" },
+                    ...Object.values(MODULES)
+                      .filter((mod) => mod.group !== "admin")
+                      .map((mod) => ({ value: mod.key, label: mod.label })),
+                  ]}
+                />
                 <Button
                   disabled={busy || !newTask.trim()}
                   onClick={async () => {
@@ -425,24 +565,24 @@ export default function ProjectDetailPage({
                       {/* An assignee can progress their own task even without edit rights —
                           that is what makes cross-department assignment work. */}
                       {mine || canEdit ? (
-                        <select
+                        <SelectField
+                          size="sm"
+                          className="shrink-0"
+                          aria-label={`Status of "${t.title}"`}
                           value={t.status}
-                          onChange={(e) =>
+                          onValueChange={(v) =>
                             void post({
                               action: "setTaskStatus",
                               taskId: t.id,
-                              taskStatus: e.target.value,
+                              taskStatus: v,
                             })
                           }
                           disabled={busy}
-                          className="h-7 shrink-0 rounded border border-border bg-background px-1 text-xs"
-                        >
-                          {TASK_STATUSES.map((ts) => (
-                            <option key={ts.value} value={ts.value}>
-                              {ts.label}
-                            </option>
-                          ))}
-                        </select>
+                          options={TASK_STATUSES.map((ts) => ({
+                            value: ts.value,
+                            label: ts.label,
+                          }))}
+                        />
                       ) : (
                         <span className="shrink-0 text-xs text-muted-foreground">{tm.label}</span>
                       )}
@@ -528,7 +668,7 @@ export default function ProjectDetailPage({
             actions={
               canEdit ? (
                 <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                  Manage
+                  <Users className="mr-1 h-3.5 w-3.5" /> Manage
                 </Button>
               ) : null
             }
@@ -569,32 +709,28 @@ export default function ProjectDetailPage({
           >
             {canEdit ? (
               <div className="space-y-2 border-b border-border p-3">
-                <div className="flex gap-2">
-                  <select
-                    value={linkType}
-                    onChange={(e) => setLinkType(e.target.value)}
-                    className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs"
-                  >
-                    {Object.entries(ENTITY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <SelectField
+                  className="w-full"
+                  aria-label="What kind of record to link"
+                  value={linkType}
+                  onValueChange={setLinkType}
+                  options={Object.entries(ENTITY_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                />
                 {linkType === "lead" ? (
-                  <select
+                  <SelectField
+                    className="w-full"
+                    aria-label="Client to link"
+                    placeholder="Choose a client…"
                     value={linkId}
-                    onChange={(e) => setLinkId(e.target.value)}
-                    className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
-                  >
-                    <option value="">Choose a client…</option>
-                    {leads.slice(0, 200).map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.clientName}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setLinkId}
+                    options={leads.slice(0, 200).map((l) => ({
+                      value: l.id,
+                      label: l.clientName,
+                    }))}
+                  />
                 ) : (
                   <Input
                     value={linkId}
@@ -687,17 +823,15 @@ export default function ProjectDetailPage({
                     placeholder="Amount"
                     className="h-8 flex-1 text-xs"
                   />
-                  <select
+                  <SelectField
+                    aria-label="Cost category"
                     value={costCategory}
-                    onChange={(e) => setCostCategory(e.target.value)}
-                    className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                  >
-                    {COST_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setCostCategory}
+                    options={COST_CATEGORIES.map((c) => ({
+                      value: c,
+                      label: c[0].toUpperCase() + c.slice(1),
+                    }))}
+                  />
                 </div>
                 <Button
                   variant="outline"
@@ -748,6 +882,28 @@ export default function ProjectDetailPage({
           </Panel>
         </div>
       </div>
+
+      {deleteOpen ? (
+        <DeleteProjectDialog
+          open={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => {
+            // The project no longer exists, so there is nothing to reload — go back
+            // to the list rather than re-fetching a 404.
+            router.push("/projects");
+          }}
+          project={project}
+          delivery={delivery}
+          counts={{
+            tasks: tasks.length,
+            costs: costs.length,
+            updates: updates.length,
+            members: members.length,
+            links: links.length,
+          }}
+          accessToken={accessToken ?? ""}
+        />
+      ) : null}
 
       {editOpen ? (
         <ProjectFormDialog

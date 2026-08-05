@@ -73,6 +73,7 @@ type StockStoreValue = StockBundle & {
     leadId?: string | null;
     accountsClientId?: string | null;
     clientName?: string | null;
+    projectId?: string | null;
     notes?: string;
     lines: { productId?: string; sundryId?: string; qtyNeeded: number }[];
   }) => Promise<void>;

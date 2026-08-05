@@ -90,6 +90,13 @@ export interface InvoiceInput {
   company: InvoiceCompany;
   /** Letterhead image bytes, PNG or JPEG. Omitted renders the company name as text. */
   logo?: Uint8Array;
+  /**
+   * Document heading. Defaults to "TAX INVOICE"; quotes pass "QUOTATION" and
+   * reuse the whole layout — same letterhead, same table, same totals.
+   */
+  documentTitle?: string;
+  /** Label for the due-date meta row; quotes pass "VALID UNTIL:". */
+  dueDateLabel?: string;
 }
 
 
@@ -114,8 +121,12 @@ const COL = {
 
 export async function renderInvoicePdf(input: InvoiceInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.setTitle(`Tax Invoice - ${input.invoiceNumber}`);
-  doc.setSubject(`Tax invoice for ${input.clientName}`);
+  const heading = input.documentTitle ?? "TAX INVOICE";
+  const headingTitle = heading
+    .toLowerCase()
+    .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+  doc.setTitle(`${headingTitle} - ${input.invoiceNumber}`);
+  doc.setSubject(`${headingTitle} for ${input.clientName}`);
   doc.setProducer("MEGS Waterberg");
 
   const page = doc.addPage(A4);
@@ -150,7 +161,7 @@ export async function renderInvoicePdf(input: InvoiceInput): Promise<Uint8Array>
     text(ctx, company.companyName, MARGIN, y - 14, { size: 13, bold: true, color: BRAND });
   }
 
-  text(ctx, "TAX INVOICE", RIGHT, y - 8, { size: 16, bold: true, align: "right" });
+  text(ctx, heading, RIGHT, y - 8, { size: 16, bold: true, align: "right" });
 
   /* --- meta block --- */
   y -= 30;
@@ -158,7 +169,7 @@ export async function renderInvoicePdf(input: InvoiceInput): Promise<Uint8Array>
     ["NUMBER:", input.invoiceNumber],
     ["REFERENCE:", input.reference],
     ["DATE:", shortDate(input.invoiceDate)],
-    ["DUE DATE:", shortDate(input.dueDate)],
+    [input.dueDateLabel ?? "DUE DATE:", shortDate(input.dueDate)],
     ["SALES REP:", input.salesRep],
     ["OVERALL DISCOUNT %:", percent(0)],
     ["PAGE:", "1/1"],

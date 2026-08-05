@@ -56,6 +56,7 @@ export const API_PATHS = {
   mobileTechVehicles: "/api/mobile/tech/vehicles",
   mobileTechFuel: "/api/mobile/tech/fuel",
   mobileStockSummary: "/api/mobile/stock/summary",
+  mobileStockRequests: "/api/mobile/stock/requests",
   mobileClientMe: "/api/mobile/client/me",
   mobileClientLayout: "/api/mobile/client/layout",
   mobileClientMessages: "/api/mobile/client/messages",
@@ -148,6 +149,9 @@ export interface FieldJob {
   jobType?: string;
   /** Client PPPoE username for the site. */
   clientPppoe?: string;
+  /** Project this job belongs to (migration 067), and optionally the block/phase. */
+  projectId?: string | null;
+  projectBlockId?: string | null;
 }
 
 export type JobKind =

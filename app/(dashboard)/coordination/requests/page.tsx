@@ -5,10 +5,10 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { ClientPicker } from "@/components/clients/client-picker";
+import { ProjectPicker } from "@/components/projects/project-picker";
 import { getFieldTechnicians } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,6 @@ import {
 } from "@/components/coordination/pick-list-targets";
 
 export default function CoordinationRequestsPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const {
     products,
@@ -87,6 +86,7 @@ export default function CoordinationRequestsPage() {
   const [techId, setTechId] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientName, setClientName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<{ target: string; qtyNeeded: number }[]>([
     { target: "", qtyNeeded: 1 },
@@ -135,8 +135,6 @@ export default function CoordinationRequestsPage() {
 
   const hasShortfall = lineWarnings.some(Boolean);
 
-  if (isLoading || !allowed) return null;
-
   function lineTargetOptions() {
     return (
       <PickListTargetOptions
@@ -160,6 +158,7 @@ export default function CoordinationRequestsPage() {
         technicianId: techId,
         accountsClientId: clientId || null,
         clientName: clientName || null,
+        projectId: projectId || null,
         notes,
         lines: lines
           .filter((l) => l.target)
@@ -170,6 +169,7 @@ export default function CoordinationRequestsPage() {
       setTechId("");
       setClientId("");
       setClientName("");
+      setProjectId("");
       setNotes("");
       setLines([{ target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 }]);
       setMsg(
@@ -529,6 +529,9 @@ export default function CoordinationRequestsPage() {
                   setClientName(client?.name ?? "");
                 }}
               />
+              {/* Booked-out units inherit this link, so the project's Stock
+                  panel can list them. */}
+              <ProjectPicker value={projectId} onChange={setProjectId} />
             </div>
             <div className="space-y-2">
               <label className="font-medium">Stock lines</label>

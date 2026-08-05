@@ -175,6 +175,10 @@ export async function POST(request: Request) {
         location_lat: locationLat,
         location_lng: locationLng,
         client_pppoe: String(body.clientPppoe ?? "").trim(),
+        // Which project (and optionally which block/phase) this job serves —
+        // migration 067. Dropped by the retry below if that migration hasn't run.
+        project_id: (body.projectId as string) || null,
+        project_block_id: (body.projectBlockId as string) || null,
       };
 
       // `accounts_client_id` (migration 055) isn't in the generated Database types,
@@ -182,6 +186,14 @@ export async function POST(request: Request) {
       // the convention this repo already uses for tables ahead of the type refresh.
       const untyped = supabase as unknown as SupabaseClient;
       let { error } = await untyped.from("jobs").insert(jobRow);
+
+      // Same tolerance as accounts_client_id below: an unapplied migration 067
+      // must not stop coordination booking jobs.
+      if (error && /project_id|project_block_id/.test(error.message)) {
+        delete jobRow.project_id;
+        delete jobRow.project_block_id;
+        ({ error } = await untyped.from("jobs").insert(jobRow));
+      }
 
       // `accounts_client_id` arrives with migration 055. Until that is applied the
       // column does not exist, and an unknown column fails the whole insert — which
@@ -261,6 +273,10 @@ export async function POST(request: Request) {
       if ("clientName" in body) updates.client_name = (body.clientName as string) || null;
       if ("towerId" in body) updates.tower_id = (body.towerId as string) || null;
       if ("towerSiteId" in body) updates.tower_site_id = (body.towerSiteId as string) || null;
+      if ("projectId" in body) updates.project_id = (body.projectId as string) || null;
+      if ("projectBlockId" in body) {
+        updates.project_block_id = (body.projectBlockId as string) || null;
+      }
       if (body.jobType !== undefined) updates.job_type = String(body.jobType);
       if (body.source !== undefined) updates.source = String(body.source);
       if (body.clientPppoe !== undefined) {

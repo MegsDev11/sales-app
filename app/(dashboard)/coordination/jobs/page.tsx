@@ -4,7 +4,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { getFieldTechnicians } from "@/lib/permissions";
 import type { FieldJob, JobKind } from "@megs/shared";
@@ -26,7 +25,6 @@ import { ClientPicker } from "@/components/clients/client-picker";
 const DEFAULT_JOB_KIND: JobKind = "service_call";
 
 export default function CoordinationJobsPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   // `leads` is no longer read here — clients come from the Accounts book via
   // ClientPicker, which searches server-side rather than from the CRM bundle.
@@ -46,6 +44,41 @@ export default function CoordinationJobsPage() {
   const [busy, setBusy] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignTechByJob, setAssignTechByJob] = useState<Record<string, string>>({});
+  // Optional project link (migration 067) — options come from the lightweight
+  // picker feed, which coordination access is enough for.
+  const [projectId, setProjectId] = useState("");
+  const [projectOptions, setProjectOptions] = useState<
+    { id: string; code: string; name: string }[]
+  >([]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/projects?options=1", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!cancelled && res.ok) setProjectOptions(json.options ?? []);
+      } catch {
+        /* picker simply stays empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  const projectLabel = useCallback(
+    (id: string | null | undefined) => {
+      if (!id) return null;
+      const p = projectOptions.find((o) => o.id === id);
+      return p ? `${p.code} ${p.name}` : "Linked project";
+    },
+    [projectOptions]
+  );
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -105,6 +138,7 @@ export default function CoordinationJobsPage() {
           technicianIds: [techId],
           source: "coordination",
           scheduledStart: new Date().toISOString(),
+          projectId: projectId || null,
         }),
       });
       const json = await res.json();
@@ -118,6 +152,7 @@ export default function CoordinationJobsPage() {
       setClientId("");
       setClientName("");
       setJobType(DEFAULT_JOB_KIND);
+      setProjectId("");
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -152,8 +187,6 @@ export default function CoordinationJobsPage() {
       setAssigningId(null);
     }
   }
-
-  if (isLoading || !allowed) return null;
 
   const pendingOwner = jobs.filter(
     (j) =>
@@ -309,6 +342,27 @@ export default function CoordinationJobsPage() {
             autoCapitalize="off"
             autoCorrect="off"
           />
+          {/* Optional project link — the job then shows on the project's
+              Field work panel and its hours roll up there. */}
+          {projectOptions.length > 0 ? (
+            <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Project (optional)">
+                  {(value) =>
+                    value ? projectLabel(String(value)) : "Project (optional)"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">No project</SelectItem>
+                {projectOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.code} · {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           {/* The Accounts client book, searched on the server. Replaces a dropdown
               of CRM leads that was capped at 200 and held pipeline rows rather than
               the 5 400 real customers a technician actually gets sent to. */}
@@ -374,6 +428,11 @@ export default function CoordinationJobsPage() {
                       {j.jobType && j.jobType !== "general" ? (
                         <span className={jobTypeBadgeClass(j.jobType)}>
                           {jobKindLabel(j.jobType)}
+                        </span>
+                      ) : null}
+                      {j.projectId ? (
+                        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-800">
+                          {projectLabel(j.projectId)}
                         </span>
                       ) : null}
                     </div>

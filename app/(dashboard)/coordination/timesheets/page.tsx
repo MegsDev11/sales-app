@@ -4,7 +4,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { getFieldTechnicians } from "@/lib/permissions";
 import {
@@ -17,13 +16,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectField } from "@/components/ui/select-field";
+
+/** Wording for the overtime rule, in one place so the trigger and the list agree. */
+const OT_MODES: { value: OtMode; label: string }[] = [
+  { value: "daily", label: "After daily hours" },
+  { value: "weekly", label: "After weekly hours" },
+  { value: "both", label: "Daily and weekly" },
+];
 
 type EntryRow = TimeEntry & {
   durationMinutes?: number;
@@ -32,7 +32,6 @@ type EntryRow = TimeEntry & {
 };
 
 export default function CoordinationTimesheetsPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const { users } = useCrmStore();
   const techs = getFieldTechnicians(users);
@@ -47,6 +46,10 @@ export default function CoordinationTimesheetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [otSaved, setOtSaved] = useState(false);
 
+  // jobId -> title, so an entry can say what the hours were for. Loaded once;
+  // entries carried jobId all along but the page never showed it.
+  const [jobTitles, setJobTitles] = useState<Record<string, string>>({});
+
   const load = useCallback(async () => {
     if (!accessToken) return;
     const q = technicianId ? `?technicianId=${technicianId}` : "";
@@ -59,6 +62,19 @@ export default function CoordinationTimesheetsPage() {
       return;
     }
     setEntries(json.entries ?? []);
+    try {
+      const jobsRes = await fetch("/api/coordination/jobs", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const jobsJson = await jobsRes.json();
+      if (jobsRes.ok) {
+        const titles: Record<string, string> = {};
+        for (const j of jobsJson.jobs ?? []) titles[j.id] = j.title;
+        setJobTitles(titles);
+      }
+    } catch {
+      /* job labels are decoration */
+    }
     const settings = (json.otSettings as OtSettings) ?? DEFAULT_OT_SETTINGS;
     setOtSettings(settings);
     setMode(settings.mode);
@@ -106,8 +122,6 @@ export default function CoordinationTimesheetsPage() {
     }
   }
 
-  if (isLoading || !allowed) return null;
-
   const nameOf = (id: string) => techs.find((t) => t.id === id)?.name ?? id;
 
   return (
@@ -134,23 +148,17 @@ export default function CoordinationTimesheetsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">When OT starts</p>
-              <Select
+              <SelectField
+                className="w-full"
+                aria-label="When OT starts"
                 value={mode}
                 onValueChange={(v) =>
                   setMode(
                     v === "weekly" || v === "both" || v === "daily" ? v : "daily"
                   )
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">After daily hours</SelectItem>
-                  <SelectItem value="weekly">After weekly hours</SelectItem>
-                  <SelectItem value="both">Daily and weekly</SelectItem>
-                </SelectContent>
-              </Select>
+                options={OT_MODES}
+              />
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium">Daily threshold (hours)</p>
@@ -205,22 +213,16 @@ export default function CoordinationTimesheetsPage() {
       </Card>
 
       <div className="max-w-sm">
-        <Select
-          value={technicianId || "__all__"}
-          onValueChange={(v) => setTechnicianId(!v || v === "__all__" ? "" : String(v))}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="All techs" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All techs</SelectItem>
-            {techs.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SelectField
+          className="w-full"
+          aria-label="Filter by technician"
+          value={technicianId}
+          onValueChange={setTechnicianId}
+          options={[
+            { value: "", label: "All techs" },
+            ...techs.map((t) => ({ value: t.id, label: t.name })),
+          ]}
+        />
       </div>
 
       <div className="grid gap-2">
@@ -235,6 +237,11 @@ export default function CoordinationTimesheetsPage() {
                     ? ` → Out ${new Date(e.clockOutAt).toLocaleString()}`
                     : " (open)"}
                 </p>
+                {e.jobId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Job: {jobTitles[e.jobId] ?? e.jobId}
+                  </p>
+                ) : null}
                 {(e.clockInLat != null || e.clockOutLat != null) && (
                   <p className="text-xs text-muted-foreground">
                     GPS{" "}

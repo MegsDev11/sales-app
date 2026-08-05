@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { requireAccess } from "@/lib/supabase/server-auth";
-import { can } from "@/lib/access";
+import { requireAccess, requireAnyAccess } from "@/lib/supabase/server-auth";
+import { can, isOwnerRole } from "@/lib/access";
 import { isModuleKey } from "@/lib/modules";
+import { errorMessage, newId } from "@/lib/api/route-helpers";
 import {
   canEditProject,
   canSeeProject,
@@ -13,29 +14,333 @@ import {
 /**
  * Projects API.
  *
- * GET  ?id=<project>  -> one project with members, tasks, links, updates, costs
- * GET                 -> every project the caller may see, with member/task counts
- * POST                -> create / update / member changes / tasks / updates / costs / links
+ * GET  ?id=<project>  -> one project with members, tasks, links, updates, costs,
+ *                        plus the Phase-2 integration slice: the winning lead,
+ *                        field jobs + job cards + logged hours, the bill of
+ *                        materials vs booked stock, invoices, quotes and phase
+ *                        staffing (migrations 066/067/068 — each part simply
+ *                        comes back empty until its migration is applied)
+ * GET  ?options=1     -> lightweight {id, code, name, status} list for project
+ *                        pickers in OTHER modules (jobs, pick lists, quotes) —
+ *                        reachable with coordination/stock/accounts access, not
+ *                        just projects
+ * POST                -> create / update / member changes / tasks / updates /
+ *                        costs / links / BOM lines / phase staffing
  *
  * Visibility mirrors can_see_project() in migration 046. RLS enforces it
  * independently; this layer exists so the response is right and a rejection is a
  * clean 403 rather than a silently empty list.
  */
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
+/** Sum closed time_entries into minutes; open entries don't count yet. */
+function closedMinutes(row: { clock_in_at: string | null; clock_out_at: string | null }): number {
+  if (!row.clock_in_at || !row.clock_out_at) return 0;
+  const ms = new Date(row.clock_out_at).getTime() - new Date(row.clock_in_at).getTime();
+  return ms > 0 ? Math.round(ms / 60000) : 0;
 }
 
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+/**
+ * The reverse joins that make a project show everything about itself.
+ * Every query is tolerant: a missing table or column (migration not applied
+ * yet) contributes an empty slice instead of failing the page.
+ */
+async function loadIntegration(
+  supabase: SupabaseClient,
+  project: { id: string; client_lead_id: string | null }
+) {
+  const id = project.id;
+
+  const [leadRes, jobsRes, stockLinesRes, phaseStaffRes, requestsRes, bookingsRes, invoicesRes, quotesRes, blocksRes, stagesRes] =
+    await Promise.all([
+      project.client_lead_id
+        ? supabase
+            .from("leads")
+            .select("id, client_name, lead_source, deal_value, assigned_to_id")
+            .eq("id", project.client_lead_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("jobs")
+        .select("id, title, client_name, status, job_type, scheduled_start, scheduled_end, project_block_id")
+        .eq("project_id", id)
+        .order("scheduled_start", { ascending: false }),
+      supabase
+        .from("project_stock_lines")
+        .select("*")
+        .eq("project_id", id)
+        .order("created_at"),
+      supabase
+        .from("project_phase_staff")
+        .select("*")
+        .eq("project_id", id)
+        .order("added_at"),
+      supabase
+        .from("stock_requests")
+        .select("id, title, status, technician_id, created_at")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("stock_bookings")
+        .select("id, item_id, technician_id, booked_out_at, returned_at")
+        .eq("project_id", id)
+        .order("booked_out_at", { ascending: false }),
+      supabase
+        .from("accounts_invoices")
+        .select("id, invoice_number, invoice_date, total_incl, status, kind")
+        .eq("project_id", id)
+        .order("invoice_date", { ascending: false }),
+      supabase
+        .from("accounts_quotes")
+        .select("id, quote_number, quote_date, total_incl, status, invoice_id")
+        .eq("project_id", id)
+        .order("quote_date", { ascending: false }),
+      supabase.from("project_blocks").select("id, name").eq("project_id", id).order("order_index"),
+      supabase.from("project_stages").select("id, name").eq("project_id", id).order("order_index"),
+    ]);
+
+  const jobs = jobsRes.error ? [] : jobsRes.data ?? [];
+  const jobIds = jobs.map((j) => j.id as string);
+
+  const [cardsRes, timeRes] = await Promise.all([
+    jobIds.length
+      ? supabase
+          .from("job_card_submissions")
+          .select("id, job_id, card_number, technician_id, submitted_at, status")
+          .in("job_id", jobIds)
+          .order("submitted_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    jobIds.length
+      ? supabase
+          .from("time_entries")
+          .select("technician_id, job_id, clock_in_at, clock_out_at")
+          .in("job_id", jobIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const cards = cardsRes.error ? [] : cardsRes.data ?? [];
+  const timeRows = timeRes.error ? [] : timeRes.data ?? [];
+  const stockLines = stockLinesRes.error ? [] : stockLinesRes.data ?? [];
+  const phaseStaff = phaseStaffRes.error ? [] : phaseStaffRes.data ?? [];
+  const requests = requestsRes.error ? [] : requestsRes.data ?? [];
+  const bookings = bookingsRes.error ? [] : bookingsRes.data ?? [];
+
+  // Resolve display names in one batch per table.
+  const techIds = new Set<string>();
+  for (const c of cards) techIds.add(c.technician_id as string);
+  for (const t of timeRows) techIds.add(t.technician_id as string);
+  for (const r of requests) techIds.add(r.technician_id as string);
+  for (const b of bookings) techIds.add(b.technician_id as string);
+  for (const p of phaseStaff) techIds.add(p.technician_id as string);
+  const lead = leadRes && !leadRes.error ? leadRes.data : null;
+  if (lead?.assigned_to_id) techIds.add(lead.assigned_to_id as string);
+
+  const productIds = new Set<string>();
+  const sundryIds = new Set<string>();
+  for (const l of stockLines) {
+    if (l.product_id) productIds.add(l.product_id as string);
+    if (l.sundry_id) sundryIds.add(l.sundry_id as string);
+  }
+  const itemIds = [...new Set(bookings.map((b) => b.item_id as string))];
+
+  const [techsRes, productsRes, sundriesRes, itemsRes] = await Promise.all([
+    techIds.size
+      ? supabase.from("team_members").select("id, name").in("id", [...techIds])
+      : Promise.resolve({ data: [], error: null }),
+    productIds.size
+      ? supabase.from("stock_products").select("id, name").in("id", [...productIds])
+      : Promise.resolve({ data: [], error: null }),
+    sundryIds.size
+      ? supabase.from("stock_sundries").select("id, name, unit_label").in("id", [...sundryIds])
+      : Promise.resolve({ data: [], error: null }),
+    itemIds.length
+      ? supabase
+          .from("stock_items")
+          .select("id, product_id, serial_number")
+          .in("id", itemIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const techName = new Map(
+    ((techsRes.data ?? []) as { id: string; name: string }[]).map((t) => [t.id, t.name])
+  );
+  const productName = new Map(
+    ((productsRes.data ?? []) as { id: string; name: string }[]).map((p) => [p.id, p.name])
+  );
+  const sundryName = new Map(
+    ((sundriesRes.data ?? []) as { id: string; name: string }[]).map((s) => [s.id, s.name])
+  );
+  const itemById = new Map(
+    ((itemsRes.data ?? []) as { id: string; product_id: string; serial_number: string }[]).map(
+      (i) => [i.id, i]
+    )
+  );
+  const blockName = new Map(
+    ((blocksRes.error ? [] : blocksRes.data ?? []) as { id: string; name: string }[]).map((b) => [
+      b.id,
+      b.name,
+    ])
+  );
+  const stageName = new Map(
+    ((stagesRes.error ? [] : stagesRes.data ?? []) as { id: string; name: string }[]).map((s) => [
+      s.id,
+      s.name,
+    ])
+  );
+
+  // Logged hours per technician across this project's jobs.
+  const minutesByTech = new Map<string, number>();
+  for (const t of timeRows) {
+    const m = closedMinutes(t as { clock_in_at: string | null; clock_out_at: string | null });
+    if (m <= 0) continue;
+    const tid = t.technician_id as string;
+    minutesByTech.set(tid, (minutesByTech.get(tid) ?? 0) + m);
+  }
+
+  return {
+    lead: lead
+      ? {
+          id: lead.id as string,
+          clientName: (lead.client_name as string) ?? "",
+          leadSource: (lead.lead_source as string) ?? "",
+          dealValue: lead.deal_value != null ? Number(lead.deal_value) : null,
+          repId: (lead.assigned_to_id as string | null) ?? null,
+          repName: lead.assigned_to_id
+            ? techName.get(lead.assigned_to_id as string) ?? null
+            : null,
+        }
+      : null,
+    jobs: jobs.map((j) => ({
+      id: j.id as string,
+      title: (j.title as string) ?? "Job",
+      clientName: (j.client_name as string | null) ?? null,
+      status: (j.status as string) ?? "scheduled",
+      jobType: (j.job_type as string | null) ?? null,
+      scheduledStart: (j.scheduled_start as string | null) ?? null,
+      scheduledEnd: (j.scheduled_end as string | null) ?? null,
+      blockId: (j.project_block_id as string | null) ?? null,
+      blockName: j.project_block_id
+        ? blockName.get(j.project_block_id as string) ?? null
+        : null,
+    })),
+    jobCards: cards.map((c) => ({
+      id: c.id as string,
+      jobId: c.job_id as string,
+      cardNumber: (c.card_number as string | null) ?? null,
+      technicianName: techName.get(c.technician_id as string) ?? c.technician_id,
+      submittedAt: (c.submitted_at as string | null) ?? null,
+      status: (c.status as string) ?? "",
+    })),
+    labour: {
+      totalMinutes: [...minutesByTech.values()].reduce((a, b) => a + b, 0),
+      byTech: [...minutesByTech.entries()]
+        .map(([technicianId, minutes]) => ({
+          technicianId,
+          name: techName.get(technicianId) ?? technicianId,
+          minutes,
+        }))
+        .sort((a, b) => b.minutes - a.minutes),
+    },
+    stockLines: stockLines.map((l) => ({
+      id: l.id as string,
+      productId: (l.product_id as string | null) ?? null,
+      sundryId: (l.sundry_id as string | null) ?? null,
+      name:
+        (l.product_id ? productName.get(l.product_id as string) : null) ??
+        (l.sundry_id ? sundryName.get(l.sundry_id as string) : null) ??
+        ((l.description as string) || "Line"),
+      qtyNeeded: Number(l.qty_needed ?? 0),
+      unitCost: l.unit_cost != null ? Number(l.unit_cost) : null,
+      note: (l.note as string) ?? "",
+    })),
+    stockRequests: requests.map((r) => ({
+      id: r.id as string,
+      title: (r.title as string) ?? "",
+      status: (r.status as string) ?? "open",
+      technicianName: techName.get(r.technician_id as string) ?? r.technician_id,
+    })),
+    stockBookings: bookings.map((b) => {
+      const item = itemById.get(b.item_id as string);
+      return {
+        id: b.id as string,
+        productName: item ? productName.get(item.product_id) ?? null : null,
+        serialNumber: item?.serial_number ?? "",
+        technicianName: techName.get(b.technician_id as string) ?? b.technician_id,
+        bookedOutAt: (b.booked_out_at as string) ?? null,
+        returnedAt: (b.returned_at as string | null) ?? null,
+      };
+    }),
+    invoices: (invoicesRes.error ? [] : invoicesRes.data ?? []).map((i) => ({
+      id: i.id as string,
+      invoiceNumber: i.invoice_number as string,
+      invoiceDate: (i.invoice_date as string) ?? null,
+      totalIncl: Number(i.total_incl ?? 0),
+      status: (i.status as string) ?? "",
+      kind: (i.kind as string) ?? "subscription",
+    })),
+    quotes: (quotesRes.error ? [] : quotesRes.data ?? []).map((q) => ({
+      id: q.id as string,
+      quoteNumber: q.quote_number as string,
+      quoteDate: (q.quote_date as string) ?? null,
+      totalIncl: Number(q.total_incl ?? 0),
+      status: (q.status as string) ?? "",
+      invoiceId: (q.invoice_id as string | null) ?? null,
+    })),
+    phaseStaff: phaseStaff.map((p) => ({
+      id: p.id as string,
+      technicianId: p.technician_id as string,
+      technicianName: techName.get(p.technician_id as string) ?? p.technician_id,
+      blockId: (p.block_id as string | null) ?? null,
+      blockName: p.block_id ? blockName.get(p.block_id as string) ?? null : null,
+      stageId: (p.stage_id as string | null) ?? null,
+      stageName: p.stage_id ? stageName.get(p.stage_id as string) ?? null : null,
+      role: (p.role as string) ?? "",
+    })),
+    blocks: (blocksRes.error ? [] : blocksRes.data ?? []) as { id: string; name: string }[],
+    stages: (stagesRes.error ? [] : stagesRes.data ?? []) as { id: string; name: string }[],
+  };
+}
+
+/**
+ * Lightweight project options for pickers in other modules. Coordination raises
+ * jobs for projects, stock raises pick lists, accounts raises quotes — none of
+ * them necessarily hold the projects module, so this is guarded on any of the
+ * four. Private projects only appear for their members.
+ */
+async function projectOptions(request: Request) {
+  const user = await requireAnyAccess(request, ["projects", "coordination", "stock", "accounts"]);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+  const supabase = createSupabaseAdminClient() as unknown as SupabaseClient;
+  const [projectsRes, membersRes] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, code, name, status, is_private")
+      .not("status", "in", "(completed,cancelled)")
+      .order("created_at", { ascending: false })
+      .limit(300),
+    supabase.from("project_members").select("project_id, user_id").eq("user_id", user.id),
+  ]);
+  if (projectsRes.error) {
+    return NextResponse.json({ error: errorMessage(projectsRes.error) }, { status: 500 });
+  }
+  const mine = new Set((membersRes.data ?? []).map((m) => m.project_id as string));
+  const manage = can(user, "projects", "manage");
+  const options = (projectsRes.data ?? [])
+    .filter((p) => manage || !p.is_private || mine.has(p.id as string))
+    .map((p) => ({ id: p.id as string, code: p.code as string, name: p.name as string, status: p.status as string }));
+  return NextResponse.json(
+    { options },
+    { headers: { "Cache-Control": "no-store, max-age=0" } }
+  );
 }
 
 export async function GET(request: Request) {
+  // The options picker has its own, wider guard — check before the module gate.
+  if (new URL(request.url).searchParams.get("options")) {
+    return projectOptions(request);
+  }
+
   const user = await requireAccess(request, "projects", "view");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized — projects access required" }, { status: 403 });
@@ -79,6 +384,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
 
+      const integration = await loadIntegration(
+        supabase,
+        project as { id: string; client_lead_id: string | null }
+      );
+
       return NextResponse.json(
         {
           project,
@@ -89,6 +399,7 @@ export async function GET(request: Request) {
           updates: updates.data ?? [],
           costs: costs.data ?? [],
           milestones: milestones.data ?? [],
+          ...integration,
           canEdit: canEditProject(user, project as unknown as ProjectAuthRow, leadIds),
         },
         { headers: { "Cache-Control": "no-store, max-age=0" } }
@@ -159,6 +470,8 @@ interface Body {
   startDate?: string | null;
   targetDate?: string | null;
   budgetAmount?: number | null;
+  quoteNumber?: string | null;
+  quoteAmount?: number | null;
   isPrivate?: boolean;
   departments?: string[];
   // members
@@ -179,6 +492,19 @@ interface Body {
   entityType?: string;
   entityId?: string;
   label?: string;
+  // BOM lines
+  lineId?: string;
+  productId?: string | null;
+  sundryId?: string | null;
+  qtyNeeded?: number;
+  unitCost?: number | null;
+  note?: string;
+  // phase staffing
+  staffId?: string;
+  technicianId?: string;
+  blockId?: string | null;
+  stageId?: string | null;
+  role?: string;
 }
 
 /** Load a project plus the member sets needed for an authorisation decision. */
@@ -252,6 +578,8 @@ export async function POST(request: Request) {
         start_date: body.startDate || null,
         target_date: body.targetDate || null,
         budget_amount: body.budgetAmount ?? null,
+        quote_number: body.quoteNumber || null,
+        quote_amount: body.quoteAmount ?? null,
         is_private: body.isPrivate ?? false,
         created_by: user.id,
       });
@@ -311,6 +639,47 @@ export async function POST(request: Request) {
     }
 
     const mayEdit = canEditProject(user, auth.project, auth.leadIds);
+
+    /**
+     * Deleting a project is the owner's alone — checked before the edit gate below,
+     * because "can edit" is deliberately not the question here.
+     *
+     * Everything hanging off this row cascades: the block grid, every ticked cell,
+     * the delay log, the plant register, the cost ledger and the document links. That
+     * is the site history for a job that may have run for two years, and there is no
+     * undo. Mirrors projects_delete in migration 059; the database enforces it
+     * independently, and this layer exists so a rejection is a clean 403 rather than
+     * a silent no-op.
+     */
+    if (action === "deleteProject") {
+      if (!isOwnerRole(user)) {
+        return NextResponse.json(
+          { error: "Only the business owner can delete a project." },
+          { status: 403 }
+        );
+      }
+
+      // The name must match what the caller was shown. Guards against a stale tab
+      // deleting a project that was renamed — or replaced — since it loaded.
+      const { data: row } = await supabase
+        .from("projects")
+        .select("name, code")
+        .eq("id", projectId)
+        .maybeSingle();
+      if (!row) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+      if (typeof body.name === "string" && body.name.trim() !== (row.name as string)) {
+        return NextResponse.json(
+          { error: "That name does not match this project. Reload and try again." },
+          { status: 409 }
+        );
+      }
+
+      const { error } = await supabase.from("projects").delete().eq("id", projectId);
+      if (error) throw error;
+
+      return NextResponse.json({ ok: true, deleted: row.code });
+    }
 
     // ---- task status: an assignee may progress their own work --------------
     if (action === "setTaskStatus") {
@@ -390,6 +759,8 @@ export async function POST(request: Request) {
         if (body.startDate !== undefined) patch.start_date = body.startDate || null;
         if (body.targetDate !== undefined) patch.target_date = body.targetDate || null;
         if (body.budgetAmount !== undefined) patch.budget_amount = body.budgetAmount;
+        if (body.quoteNumber !== undefined) patch.quote_number = body.quoteNumber || null;
+        if (body.quoteAmount !== undefined) patch.quote_amount = body.quoteAmount;
         if (body.isPrivate !== undefined) patch.is_private = body.isPrivate;
 
         const { error } = await supabase.from("projects").update(patch).eq("id", projectId);
@@ -533,6 +904,103 @@ export async function POST(request: Request) {
       case "removeLink": {
         if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
         const { error } = await supabase.from("project_links").delete().eq("id", body.id);
+        if (error) throw error;
+        return NextResponse.json({ ok: true });
+      }
+
+      // ---- bill of materials (migration 067) --------------------------------
+      case "addStockLine": {
+        const qty = Number(body.qtyNeeded ?? 0);
+        if (!Number.isFinite(qty) || qty <= 0) {
+          return NextResponse.json({ error: "A quantity above zero is required" }, { status: 400 });
+        }
+        if (!body.productId && !body.sundryId && !body.description?.trim()) {
+          return NextResponse.json(
+            { error: "Pick a product or sundry, or describe the material" },
+            { status: 400 }
+          );
+        }
+        const { error } = await supabase.from("project_stock_lines").insert({
+          id: newId("psl"),
+          project_id: projectId,
+          product_id: body.productId ?? null,
+          sundry_id: body.productId ? null : body.sundryId ?? null,
+          description: body.description?.trim() ?? "",
+          qty_needed: qty,
+          unit_cost: body.unitCost ?? null,
+          note: body.note?.trim() ?? "",
+          created_by: user.id,
+        });
+        if (error) throw new Error(`${errorMessage(error)} — run supabase/migrations/067_project_integration.sql in Supabase.`);
+        return NextResponse.json({ ok: true });
+      }
+
+      case "updateStockLine": {
+        if (!body.lineId) return NextResponse.json({ error: "lineId required" }, { status: 400 });
+        const patch: Record<string, unknown> = {};
+        if (body.qtyNeeded !== undefined) {
+          const qty = Number(body.qtyNeeded);
+          if (!Number.isFinite(qty) || qty <= 0) {
+            return NextResponse.json({ error: "A quantity above zero is required" }, { status: 400 });
+          }
+          patch.qty_needed = qty;
+        }
+        if (body.unitCost !== undefined) patch.unit_cost = body.unitCost;
+        if (body.note !== undefined) patch.note = body.note.trim();
+        const { error } = await supabase
+          .from("project_stock_lines")
+          .update(patch)
+          .eq("id", body.lineId)
+          .eq("project_id", projectId);
+        if (error) throw error;
+        return NextResponse.json({ ok: true });
+      }
+
+      case "removeStockLine": {
+        if (!body.lineId) return NextResponse.json({ error: "lineId required" }, { status: 400 });
+        const { error } = await supabase
+          .from("project_stock_lines")
+          .delete()
+          .eq("id", body.lineId)
+          .eq("project_id", projectId);
+        if (error) throw error;
+        return NextResponse.json({ ok: true });
+      }
+
+      // ---- phase staffing (migration 067) -----------------------------------
+      case "addPhaseStaff": {
+        if (!body.technicianId) {
+          return NextResponse.json({ error: "technicianId required" }, { status: 400 });
+        }
+        const { error } = await supabase.from("project_phase_staff").insert({
+          id: newId("pps"),
+          project_id: projectId,
+          block_id: body.blockId || null,
+          stage_id: body.stageId || null,
+          technician_id: body.technicianId,
+          role: body.role?.trim() ?? "",
+          note: body.note?.trim() ?? "",
+          added_by: user.id,
+        });
+        if (error) {
+          if (/project_phase_staff_scope_key|duplicate/i.test(error.message)) {
+            return NextResponse.json(
+              { error: "That person is already assigned to this phase" },
+              { status: 409 }
+            );
+          }
+          throw new Error(`${errorMessage(error)} — run supabase/migrations/067_project_integration.sql in Supabase.`);
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      case "removePhaseStaff": {
+        if (!body.staffId) return NextResponse.json({ error: "staffId required" }, { status: 400 });
+        const { error } = await supabase
+          .from("project_phase_staff")
+          .delete()
+          .eq("id", body.staffId)
+          .eq("project_id", projectId);
         if (error) throw error;
         return NextResponse.json({ ok: true });
       }

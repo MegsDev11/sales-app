@@ -190,6 +190,7 @@ type StockAction =
       leadId?: string | null;
       accountsClientId?: string | null;
       clientName?: string | null;
+      projectId?: string | null;
       notes?: string;
       lines: { productId?: string; sundryId?: string; qtyNeeded: number }[];
     }
@@ -445,8 +446,20 @@ export async function POST(request: Request) {
 
         // Untyped view: migration 055's columns are ahead of the generated types.
         const untypedDb = supabase as unknown as SupabaseClient;
-        const row = stockRequestToRow(stockRequest);
+        const row: Record<string, unknown> = {
+          ...stockRequestToRow(stockRequest),
+          // Which project this pick list serves (migration 067) — bookings made
+          // against the request inherit it.
+          project_id: body.projectId || null,
+        };
         let { error } = await untypedDb.from("stock_requests").insert(row);
+
+        // Migration 067 tolerance: an unapplied project column must not stop
+        // technicians requesting stock.
+        if (error && /project_id/.test(error.message)) {
+          delete row.project_id;
+          ({ error } = await untypedDb.from("stock_requests").insert(row));
+        }
 
         // Migration 055 adds `accounts_client_id` and `client_name`. Before it is
         // applied those columns don't exist and the whole insert fails — which would
@@ -647,6 +660,16 @@ export async function POST(request: Request) {
         .update({ quantity, updated_at: now })
         .eq("id", body.sundryId);
       if (error) throw error;
+      // Movement ledger (migration 065). Best-effort: the adjustment itself
+      // stands even while the migration is still unapplied.
+      await (supabase as unknown as SupabaseClient).from("stock_movements").insert({
+        sundry_id: body.sundryId,
+        movement: "adjusted",
+        qty: change,
+        ref_type: "manual_adjust",
+        ref_id: body.sundryId,
+        actor_id: user.id,
+      });
       return NextResponse.json({ ok: true});
     }
 
@@ -990,13 +1013,24 @@ export async function POST(request: Request) {
           bookedOutBy: user.id,
           notes: ""}),
         accounts_client_id: bookingClientId,
+        // The unit inherits the pick list's project (migration 067), so a
+        // project can list every serialised unit on it.
+        project_id: (requestRow as Record<string, unknown>).project_id ?? null,
       };
 
-      // Untyped view: migration 055's `accounts_client_id` is ahead of the types.
+      // Untyped view: migrations 055/067 columns are ahead of the types.
       const untypedBookings = supabase as unknown as SupabaseClient;
       let { error: bookingError } = await untypedBookings
         .from("stock_bookings")
         .insert(bookingRow);
+
+      // Migration 067 tolerance — book the unit out even without the project link.
+      if (bookingError && /project_id/.test(bookingError.message)) {
+        delete bookingRow.project_id;
+        ({ error: bookingError } = await untypedBookings
+          .from("stock_bookings")
+          .insert(bookingRow));
+      }
 
       // Migration 055 column; without it the insert fails and the unit never leaves
       // the shelf. Book the stock out and lose the link rather than block the tech.

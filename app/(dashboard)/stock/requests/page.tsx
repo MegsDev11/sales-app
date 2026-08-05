@@ -4,10 +4,10 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useStockRequestsAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { ClientPicker } from "@/components/clients/client-picker";
+import { ProjectPicker } from "@/components/projects/project-picker";
 import { canAccessStock, canAccessCoordination, getFieldTechnicians } from "@/lib/permissions";
 import { extractStockQrToken } from "@/lib/stock-qr-token";
 import { BarcodeScanner } from "@/components/stock/barcode-scanner";
@@ -31,8 +31,7 @@ import {
 } from "@/components/ui/select";
 
 export default function StockRequestsPage() {
-  const { allowed, isLoading, currentUser } = useStockRequestsAccess();
-  const { accessToken } = useAuth();
+  const { accessToken, currentUser } = useAuth();
   const {
     products,
     sundries,
@@ -49,6 +48,19 @@ export default function StockRequestsPage() {
   } = useStockStore();
   const { users, getVisibleLeads } = useCrmStore();
 
+  /**
+   * Coordination raises pick lists; only Stock fulfils them.
+   *
+   * This page used a `useStockRequestsAccess` hook whose rule was "stock OR
+   * coordination". That rule never actually applied: RouteGuard resolves /stock/*
+   * to the stock module and requires stock/view, so a coordination user with no
+   * stock grant is turned away in the layout before this renders. The nav agrees
+   * with the guard — navItemsFor() narrows the stock sidebar to this page and
+   * Projects for users with READ-ONLY stock — so the working assumption is that
+   * coordination staff hold stock/view. The hook is gone because it could not fire;
+   * if a coordination-only user should genuinely reach this page, the fix belongs in
+   * the route guard, not in a second check here that the guard pre-empts.
+   */
   const canCreate = canAccessCoordination(currentUser) || canAccessStock(currentUser);
   const canFulfill = canAccessStock(currentUser);
 
@@ -57,6 +69,7 @@ export default function StockRequestsPage() {
   const [techId, setTechId] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientName, setClientName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<{ productId: string; qtyNeeded: number }[]>([
     { productId: "", qtyNeeded: 1 },
@@ -123,8 +136,6 @@ export default function StockRequestsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scannedItem?.id, fulfillRequest?.accountsClientId]);
 
-  if (isLoading || !allowed) return null;
-
   function resetAllocation() {
     setScanToken("");
     setAllocSerial("");
@@ -150,6 +161,7 @@ export default function StockRequestsPage() {
         technicianId: techId,
         accountsClientId: clientId || null,
         clientName: clientName || null,
+        projectId: projectId || null,
         notes,
         lines: lines.filter((l) => l.productId),
       });
@@ -158,6 +170,7 @@ export default function StockRequestsPage() {
       setTechId("");
       setClientId("");
       setClientName("");
+      setProjectId("");
       setNotes("");
       setLines([{ productId: products[0]?.id ?? "", qtyNeeded: 1 }]);
     } catch (e) {
@@ -431,6 +444,9 @@ export default function StockRequestsPage() {
                   setClientName(client?.name ?? "");
                 }}
               />
+              {/* Booked-out units inherit this link, so the project's Stock
+                  panel can list them. */}
+              <ProjectPicker value={projectId} onChange={setProjectId} />
             </div>
             <div className="space-y-2">
               <label className="font-medium">Lines</label>

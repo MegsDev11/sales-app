@@ -5,7 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { MODULE_LIST } from "@/lib/modules";
+import { useCrmStore } from "@/lib/store/crm-store";
 import {
   MEMBER_ROLES,
   PRIORITIES,
@@ -58,8 +61,30 @@ export function ProjectFormDialog({
   const [budget, setBudget] = useState(
     project?.budget_amount != null ? String(project.budget_amount) : ""
   );
+  const [quoteNumber, setQuoteNumber] = useState(project?.quote_number ?? "");
+  const [quoteAmount, setQuoteAmount] = useState(
+    project?.quote_amount != null ? String(project.quote_amount) : ""
+  );
   const [isPrivate, setIsPrivate] = useState(project?.is_private ?? false);
   const [depts, setDepts] = useState<string[]>(departments);
+  const [clientLeadId, setClientLeadId] = useState(project?.client_lead_id ?? "");
+
+  // Where the work came from. The CRM store is mounted on every /projects route.
+  const { leads } = useCrmStore();
+  const leadOptions = useMemo(
+    () => [
+      { value: "", label: "— not from a lead —" },
+      ...leads
+        .slice()
+        .sort((a, b) => a.clientName.localeCompare(b.clientName))
+        .slice(0, 200)
+        .map((l) => ({
+          value: l.id,
+          label: `${l.clientName}${l.leadSource ? ` · ${l.leadSource}` : ""}`,
+        })),
+    ],
+    [leads]
+  );
 
   const [memberRoles, setMemberRoles] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -116,6 +141,9 @@ export function ProjectFormDialog({
         startDate: startDate || null,
         targetDate: targetDate || null,
         budgetAmount: budget ? Number(budget) : null,
+        quoteNumber: quoteNumber.trim() || null,
+        quoteAmount: quoteAmount ? Number(quoteAmount) : null,
+        clientLeadId: clientLeadId || null,
         isPrivate,
         departments: depts,
         members: Object.entries(memberRoles).map(([userId, role]) => ({ userId, role })),
@@ -195,50 +223,33 @@ export function ProjectFormDialog({
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Type</label>
-              <select
+            <Field label="Type" htmlFor="project-type">
+              <SelectField
+                id="project-type"
+                className="w-full"
                 value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                {PROJECT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
-              <select
+                onValueChange={setType}
+                options={PROJECT_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+              />
+            </Field>
+            <Field label="Status" htmlFor="project-status">
+              <SelectField
+                id="project-status"
+                className="w-full"
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                {PROJECT_STATUSES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Priority
-              </label>
-              <select
+                onValueChange={setStatus}
+                options={PROJECT_STATUSES.map((s) => ({ value: s.value, label: s.label }))}
+              />
+            </Field>
+            <Field label="Priority" htmlFor="project-priority">
+              <SelectField
+                id="project-priority"
+                className="w-full"
                 value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                onValueChange={setPriority}
+                options={PRIORITIES.map((p) => ({ value: p.value, label: p.label }))}
+              />
+            </Field>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -273,24 +284,56 @@ export function ProjectFormDialog({
             </div>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Owner
-            </label>
-            <select
-              value={ownerId ?? ""}
-              onChange={(e) => setOwnerId(e.target.value)}
-              className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-            >
-              {users
-                .filter((u) => u.active !== false)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-            </select>
+          {/* The quote the job was sold on. Kept beside the budget because they are
+              routinely different numbers and confusing them is expensive. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Quote #
+              </label>
+              <Input
+                value={quoteNumber}
+                onChange={(e) => setQuoteNumber(e.target.value)}
+                placeholder="QUO-1042"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Quote amount (R)
+              </label>
+              <Input
+                type="number"
+                value={quoteAmount}
+                onChange={(e) => setQuoteAmount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
           </div>
+
+          {/* How we got this work — ties the project to its lead so source and
+              salesperson show on the header. */}
+          <Field label="Won from (lead)" htmlFor="project-lead">
+            <SelectField
+              id="project-lead"
+              className="w-full"
+              value={clientLeadId}
+              onValueChange={setClientLeadId}
+              options={leadOptions}
+            />
+          </Field>
+
+          <Field label="Owner" htmlFor="project-owner">
+            <SelectField
+              id="project-owner"
+              className="w-full"
+              value={ownerId ?? ""}
+              onValueChange={setOwnerId}
+              placeholder="Unassigned"
+              options={users
+                .filter((u) => u.active !== false)
+                .map((u) => ({ value: u.id, label: u.name }))}
+            />
+          </Field>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -362,20 +405,17 @@ export function ProjectFormDialog({
                           {u.department ?? ""}
                         </span>
                       </button>
-                      <select
+                      <SelectField
+                        size="sm"
+                        className="w-[8.5rem] shrink-0"
+                        aria-label={`${u.name}'s role`}
                         value={role ?? "contributor"}
-                        onChange={(e) =>
-                          setMemberRoles((prev) => ({ ...prev, [u.id]: e.target.value }))
+                        onValueChange={(v) =>
+                          setMemberRoles((prev) => ({ ...prev, [u.id]: v }))
                         }
                         disabled={!on}
-                        className="h-7 shrink-0 rounded border border-border bg-background px-1 text-xs disabled:opacity-40"
-                      >
-                        {MEMBER_ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </select>
+                        options={MEMBER_ROLES.map((r) => ({ value: r.value, label: r.label }))}
+                      />
                     </div>
                   );
                 })
