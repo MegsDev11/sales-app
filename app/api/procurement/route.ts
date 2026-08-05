@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
 import { can } from "@/lib/access";
+import { adminClient, errorMessage, newId } from "@/lib/api/route-helpers";
 
 /**
  * The generated Database types don't yet know about the procurement tables,
@@ -11,10 +11,6 @@ import { can } from "@/lib/access";
  * an untyped view of the same client — the SQL is still validated by RLS and the
  * migration, and the response shapes are pinned by lib/procurement/constants.
  */
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
 /**
  * Procurement API.
  *
@@ -28,20 +24,8 @@ function admin(): SupabaseClient {
  * is a clean 403 rather than a silently empty list, matching the projects route.
  */
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 const MIGRATION_HINT = "run supabase/migrations/047_procurement.sql in Supabase.";
+const RECEIVE_HINT = "run supabase/migrations/065_stock_movements_receiving.sql in Supabase.";
 
 const OPEN_PO_STATUSES = ["ordered", "partially_received"];
 
@@ -55,7 +39,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const url = new URL(request.url);
     const id = url.searchParams.get("id");
 
@@ -148,6 +132,22 @@ export async function GET(request: Request) {
       availableByProduct.set(pid, (availableByProduct.get(pid) ?? 0) + 1);
     }
 
+    // Received on a PO but not yet QR-claimed into inventory (migration 065).
+    // Queried separately and tolerantly so the page keeps working until the
+    // migration is applied.
+    const awaitingByProduct = new Map<string, number>();
+    {
+      const { data: awaiting, error: awaitingError } = await supabase
+        .from("stock_products")
+        .select("id, awaiting_intake");
+      if (!awaitingError) {
+        for (const row of awaiting ?? []) {
+          const n = Number(row.awaiting_intake ?? 0);
+          if (n > 0) awaitingByProduct.set(row.id as string, n);
+        }
+      }
+    }
+
     const alerts = [];
     for (const p of products.data ?? []) {
       const point = Number(p.reorder_point ?? 0);
@@ -164,6 +164,7 @@ export async function GET(request: Request) {
         unit_cost: p.unit_cost != null ? Number(p.unit_cost) : null,
         preferred_supplier_id: p.preferred_supplier_id ?? null,
         on_order: onOrderProduct.get(p.id as string) ?? 0,
+        awaiting_intake: awaitingByProduct.get(p.id as string) ?? 0,
       });
     }
     for (const s of sundries.data ?? []) {
@@ -297,7 +298,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Body;
     const action = body.action ?? "";
-    const supabase = admin();
+    const supabase = adminClient();
     const now = new Date().toISOString();
 
     switch (action) {
@@ -484,22 +485,29 @@ export async function POST(request: Request) {
       }
 
       // ---- receiving ------------------------------------------------------
+      // Receiving goes through receive_po_line() (migration 065): it updates the
+      // line, moves the stock (sundry quantity, or the product's awaiting_intake
+      // counter until units are QR-claimed) and writes the movement ledger in
+      // one transaction.
       case "receiveLine": {
         if (!body.lineId || body.qtyReceived == null) {
           return NextResponse.json({ error: "lineId and qtyReceived required" }, { status: 400 });
         }
         const { data: line } = await supabase
           .from("purchase_order_lines")
-          .select("po_id, qty_ordered")
+          .select("po_id")
           .eq("id", body.lineId)
           .maybeSingle();
         if (!line) return NextResponse.json({ error: "Line not found" }, { status: 404 });
-        const clamped = Math.max(0, Math.min(Number(body.qtyReceived), Number(line.qty_ordered)));
-        const { error } = await supabase
-          .from("purchase_order_lines")
-          .update({ qty_received: clamped })
-          .eq("id", body.lineId);
-        if (error) throw error;
+        const { data: result, error } = await supabase.rpc("receive_po_line", {
+          p_line_id: body.lineId,
+          p_qty: Math.max(0, Math.round(Number(body.qtyReceived))),
+          p_actor: user.id,
+        });
+        if (error) throw new Error(`${error.message} — ${RECEIVE_HINT}`);
+        if (result && result.ok === false) {
+          return NextResponse.json({ error: String(result.error) }, { status: 400 });
+        }
         await reconcilePoStatus(supabase, line.po_id as string);
         return NextResponse.json({ ok: true });
       }
@@ -511,10 +519,12 @@ export async function POST(request: Request) {
           .select("id, qty_ordered")
           .eq("po_id", body.poId);
         for (const l of lines ?? []) {
-          await supabase
-            .from("purchase_order_lines")
-            .update({ qty_received: l.qty_ordered })
-            .eq("id", l.id as string);
+          const { error } = await supabase.rpc("receive_po_line", {
+            p_line_id: l.id as string,
+            p_qty: Number(l.qty_ordered),
+            p_actor: user.id,
+          });
+          if (error) throw new Error(`${error.message} — ${RECEIVE_HINT}`);
         }
         await reconcilePoStatus(supabase, body.poId);
         return NextResponse.json({ ok: true });

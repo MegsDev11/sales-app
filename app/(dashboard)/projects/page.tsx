@@ -1,61 +1,105 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useStaffStore } from "@/lib/store/staff-store";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/select-field";
 import { StatTile } from "@/components/charts/primitives";
-import { DonutChart } from "@/components/charts/donut-chart";
-import { BarChart } from "@/components/charts/bar-chart";
-import { SERIES, STATUS, compact } from "@/components/charts/tokens";
-import { MODULES } from "@/lib/modules";
+import { SERIES, STATUS } from "@/components/charts/tokens";
 import { ProjectFormDialog } from "@/components/projects/project-form-dialog";
+import { isProjectOverdue } from "@/lib/overdue/rules";
 import {
+  PROJECT_VIEWS,
+  ProjectBoardView,
+  ProjectAdvisorView,
+  ProjectListView,
+  ProjectTableView,
+  type ProjectView,
+} from "@/components/projects/project-views";
+import {
+  IDEA_STATUSES,
   PROJECT_STATUSES,
   PROJECT_TYPES,
-  priorityMeta,
-  statusMeta,
-  typeLabel,
   type Project,
+  type ProjectDeliverySummary,
   type ProjectDepartment,
   type ProjectMember,
   type ProjectTask,
 } from "@/lib/projects/constants";
-import type { ModuleKey } from "@/lib/types";
 import {
   AlertTriangle,
   CalendarClock,
   FolderKanban,
-  Lightbulb,
+  Gauge,
   Loader2,
-  Lock,
   Plus,
   Search,
-  Users,
 } from "lucide-react";
 
-export default function ProjectsPage() {
+/**
+ * Projects — one page, four views.
+ *
+ * The list, the portfolio table and the board were three routes that each fetched the
+ * same rows and printed the same names, owners and dates. They are arrangements of one
+ * dataset, not three features, so they share one load, one filter row and one set of
+ * headline figures.
+ *
+ * The Advisor is the exception and the reason the tab strip is worth having: it is not
+ * another arrangement of the list but a conversation about one project, argued from the
+ * record the other three views display. It replaced the idea funnel, whose two jobs the
+ * Board (Idea / Evaluating / Approved as columns) and each project's own status control
+ * already covered between them.
+ *
+ * The view lives in the URL (`?view=board`) so a link to a particular arrangement
+ * still works and the browser's back button behaves.
+ */
+
+function isView(value: string | null): value is ProjectView {
+  return PROJECT_VIEWS.some((v) => v.value === value);
+}
+
+function ProjectsPageInner() {
   const { accessToken, currentUser, can } = useAuth();
   const { users } = useStaffStore();
+  const searchParams = useSearchParams();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [departments, setDepartments] = useState<ProjectDepartment[]>([]);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
+  const [summaries, setSummaries] = useState<ProjectDeliverySummary[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [advancing, setAdvancing] = useState<string | null>(null);
 
+  const [view, setView] = useState<ProjectView>("list");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [mineOnly, setMineOnly] = useState(false);
 
   const canEdit = can("projects", "edit");
+
+  // A ?view= in the URL wins on arrival; after that the switcher drives, and it
+  // writes the URL back so the address bar always describes what is on screen.
+  const urlView = searchParams.get("view");
+  useEffect(() => {
+    if (isView(urlView)) setView(urlView);
+  }, [urlView]);
+
+  const chooseView = useCallback((next: ProjectView) => {
+    setView(next);
+    const url = new URL(window.location.href);
+    if (next === "list") url.searchParams.delete("view");
+    else url.searchParams.set("view", next);
+    window.history.replaceState(null, "", url.toString());
+  }, []);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -79,9 +123,65 @@ export default function ProjectsPage() {
     }
   }, [accessToken]);
 
+  /**
+   * Progress and delay come from a second call, on purpose.
+   *
+   * They are rolled up over every block, cell and issue in the business, so making
+   * the list wait on them would trade a page that paints instantly for one that
+   * paints slowly with two extra columns. A failure here is silent — the rows render
+   * without the roll-up rather than showing an error over a list that is otherwise
+   * fine.
+   */
+  const loadSummaries = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const res = await fetch("/api/projects/delivery", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const body = await res.json();
+      setSummaries(body.summaries ?? []);
+    } catch {
+      // Leave the roll-up blank.
+    }
+  }, [accessToken]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadSummaries();
+  }, [load, loadSummaries]);
+
+  /** Move an idea one step along the pipeline, from the list row. */
+  const advance = useCallback(
+    async (id: string, status: string) => {
+      setAdvancing(id);
+      try {
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ action: "update", projectId: id, status }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error ?? "Failed to update");
+        await load();
+        await loadSummaries();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update");
+      } finally {
+        setAdvancing(null);
+      }
+    },
+    [accessToken, load, loadSummaries]
+  );
+
+  const summaryFor = useMemo(
+    () => new Map(summaries.map((s) => [s.project_id, s])),
+    [summaries]
+  );
 
   const myProjectIds = useMemo(
     () =>
@@ -101,317 +201,239 @@ export default function ProjectsPage() {
   }, [projects, search, statusFilter, typeFilter, mineOnly, myProjectIds, currentUser]);
 
   const m = useMemo(() => {
-    const active = projects.filter((p) => p.status === "active");
-    const ideas = projects.filter((p) =>
-      ["idea", "evaluating", "approved"].includes(p.status)
-    );
     const today = new Date().toISOString().slice(0, 10);
-    const overdue = projects.filter(
-      (p) =>
-        p.target_date &&
-        p.target_date < today &&
-        !["completed", "cancelled"].includes(p.status)
+    const live = projects.filter((p) => !["completed", "cancelled"].includes(p.status));
+    const liveSummaries = summaries.filter((s) =>
+      live.some((p) => p.id === s.project_id)
     );
-    const overBudget = projects.filter(
-      (p) => p.budget_amount != null && Number(p.actual_cost) > Number(p.budget_amount)
-    );
-
-    const byStatus = PROJECT_STATUSES.map((s) => ({
-      label: s.label,
-      value: projects.filter((p) => p.status === s.value).length,
-      color: s.color,
-    })).filter((s) => s.value > 0);
-
-    // How many projects each department is pulled into — the cross-department load.
-    const deptCounts = new Map<string, number>();
-    for (const d of departments) {
-      deptCounts.set(d.module_key, (deptCounts.get(d.module_key) ?? 0) + 1);
-    }
-    const byDept = Array.from(deptCounts.entries())
-      .map(([key, value]) => ({
-        label: MODULES[key as ModuleKey]?.label ?? key,
-        value,
-      }))
-      .sort((a, b) => b.value - a.value);
 
     return {
-      active,
-      ideas,
-      overdue,
-      overBudget,
-      byStatus,
-      byDept,
+      active: projects.filter((p) => p.status === "active").length,
+      ideas: projects.filter((p) => IDEA_STATUSES.includes(p.status as never)).length,
+      overdue: projects.filter((p) => isProjectOverdue(p.target_date, p.status, today))
+        .length,
+      overBudget: projects.filter(
+        (p) => p.budget_amount != null && Number(p.actual_cost) > Number(p.budget_amount)
+      ).length,
+      slipped: liveSummaries.filter((s) => s.delay_days >= 1).length,
+      delayDays: liveSummaries.reduce((sum, s) => sum + s.delay_days, 0),
+      openIssues: liveSummaries.reduce((sum, s) => sum + s.open_issues, 0),
       totalBudget: projects.reduce((s, p) => s + Number(p.budget_amount ?? 0), 0),
-      totalSpend: projects.reduce((s, p) => s + Number(p.actual_cost ?? 0), 0),
     };
-  }, [projects, departments]);
+  }, [projects, summaries]);
 
-  const memberCount = (id: string) => members.filter((x) => x.project_id === id).length;
-  const taskProgress = (id: string) => {
-    const list = tasks.filter((t) => t.project_id === id);
-    if (list.length === 0) return null;
-    return { done: list.filter((t) => t.status === "done").length, total: list.length };
-  };
-  const deptsFor = (id: string) =>
-    departments.filter((d) => d.project_id === id).map((d) => d.module_key);
+  const activeView = PROJECT_VIEWS.find((v) => v.value === view) ?? PROJECT_VIEWS[0];
 
   return (
-    <PageShell>
+    <PageShell dense={view === "board"}>
       <PageHeader
         title="Projects"
         description="Cross-department work, from a business idea through to delivery"
         actions={
-          <div className="flex gap-2">
-            <Link href="/projects/ideas">
-              <Button variant="outline">
-                <Lightbulb className="mr-1.5 h-4 w-4" /> Idea funnel
-              </Button>
-            </Link>
-            <Link href="/projects/board">
-              <Button variant="outline">Board</Button>
-            </Link>
-            {canEdit ? (
-              <Button
-                onClick={() => setDialogOpen(true)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                <Plus className="mr-1.5 h-4 w-4" /> New project
-              </Button>
-            ) : null}
-          </div>
+          // Not on the Advisor tab: that screen asks about a project that already
+          // exists, so a create button there is the one action it cannot use.
+          canEdit && view !== "advisor" ? (
+            <Button
+              onClick={() => setDialogOpen(true)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="mr-1.5 h-4 w-4" /> New project
+            </Button>
+          ) : null
         }
-      />
+      >
+        {/* The four arrangements of the same list. */}
+        <div className="flex flex-wrap items-center gap-1">
+          {PROJECT_VIEWS.map((v) => (
+            <button
+              key={v.value}
+              type="button"
+              title={v.hint}
+              onClick={() => chooseView(v.value)}
+              className={`rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
+                v.value === view
+                  ? "bg-card text-foreground shadow-panel"
+                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <span className="ml-auto text-xs text-muted-foreground">{activeView.hint}</span>
+      </PageHeader>
 
       {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 
-      {m.overdue.length > 0 ? (
+      {/* Delivery alarms belong to work in flight. On the funnel you are deciding
+          whether to start something, and a build that slipped last month is not part
+          of that decision — it is just noise on the way to the thing you came for. */}
+      {m.overdue > 0 && view !== "advisor" ? (
         <AlertBanner tone="warn">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="flex-1">
-            {m.overdue.length} project{m.overdue.length === 1 ? " is" : "s are"} past their
-            target date.
+            {m.overdue} project{m.overdue === 1 ? " is" : "s are"} past their target date.
           </span>
         </AlertBanner>
       ) : null}
 
-      {m.overBudget.length > 0 ? (
+      {m.overBudget > 0 && view !== "advisor" ? (
         <AlertBanner tone="warn">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="flex-1">
-            {m.overBudget.length} project{m.overBudget.length === 1 ? " is" : "s are"} over
-            budget.
+            {m.overBudget} project{m.overBudget === 1 ? " is" : "s are"} over budget.
           </span>
         </AlertBanner>
       ) : null}
 
+      {/* Slippage the delay log has accounted for — a different and more actionable
+          fact than "past its target date". Hidden on the table view, which shows the
+          same thing per project with the cause beside it. */}
+      {m.slipped > 0 && view !== "table" && view !== "advisor" ? (
+        <AlertBanner tone="warn">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {m.slipped} project{m.slipped === 1 ? " has" : "s have"} lost time to logged
+            issues — {Math.round(m.delayDays)} days across the board.{" "}
+            <button
+              type="button"
+              onClick={() => chooseView("table")}
+              className="underline"
+            >
+              See what caused it
+            </button>
+            .
+          </span>
+        </AlertBanner>
+      ) : null}
+
+      {/* Headline figures, the same in every view — the tiles describe the portfolio,
+          and the view below decides how to arrange it. */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Active projects"
-          value={m.active.length}
+          value={m.active}
           icon={FolderKanban}
           accent={SERIES[0]}
         />
         <StatTile
-          label="Ideas in the funnel"
-          value={m.ideas.length}
-          icon={Lightbulb}
-          accent={SERIES[3]}
-          href="/projects/ideas"
+          label="Behind schedule"
+          value={m.slipped}
+          icon={CalendarClock}
+          accent={m.slipped > 0 ? STATUS.critical : SERIES[2]}
+          higherIsBetter={false}
         />
         <StatTile
-          label="Past target date"
-          value={m.overdue.length}
-          icon={CalendarClock}
-          accent={m.overdue.length > 0 ? STATUS.critical : SERIES[2]}
+          label="Days lost to issues"
+          value={Math.round(m.delayDays)}
+          icon={AlertTriangle}
+          accent={m.delayDays > 0 ? STATUS.serious : SERIES[2]}
           higherIsBetter={false}
         />
         <StatTile
           label="Committed budget"
           value={m.totalBudget}
           currency
-          icon={FolderKanban}
+          icon={Gauge}
           accent={SERIES[6]}
         />
       </div>
 
-      {projects.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <DonutChart
-            title="Projects by stage"
-            subtitle="Where everything currently sits"
-            segments={m.byStatus}
-            centerLabel="projects"
+      {/* One filter row above everything it scopes. The advisor picks its own project,
+          so a second control there would be two things fighting over the same choice. */}
+      {view !== "advisor" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search projects…"
+              className="pl-8"
+            />
+          </div>
+          <SelectField
+            aria-label="Filter by status"
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+            options={[
+              { value: "all", label: "Any status" },
+              ...PROJECT_STATUSES.map((s) => ({ value: s.value, label: s.label })),
+            ]}
           />
-          <BarChart
-            title="Department involvement"
-            subtitle="How many projects each department is pulled into"
-            data={m.byDept}
+          <SelectField
+            aria-label="Filter by type"
+            value={typeFilter}
+            onValueChange={setTypeFilter}
+            options={[
+              { value: "all", label: "Any type" },
+              ...PROJECT_TYPES.map((t) => ({ value: t.value, label: t.label })),
+            ]}
           />
+          <Button
+            variant={mineOnly ? "default" : "outline"}
+            onClick={() => setMineOnly((v) => !v)}
+            className={mineOnly ? "bg-primary text-primary-foreground" : ""}
+          >
+            My projects
+          </Button>
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
         </div>
       ) : null}
 
-      {/* One filter row above everything it scopes. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search projects…"
-            className="pl-8"
+      {view === "list" ? (
+        <Panel
+          title={`${filtered.length} project${filtered.length === 1 ? "" : "s"}`}
+          padded={false}
+        >
+          {projects.length === 0 && !isLoading ? (
+            <div className="py-10 text-center">
+              <FolderKanban className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No projects yet.</p>
+              {canEdit ? (
+                <Button variant="outline" className="mt-3" onClick={() => setDialogOpen(true)}>
+                  Create the first one
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <ProjectListView
+              projects={filtered}
+              summaries={summaryFor}
+              users={users}
+              members={members}
+              departments={departments}
+              tasks={tasks}
+              canEdit={canEdit}
+              busyId={advancing}
+              onAdvance={(id, status) => void advance(id, status)}
+            />
+          )}
+        </Panel>
+      ) : null}
+
+      {view === "table" ? (
+        <Panel
+          title={`${filtered.length} project${filtered.length === 1 ? "" : "s"}`}
+          description="Sorted by how far behind they are"
+          padded={false}
+        >
+          <ProjectTableView
+            projects={filtered}
+            summaries={summaryFor}
+            users={users}
+            members={members}
           />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-        >
-          <option value="all">Any status</option>
-          {PROJECT_STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-        >
-          <option value="all">Any type</option>
-          {PROJECT_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <Button
-          variant={mineOnly ? "default" : "outline"}
-          onClick={() => setMineOnly((v) => !v)}
-          className={mineOnly ? "bg-primary text-primary-foreground" : ""}
-        >
-          My projects
-        </Button>
-        {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
-      </div>
+        </Panel>
+      ) : null}
 
-      <Panel
-        title={`${filtered.length} project${filtered.length === 1 ? "" : "s"}`}
-        padded={false}
-      >
-        {filtered.length === 0 ? (
-          <div className="py-10 text-center">
-            <FolderKanban className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              {projects.length === 0 ? "No projects yet." : "No projects match those filters."}
-            </p>
-            {canEdit && projects.length === 0 ? (
-              <Button variant="outline" className="mt-3" onClick={() => setDialogOpen(true)}>
-                Create the first one
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
-            {filtered.map((p) => {
-              const s = statusMeta(p.status);
-              const pr = priorityMeta(p.priority);
-              const progress = taskProgress(p.id);
-              const owner = users.find((u) => u.id === p.owner_id);
-              const pDepts = deptsFor(p.id);
-              const overBudget =
-                p.budget_amount != null && Number(p.actual_cost) > Number(p.budget_amount);
+      {view === "board" ? (
+        <ProjectBoardView projects={filtered} summaries={summaryFor} users={users} />
+      ) : null}
 
-              return (
-                <li key={p.id}>
-                  <Link
-                    href={`/projects/${p.id}`}
-                    className="flex flex-wrap items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
-                  >
-                    <span
-                      aria-hidden
-                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: s.color }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2 font-medium">
-                        <span className="truncate">{p.name}</span>
-                        {p.is_private ? (
-                          <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        ) : null}
-                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                          {p.code}
-                        </span>
-                      </p>
-                      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{s.label}</span>
-                        <span>{typeLabel(p.type)}</span>
-                        <span style={{ color: pr.color }}>{pr.label} priority</span>
-                        {owner ? <span>Owner: {owner.name}</span> : null}
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {memberCount(p.id)}
-                        </span>
-                        {p.target_date ? (
-                          <span className="flex items-center gap-1">
-                            <CalendarClock className="h-3 w-3" />
-                            {new Date(p.target_date).toLocaleDateString("en-ZA", {
-                              day: "numeric",
-                              month: "short",
-                            })}
-                          </span>
-                        ) : null}
-                      </p>
-                      {pDepts.length > 0 ? (
-                        <p className="mt-1 flex flex-wrap gap-1">
-                          {pDepts.map((d) => (
-                            <span
-                              key={d}
-                              className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
-                            >
-                              {MODULES[d as ModuleKey]?.label ?? d}
-                            </span>
-                          ))}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      {progress ? (
-                        <>
-                          <p className="text-xs tabular-nums text-muted-foreground">
-                            {progress.done}/{progress.total} tasks
-                          </p>
-                          <div
-                            className="mt-1 h-1.5 w-24 overflow-hidden rounded-full"
-                            style={{ background: "#e8eaed" }}
-                          >
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${(progress.done / progress.total) * 100}%`,
-                                background: SERIES[2],
-                              }}
-                            />
-                          </div>
-                        </>
-                      ) : null}
-                      {p.budget_amount != null ? (
-                        <p
-                          className="mt-1 text-xs tabular-nums"
-                          style={{ color: overBudget ? STATUS.critical : undefined }}
-                        >
-                          {compact(Number(p.actual_cost), true)} /{" "}
-                          {compact(Number(p.budget_amount), true)}
-                        </p>
-                      ) : null}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Panel>
+      {view === "advisor" ? (
+        <ProjectAdvisorView projects={projects} accessToken={accessToken ?? ""} />
+      ) : null}
 
       {dialogOpen ? (
         <ProjectFormDialog
@@ -420,6 +442,7 @@ export default function ProjectsPage() {
           onSaved={() => {
             setDialogOpen(false);
             void load();
+            void loadSummaries();
           }}
           project={null}
           members={[]}
@@ -430,5 +453,21 @@ export default function ProjectsPage() {
         />
       ) : null}
     </PageShell>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading projects…
+          </p>
+        </PageShell>
+      }
+    >
+      <ProjectsPageInner />
+    </Suspense>
   );
 }

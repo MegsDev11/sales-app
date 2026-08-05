@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import { useAuth } from "@/lib/auth-context";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { getFieldTechnicians } from "@/lib/permissions";
+import { isJobOverdue } from "@/lib/overdue/rules";
 import { AlertBanner, PageHeader, PageShell, Panel } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { StatTile } from "@/components/charts/primitives";
@@ -42,7 +42,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function CoordinationOverviewPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const { products, items, requests, isLoaded } = useStockStore();
   const { users } = useCrmStore();
@@ -86,7 +85,7 @@ export default function CoordinationOverviewPage() {
       return t >= startOfToday.getTime() && t < endOfToday.getTime();
     });
 
-    const overdue = active.filter((j) => j.scheduledEnd && new Date(j.scheduledEnd) < now);
+    const overdue = active.filter((j) => isJobOverdue(j.scheduledEnd, j.status, now.getTime()));
 
     const unassigned = active.filter(
       (j) => !j.technicianIds || j.technicianIds.length === 0
@@ -176,8 +175,6 @@ export default function CoordinationOverviewPage() {
       .filter((x) => x.short > 0)
       .sort((a, b) => b.short - a.short);
   }, [openRequests, products, items, isLoaded]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

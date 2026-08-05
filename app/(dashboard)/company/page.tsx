@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -33,9 +33,39 @@ import { AlertTriangle, Calendar, Lock, Radio, ShieldCheck, Target, TrendingUp, 
  * supporting detail, because a dashboard where six things shout equally has no
  * headline at all.
  */
+interface BillingSeries {
+  live: boolean;
+  labels?: string[];
+  invoiced?: number[];
+  collected?: number[];
+}
+
 export default function CompanyPage() {
-  const { isOwner, can } = useAuth();
+  const { isOwner, can, accessToken } = useAuth();
   const { users, leads, towers, towerOutages, isLoaded, dbError } = useCrmStore();
+
+  // Real billing figures (invoiced + collected). While unavailable, the page
+  // falls back to CRM pipeline numbers — labelled as such, never as revenue.
+  const [billing, setBilling] = useState<BillingSeries | null>(null);
+  useEffect(() => {
+    if (!accessToken || !isOwner) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/company/billing", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        });
+        const body = (await res.json()) as BillingSeries;
+        if (!cancelled && res.ok) setBilling(body);
+      } catch {
+        /* keep pipeline fallback */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, isOwner]);
 
   const metrics = useMemo(() => {
     const revenue = revenueByMonth(leads, 6);
@@ -191,18 +221,34 @@ export default function CompanyPage() {
       {/* Hero + supporting KPIs. Exactly one hero figure on the page. */}
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <Panel title="This month">
-          <HeroFigure
-            label="Revenue closed"
-            value={metrics.thisMonth}
-            currency
-            delta={metrics.revenueChange}
-            deltaLabel="vs last month"
-          />
+          {billing?.live && billing.invoiced ? (
+            <HeroFigure
+              label="Invoiced"
+              value={billing.invoiced[billing.invoiced.length - 1] ?? 0}
+              currency
+              delta={momChange(billing.invoiced)}
+              deltaLabel="vs last month"
+            />
+          ) : (
+            // No billing data yet: show the CRM pipeline, and say so — this is
+            // deals marked won, not money invoiced.
+            <HeroFigure
+              label="Pipeline closed (CRM)"
+              value={metrics.thisMonth}
+              currency
+              delta={metrics.revenueChange}
+              deltaLabel="vs last month"
+            />
+          )}
           {revenueTarget > 0 ? (
             <div className="mt-4">
               <Meter
                 label="Against team target"
-                value={metrics.thisMonth}
+                value={
+                  billing?.live && billing.invoiced
+                    ? billing.invoiced[billing.invoiced.length - 1] ?? 0
+                    : metrics.thisMonth
+                }
                 max={revenueTarget}
                 compactValue
                 // Missing target is the problem, not exceeding it.
@@ -274,14 +320,28 @@ export default function CompanyPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <LineChart
-          title="Revenue closed"
-          subtitle="Won deals per month, last 6 months"
-          labels={metrics.revenue.labels}
-          series={[{ label: "Revenue", points: metrics.revenue.values }]}
-          currency
-          area
-        />
+        {billing?.live && billing.labels && billing.invoiced ? (
+          <LineChart
+            title="Billing"
+            subtitle="Invoiced vs collected, last 6 months"
+            labels={billing.labels}
+            series={[
+              { label: "Invoiced", points: billing.invoiced },
+              ...(billing.collected ? [{ label: "Collected", points: billing.collected }] : []),
+            ]}
+            currency
+            area
+          />
+        ) : (
+          <LineChart
+            title="Pipeline closed (CRM)"
+            subtitle="Deals marked won per month, last 6 months"
+            labels={metrics.revenue.labels}
+            series={[{ label: "Won deals", points: metrics.revenue.values }]}
+            currency
+            area
+          />
+        )}
         <DonutChart
           title="Service mix"
           subtitle="All leads by service type"

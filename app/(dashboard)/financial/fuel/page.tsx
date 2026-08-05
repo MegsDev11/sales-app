@@ -2,9 +2,7 @@
 
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { canAccessFinancial, isOwner } from "@/lib/permissions";
 import type { FuelEntry } from "@megs/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,9 +24,7 @@ function pricePerLitre(litres: number, price: number) {
 }
 
 export default function FinancialFuelPage() {
-  const { accessToken, currentUser, isLoading } = useAuth();
-  const router = useRouter();
-  const allowed = canAccessFinancial(currentUser) || isOwner(currentUser);
+  const { accessToken } = useAuth();
   const [entries, setEntries] = useState<FuelEntry[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [totalLitres, setTotalLitres] = useState(0);
@@ -39,11 +35,6 @@ export default function FinancialFuelPage() {
     () => pricePerLitre(totalLitres, totalPrice),
     [totalLitres, totalPrice]
   );
-
-  useEffect(() => {
-    if (isLoading || !currentUser) return;
-    if (!allowed) router.replace("/");
-  }, [allowed, currentUser, isLoading, router]);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -71,8 +62,6 @@ export default function FinancialFuelPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>
@@ -160,7 +149,6 @@ export default function FinancialFuelPage() {
                 <th className="px-3 py-2 font-semibold">Technician</th>
                 <th className="px-3 py-2 font-semibold">Where</th>
                 <th className="px-3 py-2 font-semibold text-right">Litres</th>
-                <th className="px-3 py-2 font-semibold text-right">Price</th>
                 <th className="px-3 py-2 font-semibold text-right">R/L</th>
                 <th className="px-3 py-2 font-semibold text-right">Total</th>
               </tr>
@@ -182,7 +170,7 @@ export default function FinancialFuelPage() {
                     <td className="px-3 py-2 text-right tabular-nums">
                       {e.litres.toLocaleString("en-ZA", { maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{money(e.price)}</td>
+                    {/* price is the R total for the fill; R/L is derived from it */}
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                       {perL != null ? money(perL) : "—"}
                     </td>
@@ -202,7 +190,6 @@ export default function FinancialFuelPage() {
                   <td className="px-3 py-2 text-right tabular-nums">
                     {totalLitres.toLocaleString("en-ZA", { maximumFractionDigits: 2 })}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(totalPrice)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                     {avgPerLitre != null ? money(avgPerLitre) : "—"}
                   </td>

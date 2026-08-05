@@ -6,7 +6,7 @@ import { Bell } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { getNotifications } from "@/lib/utils/leads";
-import { canAccessCoordination, canAccessStock, canAccessSalesAdmin } from "@/lib/permissions";
+import { canAccessSalesAdmin } from "@/lib/permissions";
 import type { AppNotification } from "@/lib/types";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -30,14 +30,8 @@ export function NotificationsPanel() {
       setAppNotes([]);
       return;
     }
-    const showApp =
-      canAccessStock(currentUser) ||
-      canAccessCoordination(currentUser) ||
-      canAccessSalesAdmin(currentUser);
-    if (!showApp && currentUser.role !== "owner") {
-      setAppNotes([]);
-      return;
-    }
+    // No module gate here: any user can be addressed directly (user_id rows),
+    // and the API already scopes module rows to the caller's grants.
     try {
       const res = await fetch("/api/notifications", {
         headers: { Authorization: `Bearer ${accessToken}` },

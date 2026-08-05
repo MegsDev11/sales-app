@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
 import { parseInvoicePdf } from "@/lib/commission/parse-invoice";
 import { parseCatalogue } from "@/lib/commission/parse-catalogue";
 import { calculateCommission } from "@/lib/commission/calculate";
 import { matchClientToLead, type MatchableLead } from "@/lib/commission/match-client";
+import { adminClient, errorMessage, fail, newId } from "@/lib/api/route-helpers";
 import {
   DEFAULT_EXCLUDED_CODES,
   normaliseCode,
@@ -36,31 +36,10 @@ import {
 // PDF and spreadsheet parsing need the Node runtime, not edge.
 export const runtime = "nodejs";
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
 const MIGRATION_HINT = "run supabase/migrations/049_commission.sql in Supabase.";
 
 /** Uploads are small; this only exists to stop a stray 200MB file reaching the parser. */
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function fail(error: unknown, status = 500) {
-  return NextResponse.json({ error: errorMessage(error) }, { status });
-}
 
 const noStore = { headers: { "Cache-Control": "no-store, max-age=0" } };
 
@@ -329,7 +308,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const id = new URL(request.url).searchParams.get("id");
 
     if (id) {
@@ -407,7 +386,7 @@ export async function POST(request: Request) {
 }
 
 async function handleUpload(request: Request, userId: string) {
-  const supabase = admin();
+  const supabase = adminClient();
   const form = await request.formData();
   const kind = String(form.get("kind") ?? "");
   const file = form.get("file");
@@ -541,17 +520,34 @@ async function handleUpload(request: Request, userId: string) {
   }
 
   // Attribution follows the client relationship, never the invoice's SALES REP.
-  const { data: leadRows } = await supabase
-    .from("leads")
-    .select("id, client_name, company, assigned_to_id")
-    .eq("deleted", false);
+  // The real client book is searched first: accounts_clients.sales_rep_member_id
+  // (migration 066) is the relationship owner Sage recorded, resolved to a staff
+  // member on /accounts/linking. CRM leads remain as a fallback for clients not
+  // yet on the book. Before 066 is applied the book query returns nothing and
+  // behaviour is unchanged.
+  const [{ data: leadRows }, { data: bookRows }] = await Promise.all([
+    supabase
+      .from("leads")
+      .select("id, client_name, company, assigned_to_id")
+      .eq("deleted", false),
+    supabase.from("accounts_clients").select("id, name, sales_rep_member_id, lead_id"),
+  ]);
   const leads: MatchableLead[] = (leadRows ?? []).map((row) => ({
     id: String(row.id),
     clientName: String(row.client_name ?? ""),
     company: (row.company as string | null) ?? null,
     assignedToId: (row.assigned_to_id as string | null) ?? null,
   }));
-  const match = matchClientToLead(parsed.clientName, leads);
+  const ownerByLeadId = new Map(leads.map((l) => [l.id, l.assignedToId]));
+  const bookMatchables: MatchableLead[] = (bookRows ?? []).map((row) => ({
+    id: `client:${String(row.id)}`,
+    clientName: String(row.name ?? ""),
+    company: null,
+    assignedToId:
+      (row.sales_rep_member_id as string | null) ??
+      (row.lead_id ? ownerByLeadId.get(String(row.lead_id)) ?? null : null),
+  }));
+  const match = matchClientToLead(parsed.clientName, [...bookMatchables, ...leads]);
   const repId = match?.lead.assignedToId ?? null;
 
   const rule = ruleFor(context.rules, repId);
@@ -620,7 +616,7 @@ async function handleUpload(request: Request, userId: string) {
 }
 
 async function handleAction(request: Request, userId: string) {
-  const supabase = admin();
+  const supabase = adminClient();
   const body = (await request.json()) as Record<string, unknown>;
   const action = String(body.action ?? "");
   const str = (key: string) => (body[key] === null ? null : String(body[key] ?? ""));

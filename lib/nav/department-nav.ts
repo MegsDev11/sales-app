@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Banknote,
   BarChart3,
   Bot,
   Boxes,
@@ -62,6 +63,8 @@ export const salesStaffNavItems: NavItem[] = [
 export const supportNavItems: NavItem[] = [
   { href: "/support", label: "Overview", icon: LayoutDashboard },
   { href: "/support/messages", label: "Messages", icon: MessagesSquare },
+  // Requests arriving from client installation QR codes — not chat threads.
+  { href: "/support/requests", label: "QR Requests", icon: ClipboardList, short: "QR" },
   { href: "/support/towers", label: "Towers & Outages", icon: Radio },
   { href: "/support/clients", label: "Client Assignment", icon: Users },
   // Connectivity and general enquiries the website assistant could not close itself.
@@ -83,6 +86,7 @@ export const stockNavItems: NavItem[] = [
 
 export const financialNavItems: NavItem[] = [
   { href: "/financial", label: "Overview", icon: LayoutDashboard },
+  { href: "/financial/payments", label: "Payments in", icon: Banknote, short: "Pay" },
   { href: "/financial/fuel", label: "Fuel", icon: Truck },
   // Billing enquiries the assistant escalated — arrangements, disputes, credits.
   { href: "/financial/chatbot", label: "Chatbot", icon: Bot },

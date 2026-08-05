@@ -104,6 +104,11 @@ export interface ReorderAlert {
   preferred_supplier_id: string | null;
   /** Whether an open (non-received, non-cancelled) PO already covers this item. */
   on_order: number;
+  /**
+   * Serialised units received on a PO but not yet QR-claimed into inventory
+   * (migration 065). Always 0 for sundries — their quantity rises on receipt.
+   */
+  awaiting_intake?: number;
 }
 
 /** A supplier row decorated with counts for the directory. */

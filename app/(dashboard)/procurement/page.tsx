@@ -178,7 +178,14 @@ export default function ProcurementOverviewPage() {
                   const covered = a.on_order >= a.reorder_point - a.on_hand;
                   return (
                     <tr key={`${a.kind}-${a.id}`} className="border-b border-border last:border-0">
-                      <td className="px-4 py-2.5 font-medium">{a.name}</td>
+                      <td className="px-4 py-2.5 font-medium">
+                        {a.name}
+                        {(a.awaiting_intake ?? 0) > 0 ? (
+                          <span className="block text-xs font-normal text-muted-foreground">
+                            {a.awaiting_intake} received, awaiting QR intake
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-2.5 text-muted-foreground capitalize">{a.kind}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
                         <span style={{ color: a.on_hand === 0 ? STATUS.critical : undefined }}>
