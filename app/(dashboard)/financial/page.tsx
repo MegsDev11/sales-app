@@ -11,20 +11,51 @@ import { LineChart } from "@/components/charts/line-chart";
 import { SERIES, STATUS, compact } from "@/components/charts/tokens";
 import { momChange } from "@/lib/analytics/metrics";
 import type { FuelEntry } from "@megs/shared";
-import { Droplet, Fuel, Loader2, Truck, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Droplet,
+  Fuel,
+  Loader2,
+  TrendingUp,
+  Truck,
+  Users,
+  Wallet,
+} from "lucide-react";
+
+interface FinancialOverview {
+  billingLive: boolean;
+  labels: string[];
+  invoiced: number[];
+  collected: number[];
+  invoicedThisMonth: number;
+  collectedThisMonth: number;
+  collectionRate: number | null;
+  debtorsTotal: number;
+  debtorCount: number;
+  balanceAsAt: string | null;
+  topDebtors: {
+    id: string;
+    name: string;
+    balance: number;
+    billingStatus: string;
+    owner: string | null;
+  }[];
+}
 
 /**
- * Financial overview.
+ * Financial overview — the financial manager's landing page.
  *
- * Fuel is currently the only real cost feed in the system, so it is what this page
- * reports on honestly. Invoicing, expenses and budgets arrive in Phase 6 — tiles for
- * those are deliberately absent rather than shown as zeroes, which would read as
- * "we spent nothing" instead of "not tracked yet".
+ * This page used to report on fuel alone, because fuel was the only cost feed
+ * wired up. Billing, receipts and an AR ledger exist now, so it leads with the
+ * four questions finance actually opens a dashboard for — billed, collected,
+ * owed, and how much of what we bill comes back — and keeps fuel below as the
+ * cost feed it always was.
  */
 export default function FinancialPage() {
   const { accessToken, can } = useAuth();
 
   const [entries, setEntries] = useState<FuelEntry[]>([]);
+  const [overview, setOverview] = useState<FinancialOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,13 +63,21 @@ export default function FinancialPage() {
     if (!accessToken) return;
     setIsLoading(true);
     try {
-      const res = await fetch("/api/financial/fuel", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        cache: "no-store",
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to load fuel data");
+      const [fuelRes, overviewRes] = await Promise.all([
+        fetch("/api/financial/fuel", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        }),
+        fetch("/api/financial/overview", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        }),
+      ]);
+      const body = await fuelRes.json();
+      if (!fuelRes.ok) throw new Error(body.error ?? "Failed to load fuel data");
       setEntries(body.entries ?? []);
+      // The money half is allowed to be unavailable without sinking the page.
+      if (overviewRes.ok) setOverview((await overviewRes.json()) as FinancialOverview);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load fuel data");
@@ -125,13 +164,114 @@ export default function FinancialPage() {
 
       {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 
-      <AlertBanner tone="info">
-        Fuel is the only cost feed connected so far. Invoicing, recurring client billing,
-        expenses and budgets arrive in Phase 6.
-      </AlertBanner>
+      {/* ---------------------------------------------------------- money */}
+      {overview?.billingLive ? (
+        <>
+          <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+            <Panel title="This month">
+              <HeroFigure
+                label="Invoiced"
+                value={overview.invoicedThisMonth}
+                currency
+                delta={momChange(overview.invoiced)}
+                deltaLabel="vs last month"
+              />
+            </Panel>
 
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatTile
+                label="Collected this month"
+                value={overview.collectedThisMonth}
+                currency
+                icon={Wallet}
+                accent={SERIES[2]}
+                trend={overview.collected}
+              />
+              <StatTile
+                label="Collection rate"
+                value={
+                  overview.collectionRate == null ? "—" : `${overview.collectionRate}%`
+                }
+                icon={TrendingUp}
+                accent={SERIES[0]}
+              />
+              <StatTile
+                label="Debtors"
+                value={overview.debtorsTotal}
+                currency
+                icon={AlertTriangle}
+                accent={overview.debtorsTotal > 0 ? STATUS.warning : SERIES[2]}
+                higherIsBetter={false}
+                href="/accounts/ageing"
+              />
+              <StatTile
+                label="Clients owing"
+                value={overview.debtorCount}
+                icon={Users}
+                accent={SERIES[6]}
+                higherIsBetter={false}
+                href="/accounts/collections"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LineChart
+              title="Billed vs collected"
+              subtitle="Last 6 months"
+              labels={overview.labels}
+              series={[
+                { label: "Invoiced", points: overview.invoiced },
+                { label: "Collected", points: overview.collected },
+              ]}
+              currency
+              area
+            />
+            <Panel title="Who owes the most" padded={false}>
+              {overview.topDebtors.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  Nobody is in arrears.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {overview.topDebtors.map((d) => (
+                    <li
+                      key={d.id}
+                      className="flex items-center justify-between gap-3 px-4 py-2 text-sm"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-medium">{d.name}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {d.owner ?? "unassigned"}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {compact(d.balance, true)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {overview.balanceAsAt ? (
+                <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
+                  Balances are as at{" "}
+                  {new Date(overview.balanceAsAt).toLocaleDateString("en-ZA")} — a payment
+                  made since then may not be reflected.
+                </p>
+              ) : null}
+            </Panel>
+          </div>
+        </>
+      ) : (
+        <AlertBanner tone="info">
+          No billing data yet. Once invoices are issued and payments captured, this page
+          leads with what was billed, collected and is still owed.
+        </AlertBanner>
+      )}
+
+      {/* ----------------------------------------------------------- fuel */}
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-        <Panel title="This month">
+        <Panel title="Fuel this month">
           <HeroFigure
             label="Fuel spend"
             value={m.thisMonth}

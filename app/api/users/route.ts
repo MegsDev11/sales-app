@@ -5,15 +5,7 @@ import type { CreateUserPayload, Department, UserRole } from "@/lib/types";
 import { requireOwner } from "@/lib/supabase/server-auth";
 import { getDefaultTitle } from "@/lib/permissions";
 import { moduleForDepartment } from "@/lib/modules";
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) return message;
-  }
-  return "Failed to create user";
-}
+import { errorMessage } from "@/lib/api/route-helpers";
 
 /**
  * Staff credentials endpoint.
@@ -114,11 +106,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cannot create owner accounts via API" }, { status: 400 });
     }
 
-    if (createBody.role !== "manager" && createBody.role !== "staff") {
-      return NextResponse.json({ error: "Role must be manager or staff" }, { status: 400 });
+    // This route is already owner-only (requireOwner above), which is exactly
+    // who should be appointing a general or financial manager (migration 070).
+    const CREATABLE: UserRole[] = ["general_manager", "financial_manager", "manager", "staff"];
+    if (!CREATABLE.includes(createBody.role as UserRole)) {
+      return NextResponse.json(
+        { error: "Role must be general manager, financial manager, manager or staff" },
+        { status: 400 }
+      );
     }
 
-    if (!createBody.department) {
+    // A company-wide position does not sit in one department.
+    if (
+      !createBody.department &&
+      createBody.role !== "general_manager" &&
+      createBody.role !== "financial_manager"
+    ) {
       return NextResponse.json({ error: "Department is required" }, { status: 400 });
     }
 

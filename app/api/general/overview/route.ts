@@ -554,18 +554,21 @@ async function loadWireless(): Promise<WirelessBlock> {
   }
 }
 
+/** The zero shape, shared by the loader and the carve-out placeholder. */
+const EMPTY_FINANCIAL: FinancialBlock = {
+  state: "ok",
+  spend: EMPTY_SERIES,
+  litres: EMPTY_SERIES,
+  thisMonthSpend: 0,
+  totalSpend: 0,
+  totalLitres: 0,
+  avgPerLitre: 0,
+  fillCount: 0,
+  spendByVehicle: [],
+};
+
 async function loadFinancial(tz: number): Promise<FinancialBlock> {
-  const empty: FinancialBlock = {
-    state: "ok",
-    spend: EMPTY_SERIES,
-    litres: EMPTY_SERIES,
-    thisMonthSpend: 0,
-    totalSpend: 0,
-    totalLitres: 0,
-    avgPerLitre: 0,
-    fillCount: 0,
-    spendByVehicle: [],
-  };
+  const empty: FinancialBlock = { ...EMPTY_FINANCIAL };
 
   try {
     const supabase = createSupabaseAdminClient();
@@ -735,6 +738,19 @@ export async function GET(request: Request) {
   const raw = Number(new URL(request.url).searchParams.get("tzOffset"));
   const tz = Number.isFinite(raw) ? raw : 0;
 
+  /**
+   * The finance carve-out (migration 070).
+   *
+   * Holding `general` earns the cross-company picture — but the books are the
+   * financial manager's domain and the owner's, not automatically the general
+   * manager's. So the money block is loaded only for someone who actually
+   * holds finance, and the block is marked "restricted" for everyone else
+   * rather than being quietly rendered as zeros, which would read as "the
+   * company took nothing this month".
+   */
+  const maySeeMoney =
+    isOwner(user) || can(user, "financial") || can(user, "accounts");
+
   const [sales, support, coordination, stock, procurement, wireless, financial, projects, people] =
     await Promise.all([
       loadSales(tz),
@@ -743,7 +759,13 @@ export async function GET(request: Request) {
       loadStock(tz),
       loadProcurement(),
       loadWireless(),
-      loadFinancial(tz),
+      maySeeMoney
+        ? loadFinancial(tz)
+        : Promise.resolve({
+            ...EMPTY_FINANCIAL,
+            state: "restricted" as const,
+            note: "Financial figures are limited to the owner and the financial manager.",
+          }),
       loadProjects(),
       loadPeople(),
     ]);
@@ -756,7 +778,7 @@ export async function GET(request: Request) {
     stock,
     procurement,
     wireless,
-    financial,
+    financial: financial as CompanyOverview["financial"],
     projects,
     people,
   };

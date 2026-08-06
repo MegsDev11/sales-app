@@ -10,8 +10,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { cn } from "@/lib/utils";
-import { ACCESS_LABELS, ACCESS_LEVELS } from "@/lib/access";
+import { ACCESS_LABELS, ACCESS_LEVEL_OPTIONS } from "@/lib/access";
+import { useDepartments } from "@/lib/hooks/use-departments";
 import { MODULE_LIST } from "@/lib/modules";
 import { getDefaultTitle } from "@/lib/permissions";
 import type { AccessLevel, Department, ModuleKey, UserRole } from "@/lib/types";
@@ -22,9 +25,20 @@ const REP_COLORS = [
   "#14B8A6", "#EC4899", "#EAB308", "#6366F1",
 ];
 
-const DEPARTMENTS: Department[] = [
-  "sales", "support", "stock", "coordination", "wireless",
-  "fiber", "financial", "general", "accounts", "reception",
+/**
+ * Owner is not offered. There is one owner account and it is not created from this
+ * screen — promoting somebody to it is a deliberate act elsewhere, not a dropdown.
+ *
+ * The two company-wide positions (migration 070) are offered, because the screen
+ * is owner-only anyway. A general manager runs the company's operations; the
+ * financial manager owns the books and is, deliberately, the one person a
+ * general manager cannot administer.
+ */
+const ROLE_OPTIONS = [
+  { value: "staff", label: "Staff member" },
+  { value: "manager", label: "Department manager" },
+  { value: "general_manager", label: "General manager (company-wide)" },
+  { value: "financial_manager", label: "Financial manager (the books)" },
 ];
 
 const GROUP_ORDER: Array<{ key: "commercial" | "operations" | "admin"; label: string }> = [
@@ -81,6 +95,10 @@ export function StaffAccountDialog({
   templates: TemplateRow[];
   templateModules: TemplateModuleRow[];
 }) {
+  // Only fetched while the dialog is open — /admin already lists departments on its
+  // own tab, and this is a second reader of the same table.
+  const { departments: departmentOptions } = useDepartments(accessToken, open);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -201,45 +219,42 @@ export function StaffAccountDialog({
             1 · Person
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Full name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Wine Petzer" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Job title</label>
+            <Field label="Full name" htmlFor="staff-name">
               <Input
+                id="staff-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Wine Petzer"
+              />
+            </Field>
+            <Field label="Job title" htmlFor="staff-title">
+              <Input
+                id="staff-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={getDefaultTitle(role, department)}
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Department</label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value as Department)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm capitalize"
+            </Field>
+            <Field label="Department" htmlFor="staff-department">
+              <SelectField
+                id="staff-department"
+                className="w-full"
                 aria-label="Department"
-              >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d} className="capitalize">
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                value={department}
+                onValueChange={(v) => setDepartment(v as Department)}
+                options={departmentOptions.map((d) => ({ value: d.key, label: d.label }))}
+              />
+            </Field>
+            <Field label="Role" htmlFor="staff-role">
+              <SelectField
+                id="staff-role"
+                className="w-full"
                 aria-label="Role"
-              >
-                <option value="staff">Staff member</option>
-                <option value="manager">Department manager</option>
-              </select>
-            </div>
+                value={role}
+                onValueChange={(v) => setRole(v as UserRole)}
+                options={ROLE_OPTIONS}
+              />
+            </Field>
             <div className="space-y-1 sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground">Colour</label>
               <div className="flex flex-wrap gap-2">
@@ -267,28 +282,26 @@ export function StaffAccountDialog({
             2 · Login
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <Field label="Email" htmlFor="staff-email">
               <Input
+                id="staff-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="staff@megswb.co.za"
                 autoComplete="off"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Initial password
-              </label>
+            </Field>
+            <Field label="Initial password" htmlFor="staff-password">
               <Input
+                id="staff-password"
                 type="text"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Min 8 characters"
                 autoComplete="new-password"
               />
-            </div>
+            </Field>
           </div>
           <p className="text-[11px] text-muted-foreground">
             Passwords are not stored in readable form — note this one now and share it securely.
@@ -308,19 +321,15 @@ export function StaffAccountDialog({
 
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs font-medium text-muted-foreground">Start from template</label>
-            <select
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value)}
-              className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+            <SelectField
               aria-label="Role template"
-            >
-              <option value="">No template</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+              value={templateId}
+              onValueChange={setTemplateId}
+              options={[
+                { value: "", label: "No template" },
+                ...templates.map((t) => ({ value: t.id, label: t.name })),
+              ]}
+            />
           </div>
 
           <div className="space-y-4">
@@ -378,24 +387,15 @@ export function StaffAccountDialog({
                                 template: {ACCESS_LABELS[fromTemplate]}
                               </span>
                             ) : null}
-                            <select
+                            <SelectField
                               value={level}
-                              onChange={(e) =>
-                                setDraft((p) => ({
-                                  ...p,
-                                  [mod.key]: e.target.value as AccessLevel,
-                                }))
+                              onValueChange={(v) =>
+                                setDraft((p) => ({ ...p, [mod.key]: v as AccessLevel }))
                               }
                               disabled={!isOn}
                               aria-label={`${mod.label} access level`}
-                              className="h-8 rounded-md border border-border bg-background px-2 text-sm disabled:opacity-40"
-                            >
-                              {ACCESS_LEVELS.filter((l) => l !== "none").map((l) => (
-                                <option key={l} value={l}>
-                                  {ACCESS_LABELS[l]}
-                                </option>
-                              ))}
-                            </select>
+                              options={ACCESS_LEVEL_OPTIONS}
+                            />
                           </div>
                         </div>
                       );

@@ -70,7 +70,21 @@ export interface DepartmentRecord {
 
 export type TowerStatus = "online" | "offline" | "maintenance";
 
-export type UserRole = "owner" | "manager" | "staff";
+/**
+ * Positions, not permissions — what someone can open is decided by module
+ * grants (lib/access.ts). Role settles two things grants cannot: who may
+ * administer whom, and what a person is called.
+ *
+ * general_manager and financial_manager arrive with migration 070. The FM sits
+ * deliberately outside the GM's reach: the GM runs operations, the books
+ * answer to the owner.
+ */
+export type UserRole =
+  | "owner"
+  | "general_manager"
+  | "financial_manager"
+  | "manager"
+  | "staff";
 
 export type ServiceType = "fiber" | "wireless" | "both";
 

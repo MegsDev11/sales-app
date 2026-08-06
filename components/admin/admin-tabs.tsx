@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Briefcase, ShieldCheck, Users } from "lucide-react";
+import { Briefcase, History, LayoutList, ShieldCheck, Users } from "lucide-react";
 
 /**
  * In-page tabs for Administration.
@@ -15,6 +15,8 @@ const TABS = [
   { href: "/admin", label: "Staff & Access", icon: ShieldCheck },
   { href: "/admin/templates", label: "Role Templates", icon: Users },
   { href: "/admin/departments", label: "Departments", icon: Briefcase },
+  { href: "/admin/sections", label: "Sections", icon: LayoutList },
+  { href: "/admin/audit", label: "Audit trail", icon: History },
 ];
 
 export function AdminTabs() {

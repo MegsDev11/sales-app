@@ -19,15 +19,28 @@ import type { Department, ModuleKey, User, UserRole } from "@/lib/types";
 
 export type OwnerSection = ModuleKey | "company";
 
-/** Modules with no real screens yet — they render the placeholder shell. */
+/**
+ * Departments whose module has no real screens yet, so /fiber and /reception render
+ * the placeholder shell.
+ *
+ * This listed accounts and general too. Both have been built since — accounts is the
+ * client book, general is the company pulse — so the constant was calling two
+ * finished modules stubs. `placeholder: true` in lib/modules.ts is the authority;
+ * this list exists to give PlaceholderDepartmentPage a type that stops it being
+ * pointed at a module that has real screens. Keep the two in step.
+ */
 export const PLACEHOLDER_DEPARTMENTS = [
   "fiber",
-  "general",
-  "accounts",
   "reception",
 ] as const satisfies readonly Department[];
 
 export type PlaceholderDepartment = (typeof PLACEHOLDER_DEPARTMENTS)[number];
+
+export function isPlaceholderDepartment(
+  department: string | null | undefined
+): department is PlaceholderDepartment {
+  return PLACEHOLDER_DEPARTMENTS.includes(department as PlaceholderDepartment);
+}
 
 const DEPARTMENT_LABELS: Record<Department, string> = {
   sales: "Sales",
@@ -41,17 +54,6 @@ const DEPARTMENT_LABELS: Record<Department, string> = {
   accounts: "Accounts",
   reception: "Reception",
 };
-
-export function isPlaceholderDepartment(
-  department: string | null | undefined
-): department is PlaceholderDepartment {
-  return (
-    department === "fiber" ||
-    department === "general" ||
-    department === "accounts" ||
-    department === "reception"
-  );
-}
 
 /**
  * Legacy role/department normaliser.
@@ -95,7 +97,12 @@ export function isOwner(user: User | null | undefined): boolean {
 export function isManager(user: User | null | undefined, department?: Department): boolean {
   if (!user) return false;
   if (!department) {
-    return isOwnerRole(user) || user.role === "manager";
+    return (
+      isOwnerRole(user) ||
+      user.role === "general_manager" ||
+      user.role === "financial_manager" ||
+      user.role === "manager"
+    );
   }
   const moduleKey = moduleForDepartment(department);
   return moduleKey ? can(user, moduleKey, "manage") : false;
@@ -205,6 +212,14 @@ export function canAccessStockRequests(user: User | null | undefined): boolean {
 // ---------------------------------------------------------------------------
 
 export function canManageUser(actor: User, target: User): boolean {
+  // The hierarchy decides first (migration 070): an owner or GM outranks the
+  // module grant, and the financial manager is off-limits to both a GM and a
+  // delegated admin.
+  if (target.role === "owner") return actor.id === target.id;
+  if (target.role === "financial_manager") {
+    return isOwnerRole(actor) || actor.id === target.id;
+  }
+  if (isOwnerRole(actor) || actor.role === "general_manager") return true;
   if (can(actor, "admin", "manage")) return true;
   if (actor.id === target.id) return true;
   // A module manager may manage staff whose home department maps to that module.
@@ -255,6 +270,8 @@ export function getDepartmentLabel(department: Department): string {
 
 export function getUserBadgeLabel(user: User): string | null {
   if (isOwner(user)) return "Owner";
+  if (user.role === "general_manager") return "General Manager";
+  if (user.role === "financial_manager") return "Financial Manager";
   if (user.role === "manager" && user.department) {
     return `${getDepartmentLabel(user.department)} Manager`;
   }
@@ -263,6 +280,8 @@ export function getUserBadgeLabel(user: User): string | null {
 
 export function getDefaultTitle(role: UserRole, department: Department | null): string {
   if (role === "owner") return "Megs Owner";
+  if (role === "general_manager") return "General Manager";
+  if (role === "financial_manager") return "Financial Manager";
   if (role === "manager" && department) return `${getDepartmentLabel(department)} Manager`;
   if (role === "staff" && department === "sales") return "Sales Representative";
   if (role === "staff" && department) return `${getDepartmentLabel(department)} Staff`;

@@ -1,5 +1,6 @@
 import { MODULE_LIST, MODULES, moduleForPath, type ModuleDef } from "@/lib/modules";
-import type { AccessLevel, AccessMap, ModuleKey, User } from "@/lib/types";
+import { applySectionOverrides, type SectionOverride } from "@/lib/nav/sections";
+import type { AccessLevel, AccessMap, ModuleKey, User, UserRole } from "@/lib/types";
 
 /**
  * The single access API for the whole app.
@@ -26,6 +27,28 @@ export const ACCESS_LABELS: Record<AccessLevel, string> = {
   manage: "Full control",
 };
 
+/**
+ * The levels a grant dropdown offers.
+ *
+ * "No access" is listed but not selectable: the tickbox beside the dropdown is
+ * what turns a module off, so offering it here would give one piece of state two
+ * controls that can disagree. It has to be listed all the same — a module that is
+ * off holds the value "none", and a dropdown with no matching entry has nothing
+ * to display.
+ *
+ * Built once because the admin console, the template editor and the new-staff
+ * dialog all render the same picker.
+ */
+export const ACCESS_LEVEL_OPTIONS: {
+  value: AccessLevel;
+  label: string;
+  disabled?: boolean;
+}[] = ACCESS_LEVELS.map((l) => ({
+  value: l,
+  label: ACCESS_LABELS[l],
+  ...(l === "none" ? { disabled: true } : {}),
+}));
+
 export function isAccessLevel(value: unknown): value is AccessLevel {
   return typeof value === "string" && value in ACCESS_RANK;
 }
@@ -33,6 +56,51 @@ export function isAccessLevel(value: unknown): value is AccessLevel {
 /** Owner is the break-glass: full control everywhere, regardless of stored grants. */
 export function isOwnerRole(user: User | null | undefined): boolean {
   return user?.role === "owner";
+}
+
+export function isGeneralManager(user: User | null | undefined): boolean {
+  return user?.role === "general_manager";
+}
+
+export function isFinancialManager(user: User | null | undefined): boolean {
+  return user?.role === "financial_manager";
+}
+
+/**
+ * Who may edit whose access — the mirror of can_administer() in migration 070.
+ * Both copies must say the same thing; the SQL one is the enforcement, this one
+ * decides what the console offers so a refusal is never a surprise.
+ *
+ *   Nobody edits an owner here.
+ *   Only an owner edits the financial manager — the books answer to the owner,
+ *     not to the GM who runs everything else.
+ *   A general manager edits everyone else.
+ *   Anyone else needs admin at manage, and still cannot touch those two.
+ */
+export function canAdminister(
+  actor: User | null | undefined,
+  target: { role: UserRole } | null | undefined
+): boolean {
+  if (!actor || !target) return false;
+  if (actor.active === false) return false;
+  if (target.role === "owner") return false;
+  if (isOwnerRole(actor)) return true;
+  if (target.role === "financial_manager") return false;
+  if (isGeneralManager(actor)) return true;
+  return can(actor, "admin", "manage");
+}
+
+/** Why the console refused, in words a person can act on. */
+export function administerRefusal(
+  actor: User | null | undefined,
+  target: { role: UserRole } | null | undefined
+): string | null {
+  if (canAdminister(actor, target)) return null;
+  if (target?.role === "owner") return "Owner access is not editable here.";
+  if (target?.role === "financial_manager") {
+    return "Only the owner can change the financial manager's access.";
+  }
+  return "You do not have access control rights for this person.";
 }
 
 export function accessLevel(
@@ -111,19 +179,36 @@ export function homeRoute(user: User | null | undefined): string {
   return target.root;
 }
 
-/** Sidebar entries for a module, narrowed by what the user can do inside it. */
+/**
+ * Sidebar entries for a module, narrowed by what the user can do inside it and
+ * then rearranged by whatever Administration → Sections says.
+ *
+ * Narrow first, arrange second. A read-only Stock user's list is cut down to the
+ * pick lists before any borrowed section is appended, so lending a section to a
+ * department never widens what its own module already decided to show.
+ *
+ * `overrides` is optional so the server and anything without the sections loaded
+ * still gets the defaults rather than an empty sidebar.
+ */
 export function navItemsFor(
   user: User | null | undefined,
-  moduleKey: ModuleKey
+  moduleKey: ModuleKey,
+  overrides: SectionOverride[] = []
 ): ModuleDef["nav"] {
   const mod = MODULES[moduleKey];
   if (!mod) return [];
-  if (mod.staffNav && !can(user, moduleKey, "manage")) return mod.staffNav;
-  if (moduleKey === "stock" && !can(user, "stock", "edit")) {
+
+  let base: ModuleDef["nav"];
+  if (mod.staffNav && !can(user, moduleKey, "manage")) {
+    base = mod.staffNav;
+  } else if (moduleKey === "stock" && !can(user, "stock", "edit")) {
     // Coordination users with read-only stock only need the pick lists.
-    return mod.nav.filter((item) => item.stockOnly === false);
+    base = mod.nav.filter((item) => item.stockOnly === false);
+  } else {
+    base = mod.nav;
   }
-  return mod.nav;
+
+  return applySectionOverrides(base, overrides, moduleKey);
 }
 
 /** Build the access map sent to the client from raw grant rows. */

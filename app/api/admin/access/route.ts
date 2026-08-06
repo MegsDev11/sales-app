@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
-import { isAccessLevel } from "@/lib/access";
+import { administerRefusal, isAccessLevel } from "@/lib/access";
 import { isModuleKey } from "@/lib/modules";
-import type { AccessLevel } from "@/lib/types";
+import type { AccessLevel, UserRole } from "@/lib/types";
+import { errorMessage } from "@/lib/api/route-helpers";
 
 /**
  * The API behind Administration → Access Control.
@@ -16,15 +17,6 @@ import type { AccessLevel } from "@/lib/types";
  * delegated administrator passes via an explicit admin grant, which is what makes a
  * second administrator possible at all.
  */
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) return message;
-  }
-  return "Request failed";
-}
 
 export async function GET(request: Request) {
   const admin = await requireAccess(request, "admin", "manage");
@@ -115,6 +107,16 @@ export async function POST(request: Request) {
         { error: "The owner already has full access to every module; grants do not apply." },
         { status: 400 }
       );
+    }
+
+    // The hierarchy (migration 070). Until now this route checked admin/manage
+    // once and then let the holder edit anyone — which made the financial
+    // manager editable by any delegated admin, and left a GM indistinguishable
+    // from one. can_administer() in SQL is the enforcement; this mirrors it so
+    // the refusal is a clean 403 with a reason.
+    const refusal = administerRefusal(admin, target as { role: UserRole });
+    if (refusal) {
+      return NextResponse.json({ error: refusal }, { status: 403 });
     }
 
     const action = body.action ?? "setAccess";
