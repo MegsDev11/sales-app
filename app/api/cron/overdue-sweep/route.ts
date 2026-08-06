@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { recipientsForModule, sendStaffMail } from "@/lib/mail/staff-mail";
 
 /**
  * Scheduled entry point for the overdue sweep.
@@ -19,7 +20,67 @@ function authorized(request: Request): boolean {
   return request.headers.get("x-cron-secret") === secret;
 }
 
-async function runSweep() {
+/**
+ * Email the managers of a module when the sweep raised something for them.
+ *
+ * The bell only reaches someone who happens to open the app. Overdue work is
+ * exactly the case where nobody is looking — so the same rows go out as a short
+ * digest. Best-effort: a mail failure never fails the sweep, because the
+ * notifications are already written either way.
+ */
+async function emailDigests(db: SupabaseClient): Promise<Record<string, number>> {
+  const sentPerModule: Record<string, number> = {};
+  const since = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
+
+  const { data: fresh } = await db
+    .from("app_notifications")
+    .select("department, title, body, link, type, created_at")
+    .gte("created_at", since)
+    .is("read_at", null)
+    .like("type", "overdue_%");
+
+  const rows = (fresh ?? []) as Record<string, unknown>[];
+  if (rows.length === 0) return sentPerModule;
+
+  const byModule = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const key = String(row.department ?? "");
+    if (!key) continue;
+    byModule.set(key, [...(byModule.get(key) ?? []), row]);
+  }
+
+  for (const [moduleKey, moduleRows] of byModule) {
+    const people = await recipientsForModule(db, moduleKey, "manage");
+    if (people.length === 0) continue;
+
+    const lines = moduleRows
+      .slice(0, 25)
+      .map((r) => `• ${String(r.title)}${r.body ? ` — ${String(r.body)}` : ""}`);
+    const more = moduleRows.length > lines.length ? `\n…and ${moduleRows.length - lines.length} more.` : "";
+
+    const body = [
+      `${moduleRows.length} item${moduleRows.length === 1 ? "" : "s"} need${
+        moduleRows.length === 1 ? "s" : ""
+      } attention:`,
+      "",
+      lines.join("\n"),
+      more,
+      "",
+      "Open the platform to see the detail and clear them.",
+    ].join("\n");
+
+    const result = await sendStaffMail(
+      people,
+      `Overdue: ${moduleRows.length} item${moduleRows.length === 1 ? "" : "s"} in ${moduleKey}`,
+      body
+    );
+    sentPerModule[moduleKey] = result.sent;
+  }
+
+  return sentPerModule;
+}
+
+async function runSweep(request: Request) {
   try {
     const supabase = createSupabaseAdminClient() as unknown as SupabaseClient;
     const { data, error } = await supabase.rpc("run_overdue_sweep");
@@ -29,7 +90,20 @@ async function runSweep() {
         : "";
       return NextResponse.json({ error: `${error.message}${hint}` }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, inserted: data });
+
+    // ?email=0 runs the sweep without sending — useful for a manual re-run.
+    let emailed: Record<string, number> | { skipped: string } = { skipped: "disabled" };
+    if (new URL(request.url).searchParams.get("email") !== "0") {
+      try {
+        emailed = await emailDigests(supabase);
+      } catch (mailError) {
+        emailed = {
+          skipped: mailError instanceof Error ? mailError.message : "digest failed",
+        };
+      }
+    }
+
+    return NextResponse.json({ ok: true, inserted: data, emailed });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sweep failed";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -40,7 +114,7 @@ export async function POST(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return runSweep();
+  return runSweep(request);
 }
 
 // Vercel cron invokes GET.
@@ -48,5 +122,5 @@ export async function GET(request: Request) {
   if (!authorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return runSweep();
+  return runSweep(request);
 }

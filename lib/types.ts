@@ -23,6 +23,7 @@ export type Department =
  * other module key matches its department key.
  */
 export type ModuleKey =
+  | "todo"
   | "crm"
   | "reception"
   | "accounts"

@@ -54,35 +54,41 @@ export interface MailerStatus {
   missing: string[];
 }
 
-const REQUIRED = [
-  "ACCOUNTS_SMTP_HOST",
-  "ACCOUNTS_SMTP_USER",
-  "ACCOUNTS_SMTP_PASS",
-] as const;
+/**
+ * This transport was built for invoicing, so its variables carry an ACCOUNTS_
+ * prefix. It now also carries overdue alerts and the weekly digest, which are
+ * nothing to do with accounts — so a plain SMTP_ name is read as a fallback.
+ * The ACCOUNTS_ names keep working and still win, so no existing deployment
+ * has to change anything.
+ */
+const envValue = (suffix: string): string | undefined =>
+  process.env[`ACCOUNTS_SMTP_${suffix}`]?.trim() || process.env[`SMTP_${suffix}`]?.trim();
+
+const missingKeys = (): string[] =>
+  (["HOST", "USER", "PASS"] as const)
+    .filter((suffix) => !envValue(suffix))
+    .map((suffix) => `ACCOUNTS_SMTP_${suffix} (or SMTP_${suffix})`);
 
 export function readMailerConfig(): MailerConfig | null {
-  const missing = REQUIRED.filter((key) => !process.env[key]?.trim());
-  if (missing.length) return null;
+  if (missingKeys().length) return null;
 
-  const port = Number(process.env.ACCOUNTS_SMTP_PORT ?? 587);
-  const user = String(process.env.ACCOUNTS_SMTP_USER).trim();
+  const port = Number(envValue("PORT") ?? 587);
+  const user = String(envValue("USER"));
 
   return {
-    host: String(process.env.ACCOUNTS_SMTP_HOST).trim(),
+    host: String(envValue("HOST")),
     port: Number.isFinite(port) ? port : 587,
     // Port 465 is implicit TLS; 587 upgrades via STARTTLS. Getting this backwards is
     // the single most common cause of a hung connection.
-    secure: process.env.ACCOUNTS_SMTP_SECURE
-      ? process.env.ACCOUNTS_SMTP_SECURE === "true"
-      : port === 465,
+    secure: envValue("SECURE") ? envValue("SECURE") === "true" : port === 465,
     user,
-    pass: String(process.env.ACCOUNTS_SMTP_PASS),
-    from: (process.env.ACCOUNTS_SMTP_FROM ?? user).trim(),
+    pass: String(envValue("PASS")),
+    from: (envValue("FROM") ?? user).trim(),
   };
 }
 
 export function mailerStatus(): MailerStatus {
-  const missing = REQUIRED.filter((key) => !process.env[key]?.trim());
+  const missing = missingKeys();
   if (missing.length) return { configured: false, missing };
   const config = readMailerConfig()!;
   return {
