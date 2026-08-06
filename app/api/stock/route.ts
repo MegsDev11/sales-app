@@ -239,6 +239,11 @@ type StockAction =
       qrToken: string;
     }
   | {
+      action: "issuePpe";
+      qrToken: string;
+      technicianId?: string;
+    }
+  | {
       action: "regenerateClientPin";
       itemId: string;
     }
@@ -1139,6 +1144,96 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         item: itemRow ? stockItemFromRow(itemRow) : null,
+      });
+    }
+
+    /**
+     * Issue PPE by scan (migration 069).
+     *
+     * Deliberately NOT the fulfillScan path: PPE is issued to a person, not
+     * installed at a client, so there is no pick list, no client to pick and
+     * no senior-technician rule — a junior needs a hard hat as much as anyone.
+     * Returning it uses the ordinary return-by-QR flow, unchanged.
+     */
+    if (body.action === "issuePpe") {
+      const qrToken = extractStockQrToken(body.qrToken);
+      if (!qrToken) {
+        return NextResponse.json({ error: "QR token required" }, { status: 400 });
+      }
+      const untypedPpe = supabase as unknown as SupabaseClient;
+
+      const { data: itemRow, error: itemError } = await untypedPpe
+        .from("stock_items")
+        .select("id, product_id, status")
+        .eq("qr_token", qrToken)
+        .maybeSingle();
+      if (itemError) throw itemError;
+      if (!itemRow) return NextResponse.json({ error: "QR not found" }, { status: 404 });
+      if (itemRow.status !== "available") {
+        return NextResponse.json(
+          { error: "This item is already booked out" },
+          { status: 400 }
+        );
+      }
+
+      const { data: product } = await untypedPpe
+        .from("stock_products")
+        .select("id, name, category")
+        .eq("id", itemRow.product_id as string)
+        .maybeSingle();
+      if (product && product.category && product.category !== "ppe") {
+        return NextResponse.json(
+          {
+            error: `${product.name} is not PPE — book it out against a pick list instead`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Issued to whoever is scanning unless a stock controller names someone.
+      const holderId = body.technicianId?.trim() || user.id;
+      const { data: holder } = await supabase
+        .from("team_members")
+        .select("id, name, active")
+        .eq("id", holderId)
+        .maybeSingle();
+      if (!holder || holder.active === false) {
+        return NextResponse.json({ error: "Active staff member not found" }, { status: 404 });
+      }
+
+      const bookingRow: Record<string, unknown> = {
+        ...stockBookingToRow({
+          id: `sbook-${Date.now()}`,
+          itemId: itemRow.id as string,
+          technicianId: holderId,
+          leadId: null,
+          requestId: null,
+          bookedOutAt: now,
+          bookedOutBy: user.id,
+          notes: "PPE issue"}),
+        purpose: "ppe",
+      };
+      let { error: bookingError } = await untypedPpe
+        .from("stock_bookings")
+        .insert(bookingRow);
+      if (bookingError && /purpose/.test(bookingError.message)) {
+        delete bookingRow.purpose;
+        ({ error: bookingError } = await untypedPpe
+          .from("stock_bookings")
+          .insert(bookingRow));
+      }
+      if (bookingError) throw bookingError;
+
+      const { error: statusError } = await supabase
+        .from("stock_items")
+        .update(stockItemUpdatesToRow({ status: "booked_out", updatedAt: now }))
+        .eq("id", itemRow.id as string);
+      if (statusError) throw statusError;
+
+      return NextResponse.json({
+        ok: true,
+        issuedTo: holder.name,
+        productName: product?.name ?? "PPE item",
       });
     }
 

@@ -468,6 +468,15 @@ export interface Vehicle {
   createdAt: string;
   updatedAt: string;
   technicianName?: string;
+  /**
+   * The open booking, when there is one (migration 069). The assigned driver
+   * is who the vehicle belongs to; this is who has it right now.
+   */
+  heldBy?: {
+    technicianName: string;
+    since: string;
+    odometerStart: number | null;
+  } | null;
 }
 
 export interface FuelEntry {
@@ -479,6 +488,8 @@ export interface FuelEntry {
   price: number;
   recordedAt: string;
   createdAt: string;
+  /** Odometer at the pump (migration 069) — what turns litres into km/L. */
+  odometerKm?: number | null;
   vehicleBrand?: string;
   vehicleNumberPlate?: string;
   technicianName?: string;

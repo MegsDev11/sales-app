@@ -3,7 +3,6 @@
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { getFieldTechnicians } from "@/lib/permissions";
 import { vehiclePublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
@@ -44,6 +43,21 @@ function VehicleQrCard({ vehicle }: { vehicle: Vehicle }) {
           <p className="text-sm text-muted-foreground">
             Driver: {vehicle.technicianName ?? vehicle.technicianId}
           </p>
+          {/* Who physically has it now, which is not always the assigned driver. */}
+          {vehicle.heldBy ? (
+            <p className="text-sm font-medium text-amber-700">
+              Out with {vehicle.heldBy.technicianName} since{" "}
+              {new Date(vehicle.heldBy.since).toLocaleDateString("en-ZA", {
+                day: "numeric",
+                month: "short",
+              })}
+              {vehicle.heldBy.odometerStart != null
+                ? ` · ${vehicle.heldBy.odometerStart.toLocaleString("en-ZA")} km`
+                : ""}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">In the pool</p>
+          )}
           <p className="break-all text-xs text-muted-foreground">{url}</p>
           <div className="flex flex-wrap justify-center gap-2 pt-2 sm:justify-start">
             {dataUrl ? (
@@ -71,7 +85,6 @@ function VehicleQrCard({ vehicle }: { vehicle: Vehicle }) {
 }
 
 export default function StockVehiclesPage() {
-  const { allowed, isLoading } = useStockAccess();
   const { accessToken } = useAuth();
   const { users } = useCrmStore();
   const techs = getFieldTechnicians(users);
@@ -131,8 +144,6 @@ export default function StockVehiclesPage() {
       setBusy(false);
     }
   }
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

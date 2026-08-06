@@ -15,7 +15,16 @@ export default function VehicleFuelScreen() {
   const [litres, setLitres] = useState("");
   const [location, setLocation] = useState("");
   const [price, setPrice] = useState("");
+  const [odometer, setOdometer] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Custody (migration 069): who has this vehicle, and the last reading we
+  // know, so the tech confirms rather than remembers.
+  const [booking, setBooking] = useState<{
+    technicianName: string | null;
+    odometerStart: number | null;
+    isMine: boolean;
+  } | null>(null);
+  const [lastOdometer, setLastOdometer] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -24,6 +33,8 @@ export default function VehicleFuelScreen() {
         `${API_PATHS.mobileTechVehicles}?token=${encodeURIComponent(token)}`
       );
       setVehicle(data.vehicle ?? null);
+      setBooking(data.booking ?? null);
+      setLastOdometer(data.lastOdometer ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Vehicle not found");
       setVehicle(null);
@@ -31,6 +42,34 @@ export default function VehicleFuelScreen() {
       setLoading(false);
     }
   }, [token]);
+
+  async function book(action: "bookOut" | "bookIn") {
+    if (!vehicle) return;
+    const reading = odometer.trim() === "" ? null : Number(odometer);
+    if (reading != null && (!Number.isFinite(reading) || reading < 0)) {
+      Alert.alert("Odometer", "Enter the reading as a whole number of kilometres");
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiFetch(API_PATHS.mobileTechVehicles, {
+        method: "POST",
+        body: JSON.stringify({ action, vehicleId: vehicle.id, odometer: reading }),
+      });
+      setOdometer("");
+      await load();
+      Alert.alert(
+        action === "bookOut" ? "Booked out" : "Booked in",
+        action === "bookOut"
+          ? "The vehicle is signed out to you."
+          : "Thanks — the vehicle is back in the pool."
+      );
+    } catch (e) {
+      Alert.alert("Could not save", e instanceof Error ? e.message : "Try again");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -50,6 +89,8 @@ export default function VehicleFuelScreen() {
           litres: litresN,
           location: locationTrimmed,
           price: priceN,
+          // Shared with the custody field above: one reading serves both.
+          odometerKm: odometer.trim() === "" ? null : Number(odometer),
         }),
       });
       Alert.alert("Saved", "Fuel entry sent to Financial", [
@@ -119,6 +160,41 @@ export default function VehicleFuelScreen() {
             {vehicle.brand || "Vehicle"} · {vehicle.numberPlate}
             {vehicle.technicianName ? ` · Driver ${vehicle.technicianName}` : ""}
           </Muted>
+
+          {/* Custody first: who has the key right now. */}
+          <View style={styles.fields}>
+            <Muted>
+              {booking
+                ? booking.isMine
+                  ? "You have this vehicle booked out."
+                  : `Booked out to ${booking.technicianName ?? "another technician"}.`
+                : "This vehicle is available."}
+              {lastOdometer != null ? ` Last reading ${lastOdometer} km.` : ""}
+            </Muted>
+            <Text style={styles.label}>Odometer (km)</Text>
+            <TextInput
+              value={odometer}
+              onChangeText={setOdometer}
+              placeholder={lastOdometer != null ? `e.g. ${lastOdometer + 120}` : "e.g. 148320"}
+              keyboardType="number-pad"
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+            />
+            {booking?.isMine ? (
+              <PrimaryButton
+                label={busy ? "Saving…" : "Book in (return)"}
+                disabled={busy}
+                onPress={() => void book("bookIn")}
+              />
+            ) : booking ? null : (
+              <PrimaryButton
+                label={busy ? "Saving…" : "Book out to me"}
+                disabled={busy}
+                onPress={() => void book("bookOut")}
+              />
+            )}
+          </View>
+
           <View style={styles.fields}>
             <Text style={styles.label}>Litres</Text>
             <TextInput

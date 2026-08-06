@@ -36,6 +36,7 @@ export function fuelEntryFromRow(
     price: number | string;
     recorded_at: string;
     created_at: string;
+    odometer_km?: number | null;
   },
   extras?: {
     vehicleBrand?: string;
@@ -52,6 +53,7 @@ export function fuelEntryFromRow(
     price: Number(row.price),
     recordedAt: row.recorded_at,
     createdAt: row.created_at,
+    odometerKm: row.odometer_km ?? null,
     vehicleBrand: extras?.vehicleBrand,
     vehicleNumberPlate: extras?.vehicleNumberPlate,
     technicianName: extras?.technicianName,

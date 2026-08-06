@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { loadClientBilling, loadClientJobCards } from "@/lib/portal/client-billing";
 import {
   appNotificationToRow,
   clientSupportRequestFromRow,
@@ -8,14 +10,12 @@ import {
   stockItemFromRow,
   stockItemVisitFromRow,
   stockItemVisitToRow,
-  stockProductFromRow,
 } from "@/lib/supabase/mappers";
 import {
-  checkRateLimit,
-  clearRateLimit,
+  clearPortalAttempts,
+  notePortalAttempt,
   generateSessionToken,
   getPortalCookie,
-  hashPortalCode,
   hashSessionToken,
   parsePortalCookie,
   portalCookieValue,
@@ -127,20 +127,78 @@ export async function GET(
     const supportRequests =
       session.role === "client" ? await loadSupportRequests(item.id) : [];
 
+    // The device is linked to a billing client by migration 066. When that
+    // link exists both roles get more: the client sees their own account,
+    // the technician sees the whole site.
+    const clientId = (itemRow as { client_id?: string | null }).client_id ?? null;
+
+    if (session.role === "technician") {
+      // The technician branch used to return null here, so a tech scanning a
+      // unit saw strictly LESS than the client did — no PPPoE, no SSID, no
+      // address. Inverted on purpose now: this is the person standing at the
+      // router who needs the credentials to fix it.
+      const [billing, jobCards, siblings] = await Promise.all([
+        clientId ? loadClientBilling(supabase as unknown as SupabaseClient, clientId) : null,
+        clientId ? loadClientJobCards(supabase as unknown as SupabaseClient, clientId) : [],
+        clientId
+          ? (supabase as unknown as SupabaseClient)
+              .from("stock_items")
+              .select("id, brand, device_name, serial_number, qr_token")
+              .eq("client_id", clientId)
+              .neq("id", item.id)
+              .limit(20)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      return NextResponse.json({
+        authenticated: true,
+        role: "technician" as QrPortalRole,
+        technicianId: session.technician_id,
+        visits,
+        supportRequests: [],
+        clientDetails: null,
+        siteDetails: {
+          clientName: item.clientName,
+          clientAddress: item.clientAddress,
+          clientPppoe: item.clientPppoe,
+          wifiName: item.wifiName,
+          wifiPassword: item.wifiPassword,
+          // Account status only — a technician has no business seeing the
+          // balance or what the client pays.
+          billingStatus: billing?.billingStatus ?? null,
+          package: billing?.package ?? null,
+        },
+        otherDevices: ((siblings as { data?: unknown[] }).data ?? []).map((row) => {
+          const d = row as Record<string, unknown>;
+          return {
+            id: String(d.id),
+            label:
+              [d.brand, d.device_name].filter(Boolean).join(" ") || "Unit",
+            serialNumber: String(d.serial_number ?? ""),
+            qrToken: String(d.qr_token ?? ""),
+          };
+        }),
+        jobCards,
+      });
+    }
+
+    // Client role: their own network basics, plus their own money.
+    const billing = clientId
+      ? await loadClientBilling(supabase as unknown as SupabaseClient, clientId)
+      : null;
+
     return NextResponse.json({
       authenticated: true,
-      role: session.role as QrPortalRole,
-      technicianId: session.technician_id,
+      role: "client" as QrPortalRole,
+      technicianId: null,
       visits,
       supportRequests,
-      clientDetails:
-        session.role === "client"
-          ? {
-              clientPppoe: item.clientPppoe,
-              wifiName: item.wifiName,
-              wifiPassword: item.wifiPassword,
-            }
-          : null,
+      clientDetails: {
+        clientPppoe: item.clientPppoe,
+        wifiName: item.wifiName,
+        wifiPassword: item.wifiPassword,
+      },
+      billing,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Portal load failed";
@@ -187,9 +245,20 @@ export async function POST(
         );
       }
 
+      // Counted in the database (migration 069) so the ceiling holds across
+      // instances and deploys, not just within one process.
       const rateKey = `${token}:${body.role}:${request.headers.get("x-forwarded-for") ?? "local"}`;
-      if (!checkRateLimit(rateKey)) {
-        return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
+      const verdict = await notePortalAttempt(supabase as unknown as SupabaseClient, rateKey);
+      if (!verdict.allowed) {
+        return NextResponse.json(
+          { error: "Too many attempts. Try again later." },
+          {
+            status: 429,
+            headers: verdict.retryAfterSeconds
+              ? { "Retry-After": String(verdict.retryAfterSeconds) }
+              : undefined,
+          }
+        );
       }
 
       if (body.role === "client") {
@@ -223,7 +292,7 @@ export async function POST(
         });
         if (sessionError) throw sessionError;
 
-        clearRateLimit(rateKey);
+        await clearPortalAttempts(supabase as unknown as SupabaseClient, rateKey);
         const jar = await cookies();
         jar.set(PORTAL_SESSION_COOKIE, portalCookieValue(sessionId, rawToken), cookieOptions());
 
@@ -255,7 +324,7 @@ export async function POST(
       });
       if (sessionError) throw sessionError;
 
-      clearRateLimit(rateKey);
+      await clearPortalAttempts(supabase as unknown as SupabaseClient, rateKey);
       const jar = await cookies();
       jar.set(PORTAL_SESSION_COOKIE, portalCookieValue(sessionId, rawToken), cookieOptions());
 

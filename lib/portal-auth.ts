@@ -3,9 +3,11 @@ import {
   createDecipheriv,
   createHash,
   randomBytes,
+  randomInt,
   timingSafeEqual,
 } from "crypto";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const PEPPER =
   process.env.PORTAL_CODE_PEPPER ??
@@ -32,7 +34,16 @@ export function verifyPortalCode(code: string, hash: string | null | undefined):
 }
 
 export function generateFourDigitCode(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
+  return String(randomInt(1000, 10000));
+}
+
+/**
+ * Six digits for the client-level portal card. A device PIN unlocks WiFi
+ * details; this one unlocks invoices and a balance, so it is worth the two
+ * extra digits — and it is read off a printed card rather than remembered.
+ */
+export function generateClientPortalPin(): string {
+  return String(randomInt(100000, 1000000));
 }
 
 /** @deprecated Prefer generateFourDigitCode — kept so stale Turbopack graphs still resolve. */
@@ -111,4 +122,55 @@ export function checkRateLimit(key: string, maxAttempts = 8, windowMs = 15 * 60 
 
 export function clearRateLimit(key: string): void {
   attemptMap.delete(key);
+}
+
+/* ------------------------------------------------------------------ *
+ * Durable rate limiting (migration 069)
+ * ------------------------------------------------------------------ *
+ * The in-memory limiter above counts per process: it empties on every
+ * deploy and each serverless instance keeps its own tally, so the real
+ * ceiling is far higher than the number it is configured with. That is
+ * too thin for a code that reveals a client's invoices, so the client
+ * portal counts in the database instead — every instance sees the same
+ * number, and too many wrong codes lock the token out for a while.
+ *
+ * Falls OPEN to the in-memory limiter if the migration is not applied,
+ * so an unapplied migration degrades the guard rather than the service.
+ */
+
+export interface RateVerdict {
+  allowed: boolean;
+  retryAfterSeconds: number;
+}
+
+export async function notePortalAttempt(
+  db: SupabaseClient,
+  key: string,
+  options: { maxAttempts?: number; windowMinutes?: number; lockMinutes?: number } = {}
+): Promise<RateVerdict> {
+  const { data, error } = await db.rpc("portal_note_attempt", {
+    p_key: key,
+    p_max: options.maxAttempts ?? 8,
+    p_window_minutes: options.windowMinutes ?? 15,
+    p_lock_minutes: options.lockMinutes ?? 15,
+  });
+  if (error) {
+    return {
+      allowed: checkRateLimit(key, options.maxAttempts ?? 8),
+      retryAfterSeconds: 0,
+    };
+  }
+  const row = (data ?? {}) as { allowed?: boolean; retryAfterSeconds?: number };
+  return {
+    allowed: row.allowed !== false,
+    retryAfterSeconds: Number(row.retryAfterSeconds ?? 0),
+  };
+}
+
+export async function clearPortalAttempts(db: SupabaseClient, key: string): Promise<void> {
+  clearRateLimit(key);
+  await db.rpc("portal_clear_attempts", { p_key: key }).then(
+    () => undefined,
+    () => undefined
+  );
 }

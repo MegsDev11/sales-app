@@ -16,6 +16,7 @@ import {
   Link2,
   Network,
   Package,
+  QrCode,
   ShieldCheck,
   ShoppingCart,
   TrendingUp,
@@ -140,6 +141,7 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
     nav: [
       { href: "/accounts", label: "Client book", icon: BookUser, short: "Clients" },
       { href: "/accounts/quotes", label: "Quotes", icon: FileSignature, short: "Quotes" },
+      { href: "/accounts/cards", label: "Client QR cards", icon: QrCode, short: "Cards" },
       { href: "/accounts/ageing", label: "Age analysis", icon: CalendarClock, short: "Ageing" },
       { href: "/accounts/collections", label: "Collections", icon: ShieldCheck, short: "Chase" },
       { href: "/accounts/linking", label: "Client linking", icon: Link2, short: "Link" },

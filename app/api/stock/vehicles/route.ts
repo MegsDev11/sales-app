@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAuthUserFromRequest } from "@/lib/supabase/server-auth";
 import { canAccessStock, isOwner } from "@/lib/permissions";
@@ -27,16 +28,45 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
     if (error) throw new Error(migrationHint(error.message, "032_vehicles_fuel.sql"));
 
-    const techIds = [...new Set((rows ?? []).map((r) => r.technician_id))];
+    // Open bookings say who physically has each vehicle (migration 069);
+    // tolerated as empty until that migration is applied.
+    const { data: openBookings } = await (supabase as unknown as SupabaseClient)
+      .from("vehicle_bookings")
+      .select("vehicle_id, technician_id, booked_out_at, odometer_start")
+      .is("returned_at", null);
+    const holderByVehicle = new Map(
+      ((openBookings ?? []) as Record<string, unknown>[]).map((b) => [
+        String(b.vehicle_id),
+        b,
+      ])
+    );
+
+    const techIds = [
+      ...new Set([
+        ...(rows ?? []).map((r) => r.technician_id),
+        ...[...holderByVehicle.values()].map((b) => String(b.technician_id)),
+      ]),
+    ];
     const { data: techs } = techIds.length
       ? await supabase.from("team_members").select("id, name").in("id", techIds)
       : { data: [] as { id: string; name: string }[] };
     const nameById = new Map((techs ?? []).map((t) => [t.id, t.name]));
 
     return NextResponse.json({
-      vehicles: (rows ?? []).map((r) =>
-        vehicleFromRow(r, nameById.get(r.technician_id))
-      ),
+      vehicles: (rows ?? []).map((r) => {
+        const held = holderByVehicle.get(r.id);
+        return {
+          ...vehicleFromRow(r, nameById.get(r.technician_id)),
+          heldBy: held
+            ? {
+                technicianName:
+                  nameById.get(String(held.technician_id)) ?? "Unknown",
+                since: String(held.booked_out_at),
+                odometerStart: held.odometer_start ?? null,
+              }
+            : null,
+        };
+      }),
     });
   } catch (e) {
     return NextResponse.json(

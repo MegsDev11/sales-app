@@ -23,6 +23,36 @@ function pricePerLitre(litres: number, price: number) {
   return price / litres;
 }
 
+/**
+ * Consumption per fill, from the odometer (migration 069).
+ *
+ * A tank's economy is the distance since the PREVIOUS fill divided by the
+ * litres that filled it back up, so the first recorded fill for a vehicle can
+ * never have a figure — there is nothing to measure from. Entries arrive
+ * newest-first; this walks each vehicle's own history oldest-first.
+ */
+function consumptionByEntry(entries: FuelEntry[]): Map<string, { km: number; kmPerLitre: number }> {
+  const out = new Map<string, { km: number; kmPerLitre: number }>();
+  const byVehicle = new Map<string, FuelEntry[]>();
+  for (const e of entries) {
+    if (e.odometerKm == null) continue;
+    const list = byVehicle.get(e.vehicleId) ?? [];
+    list.push(e);
+    byVehicle.set(e.vehicleId, list);
+  }
+  for (const list of byVehicle.values()) {
+    const ordered = [...list].sort((a, b) => (a.odometerKm ?? 0) - (b.odometerKm ?? 0));
+    for (let i = 1; i < ordered.length; i += 1) {
+      const prev = ordered[i - 1];
+      const current = ordered[i];
+      const km = (current.odometerKm ?? 0) - (prev.odometerKm ?? 0);
+      if (km <= 0 || current.litres <= 0) continue;
+      out.set(current.id, { km, kmPerLitre: km / current.litres });
+    }
+  }
+  return out;
+}
+
 export default function FinancialFuelPage() {
   const { accessToken } = useAuth();
   const [entries, setEntries] = useState<FuelEntry[]>([]);
@@ -35,6 +65,24 @@ export default function FinancialFuelPage() {
     () => pricePerLitre(totalLitres, totalPrice),
     [totalLitres, totalPrice]
   );
+
+  const consumption = useMemo(() => consumptionByEntry(entries), [entries]);
+
+  /** Fleet economy over every fill we can measure, plus what a km costs. */
+  const fleetEconomy = useMemo(() => {
+    let km = 0;
+    let litres = 0;
+    let spend = 0;
+    for (const e of entries) {
+      const c = consumption.get(e.id);
+      if (!c) continue;
+      km += c.km;
+      litres += e.litres;
+      spend += e.price;
+    }
+    if (km <= 0 || litres <= 0) return null;
+    return { km, kmPerLitre: km / litres, costPerKm: spend / km };
+  }, [entries, consumption]);
 
   const load = useCallback(async () => {
     if (!accessToken) return;
@@ -119,6 +167,39 @@ export default function FinancialFuelPage() {
               </p>
             </div>
           </div>
+          {fleetEconomy ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Distance measured
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {Math.round(fleetEconomy.km).toLocaleString("en-ZA")} km
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Fleet economy
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {fleetEconomy.kmPerLitre.toFixed(2)} km/L
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Cost per km
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {money(fleetEconomy.costPerKm)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+              Economy needs odometer readings. Once technicians enter the reading at the
+              pump twice for the same vehicle, km/L and cost per km appear here.
+            </p>
+          )}
           <p className="rounded-lg border border-border bg-white px-4 py-3 text-sm tabular-nums">
             <span className="text-muted-foreground">Calculation: </span>
             <strong>{litresLabel(totalLitres)}</strong>
@@ -149,6 +230,8 @@ export default function FinancialFuelPage() {
                 <th className="px-3 py-2 font-semibold">Technician</th>
                 <th className="px-3 py-2 font-semibold">Where</th>
                 <th className="px-3 py-2 font-semibold text-right">Litres</th>
+                <th className="px-3 py-2 font-semibold text-right">Odometer</th>
+                <th className="px-3 py-2 font-semibold text-right">km/L</th>
                 <th className="px-3 py-2 font-semibold text-right">R/L</th>
                 <th className="px-3 py-2 font-semibold text-right">Total</th>
               </tr>
@@ -170,6 +253,16 @@ export default function FinancialFuelPage() {
                     <td className="px-3 py-2 text-right tabular-nums">
                       {e.litres.toLocaleString("en-ZA", { maximumFractionDigits: 2 })}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      {e.odometerKm != null
+                        ? e.odometerKm.toLocaleString("en-ZA")
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {consumption.get(e.id)
+                        ? consumption.get(e.id)!.kmPerLitre.toFixed(2)
+                        : "—"}
+                    </td>
                     {/* price is the R total for the fill; R/L is derived from it */}
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                       {perL != null ? money(perL) : "—"}
@@ -189,6 +282,10 @@ export default function FinancialFuelPage() {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {totalLitres.toLocaleString("en-ZA", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {fleetEconomy ? fleetEconomy.kmPerLitre.toFixed(2) : "—"}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                     {avgPerLitre != null ? money(avgPerLitre) : "—"}
