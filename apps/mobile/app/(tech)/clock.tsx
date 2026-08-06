@@ -4,6 +4,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -205,8 +206,10 @@ export default function ClockScreen() {
           <View style={styles.locModalWrap} pointerEvents="box-none">
             <View style={styles.locModal}>
               <Text style={styles.locModalText}>What are you clocking in for?</Text>
-              <View style={styles.locActions}>
-                {myJobs.slice(0, 5).map((j) => (
+              {/* Scrolls rather than truncating — a tech with six open jobs
+                  must still be able to pick the sixth. */}
+              <ScrollView style={styles.jobList} contentContainerStyle={styles.locActions}>
+                {myJobs.map((j) => (
                   <Pressable
                     key={j.id}
                     style={styles.locOutlineBtn}
@@ -219,6 +222,8 @@ export default function ClockScreen() {
                     </Text>
                   </Pressable>
                 ))}
+              </ScrollView>
+              <View style={styles.locActions}>
                 <Pressable
                   style={styles.locOutlineBtn}
                   onPress={() => void clock("clock_in", null)}
@@ -430,6 +435,9 @@ const styles = StyleSheet.create({
   },
   locActions: {
     gap: 10,
+  },
+  jobList: {
+    maxHeight: 220,
   },
   locOutlineBtn: {
     borderWidth: 1.5,

@@ -128,6 +128,13 @@ alter table public.accounts_invoices
     references public.accounts_quotes(id) on delete set null,
   alter column billing_period drop not null;
 
+-- One invoice per quote, ever. The convert action checks quotes.invoice_id
+-- first, but two clicks landing together would both read it as null and bill
+-- the client twice — same reasoning as 054's partial unique index on
+-- accounts_transactions(invoice_id).
+create unique index if not exists accounts_invoices_quote_key
+  on public.accounts_invoices (quote_id) where quote_id is not null;
+
 -- billing_period stays required for the monthly run — the idempotency guard
 -- (unique client_id + billing_period) only means something when the value is
 -- there. Enforced by trigger since a CHECK can't be added as NOT VALID cheaply
@@ -160,11 +167,14 @@ begin
   foreach t in array array['accounts_quotes', 'accounts_quote_lines'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
+    -- Dropped first so this file stays re-runnable (no CREATE POLICY IF NOT EXISTS).
+    execute format('drop policy if exists %I on public.%I', t || '_select', t);
     execute format(
       'create policy %I on public.%I for select to authenticated
          using ((select public.has_module_access(''accounts'', ''view'')))',
       t || '_select', t
     );
+    execute format('drop policy if exists %I on public.%I', t || '_write', t);
     execute format(
       'create policy %I on public.%I for all to authenticated
          using ((select public.has_module_access(''accounts'', ''edit'')))

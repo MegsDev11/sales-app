@@ -469,7 +469,17 @@ export async function POST(request: Request) {
           accounts_owner: client.accounts_owner ?? "",
           created_by: user.id,
         });
-        if (invoiceError) throw new Error(withHint(invoiceError.message));
+        if (invoiceError) {
+          // The partial unique index on quote_id (068) is the real guard against
+          // two clicks billing twice; the read above only catches the slow case.
+          if (/accounts_invoices_quote_key|duplicate key/i.test(invoiceError.message)) {
+            return NextResponse.json(
+              { error: "This quote has already been converted to an invoice" },
+              { status: 409 }
+            );
+          }
+          throw new Error(withHint(invoiceError.message));
+        }
 
         const { data: quoteLines } = await db
           .from("accounts_quote_lines")

@@ -146,11 +146,16 @@ begin
   foreach t in array array['project_stock_lines', 'project_phase_staff'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon', t);
+    -- Dropped first so the whole file stays re-runnable: Postgres has no
+    -- CREATE POLICY IF NOT EXISTS, and the API's error hints tell an operator
+    -- to re-run this migration.
+    execute format('drop policy if exists %I on public.%I', t || '_select', t);
     execute format(
       'create policy %I on public.%I for select to authenticated
          using (public.can_see_project(project_id))',
       t || '_select', t
     );
+    execute format('drop policy if exists %I on public.%I', t || '_write', t);
     execute format(
       'create policy %I on public.%I for all to authenticated
          using (public.can_edit_project(project_id))

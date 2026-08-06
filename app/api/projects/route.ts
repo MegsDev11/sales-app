@@ -972,6 +972,26 @@ export async function POST(request: Request) {
         if (!body.technicianId) {
           return NextResponse.json({ error: "technicianId required" }, { status: 400 });
         }
+        // A block or stage id from another project would attach this person to
+        // a phase that isn't on this project's grid.
+        for (const [table, value] of [
+          ["project_blocks", body.blockId],
+          ["project_stages", body.stageId],
+        ] as const) {
+          if (!value) continue;
+          const { data: row } = await supabase
+            .from(table)
+            .select("id")
+            .eq("id", value)
+            .eq("project_id", projectId)
+            .maybeSingle();
+          if (!row) {
+            return NextResponse.json(
+              { error: "That block or stage is not on this project" },
+              { status: 400 }
+            );
+          }
+        }
         const { error } = await supabase.from("project_phase_staff").insert({
           id: newId("pps"),
           project_id: projectId,

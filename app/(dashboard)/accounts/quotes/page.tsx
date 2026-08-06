@@ -160,7 +160,11 @@ export default function AccountsQuotesPage() {
           throw new Error(json.error ?? "Could not build the PDF");
         }
         const blob = await res.blob();
-        window.open(URL.createObjectURL(blob), "_blank", "noopener");
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener");
+        // The new tab has its own copy by now; holding the object alive leaks
+        // the whole PDF for the life of the page.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not open the PDF");
       }
@@ -377,6 +381,13 @@ export default function AccountsQuotesPage() {
           <DialogHeader>
             <DialogTitle>New quote</DialogTitle>
           </DialogHeader>
+          {/* Repeated inside the dialog: the page-level banner sits behind the
+              overlay, so a failed save would look like nothing happened. */}
+          {error && createOpen ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {error}
+            </p>
+          ) : null}
           <div className="space-y-3 text-sm">
             <div className="space-y-1">
               <label className="font-medium">Client</label>
