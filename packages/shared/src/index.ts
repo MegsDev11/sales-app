@@ -56,6 +56,7 @@ export const API_PATHS = {
   mobileTechVehicles: "/api/mobile/tech/vehicles",
   mobileTechFuel: "/api/mobile/tech/fuel",
   mobileStockSummary: "/api/mobile/stock/summary",
+  mobileStockRequests: "/api/mobile/stock/requests",
   mobileClientMe: "/api/mobile/client/me",
   mobileClientLayout: "/api/mobile/client/layout",
   mobileClientMessages: "/api/mobile/client/messages",
@@ -148,6 +149,9 @@ export interface FieldJob {
   jobType?: string;
   /** Client PPPoE username for the site. */
   clientPppoe?: string;
+  /** Project this job belongs to (migration 067), and optionally the block/phase. */
+  projectId?: string | null;
+  projectBlockId?: string | null;
 }
 
 export type JobKind =
@@ -464,6 +468,15 @@ export interface Vehicle {
   createdAt: string;
   updatedAt: string;
   technicianName?: string;
+  /**
+   * The open booking, when there is one (migration 069). The assigned driver
+   * is who the vehicle belongs to; this is who has it right now.
+   */
+  heldBy?: {
+    technicianName: string;
+    since: string;
+    odometerStart: number | null;
+  } | null;
 }
 
 export interface FuelEntry {
@@ -475,6 +488,8 @@ export interface FuelEntry {
   price: number;
   recordedAt: string;
   createdAt: string;
+  /** Odometer at the pump (migration 069) — what turns litres into km/L. */
+  odometerKm?: number | null;
   vehicleBrand?: string;
   vehicleNumberPlate?: string;
   technicianName?: string;

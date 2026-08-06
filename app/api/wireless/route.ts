@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireWirelessAccess } from "@/lib/supabase/server-auth";
 import {
@@ -276,11 +277,84 @@ export async function POST(request: Request) {
         updates.status = "draft";
       }
 
+      // The location columns arrive in migration 050 and are not in the generated
+      // Database types yet, so they go on through an untyped view of the same
+      // update. `null` clears the pin, which is why the key is tested, not the value.
+      if ("location" in body) {
+        const loc = body.location as { lat?: number; lng?: number; label?: string } | null;
+        const extra = updates as Record<string, unknown>;
+        extra.location_lat = typeof loc?.lat === "number" ? loc.lat : null;
+        extra.location_lng = typeof loc?.lng === "number" ? loc.lng : null;
+        extra.location_label = loc?.label ?? "";
+      }
+
+      // Read the outgoing canvas BEFORE overwriting it — the prune below needs to
+      // know which markers this save actually removed.
+      let previousNodeIds = new Set<string>();
+      if (body.canvas !== undefined) {
+        const { data: prior } = await supabase
+          .from("network_layouts")
+          .select("canvas_json")
+          .eq("id", layoutId)
+          .maybeSingle();
+        const priorDoc = (prior?.canvas_json ?? null) as NetworkCanvasDocument | null;
+        previousNodeIds = new Set((priorDoc?.nodes ?? []).map((n) => n.id));
+      }
+
       const { error } = await supabase
         .from("network_layouts")
         .update(updates)
         .eq("id", layoutId);
       if (error) throw new Error(migrationHint(error.message));
+
+      /**
+       * Prune photos whose site marker this save deleted.
+       *
+       * Removing a marker on the canvas is an unsaved, undoable edit, so its photos
+       * have to survive until that removal is committed — deleting them at click
+       * time meant Ctrl+Z brought the marker back with an empty gallery. Saving is
+       * the commit, so this is the moment.
+       *
+       * Deliberately scoped to markers that were in the PREVIOUSLY SAVED canvas and
+       * are not in this one. A blanket "delete anything whose node_id is missing"
+       * would also destroy photos attached to a marker that was never saved at all —
+       * uploaded, then lost to a refresh — and those are exactly the ones a user
+       * would be most surprised to lose, since they never asked for anything to be
+       * deleted. Untagged strays are left alone for the office to deal with.
+       *
+       * Wrapped in its own try: losing a few storage objects must not fail a save
+       * the user is watching. node_id arrives in migration 050, so a database
+       * without it simply has nothing to prune.
+       */
+      if (body.canvas !== undefined && previousNodeIds.size > 0) {
+        try {
+          const doc = body.canvas as NetworkCanvasDocument;
+          const liveNodeIds = new Set((doc.nodes ?? []).map((n) => n.id));
+          const removed = [...previousNodeIds].filter((id) => !liveNodeIds.has(id));
+
+          if (removed.length) {
+            const untyped = supabase as unknown as SupabaseClient;
+            const { data: doomed } = await untyped
+              .from("network_layout_assets")
+              .select("id, storage_path")
+              .eq("layout_id", layoutId)
+              .in("node_id", removed);
+
+            const rows = (doomed ?? []) as { id: string; storage_path: string }[];
+            if (rows.length) {
+              await untyped
+                .from("network_layout_assets")
+                .delete()
+                .in("id", rows.map((a) => a.id));
+              await supabase.storage
+                .from("wireless-assets")
+                .remove(rows.map((a) => a.storage_path));
+            }
+          }
+        } catch {
+          // Non-fatal: the layout itself saved.
+        }
+      }
 
       // Upsert devices from body.devices
       if (Array.isArray(body.devices)) {

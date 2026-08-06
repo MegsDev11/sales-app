@@ -69,7 +69,7 @@ export default function CoordinationAvailabilityPage() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-        <span>Synced automatically with Stock every 15 seconds and when this page regains focus.</span>
+        <span>Synced automatically with Stock every 60 seconds and when this page regains focus.</span>
         <span>{lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : "Syncing…"}</span>
       </div>
 

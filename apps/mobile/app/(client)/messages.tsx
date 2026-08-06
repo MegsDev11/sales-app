@@ -14,6 +14,7 @@ import { API_PATHS, type SupportMessage, type SupportThread } from "@megs/shared
 import { apiFetch } from "../../src/lib/api";
 import { colors } from "../../src/theme";
 import { Loading, Screen } from "../../src/ui";
+import { LifeBuoyIcon, MessageIcon } from "../../src/ui/icons";
 
 export default function ClientMessages() {
   const [thread, setThread] = useState<SupportThread | null>(null);
@@ -141,25 +142,32 @@ export default function ClientMessages() {
         keyboardVerticalOffset={88}
       >
         <View style={styles.header}>
-          <Text style={styles.heading}>Support</Text>
-          <Text style={styles.subheading}>{statusCopy}</Text>
-          {status === "pending" || status === "open" ? (
-            <View
-              style={[
-                styles.statusChip,
-                status === "open" ? styles.statusOpen : styles.statusPending,
-              ]}
-            >
-              <Text
+          <View style={styles.headerRow}>
+            <View style={styles.headerIcon}>
+              <LifeBuoyIcon size={20} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heading}>Support</Text>
+              <Text style={styles.subheading}>{statusCopy}</Text>
+            </View>
+            {status === "pending" || status === "open" ? (
+              <View
                 style={[
-                  styles.statusChipText,
-                  status === "open" ? styles.statusOpenText : styles.statusPendingText,
+                  styles.statusChip,
+                  status === "open" ? styles.statusOpen : styles.statusPending,
                 ]}
               >
-                {status === "open" ? "Connected" : "Pending"}
-              </Text>
-            </View>
-          ) : null}
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    status === "open" ? styles.statusOpenText : styles.statusPendingText,
+                  ]}
+                >
+                  {status === "open" ? "Connected" : "Pending"}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {error ? (
@@ -204,9 +212,12 @@ export default function ClientMessages() {
           />
         ) : (
           <View style={styles.emptyWrap}>
-            <View style={styles.emptyCard}>
+            <View style={[styles.emptyCard, styles.emptyCardCentered]}>
+              <View style={styles.emptyIcon}>
+                <MessageIcon size={26} color={colors.brand} />
+              </View>
               <Text style={styles.emptyTitle}>Need help?</Text>
-              <Text style={styles.emptyBody}>
+              <Text style={[styles.emptyBody, { textAlign: "center" }]}>
                 Request a chat and a MEGS support tech will accept when available.
               </Text>
             </View>
@@ -268,21 +279,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 10,
-    gap: 4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
   },
   heading: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: colors.text,
     letterSpacing: -0.4,
   },
   subheading: {
-    fontSize: 14,
+    marginTop: 1,
+    fontSize: 13,
     color: colors.mutedDark,
   },
   statusChip: {
-    alignSelf: "flex-start",
-    marginTop: 6,
+    alignSelf: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -334,6 +357,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: 6,
+  },
+  emptyCardCentered: {
+    alignItems: "center",
+  },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 16,

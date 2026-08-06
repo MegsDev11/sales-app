@@ -5,9 +5,10 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
+import { ClientPicker } from "@/components/clients/client-picker";
+import { ProjectPicker } from "@/components/projects/project-picker";
 import { getFieldTechnicians } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,6 @@ import {
 } from "@/components/coordination/pick-list-targets";
 
 export default function CoordinationRequestsPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const {
     products,
@@ -84,7 +84,9 @@ export default function CoordinationRequestsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [techId, setTechId] = useState("");
-  const [leadId, setLeadId] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<{ target: string; qtyNeeded: number }[]>([
     { target: "", qtyNeeded: 1 },
@@ -133,8 +135,6 @@ export default function CoordinationRequestsPage() {
 
   const hasShortfall = lineWarnings.some(Boolean);
 
-  if (isLoading || !allowed) return null;
-
   function lineTargetOptions() {
     return (
       <PickListTargetOptions
@@ -156,7 +156,9 @@ export default function CoordinationRequestsPage() {
       await createRequest({
         title: title.trim(),
         technicianId: techId,
-        leadId: leadId || null,
+        accountsClientId: clientId || null,
+        clientName: clientName || null,
+        projectId: projectId || null,
         notes,
         lines: lines
           .filter((l) => l.target)
@@ -165,7 +167,9 @@ export default function CoordinationRequestsPage() {
       setCreateOpen(false);
       setTitle("");
       setTechId("");
-      setLeadId("");
+      setClientId("");
+      setClientName("");
+      setProjectId("");
       setNotes("");
       setLines([{ target: products[0] ? `product:${products[0].id}` : "", qtyNeeded: 1 }]);
       setMsg(
@@ -287,7 +291,12 @@ export default function CoordinationRequestsPage() {
         <div className="space-y-3">
           {requests.map((req) => {
             const tech = users.find((u) => u.id === req.technicianId);
-            const lead = leads.find((l) => l.id === req.leadId);
+            // Prefer the name stored on the request; fall back to a CRM lead for
+            // rows created before clients came from the Accounts book.
+            const clientLabel =
+              req.clientName?.trim() ||
+              leads.find((l) => l.id === req.leadId)?.clientName ||
+              "";
             const open = req.status === "open" || req.status === "partial";
             return (
               <Card key={req.id} className="bg-white">
@@ -302,10 +311,10 @@ export default function CoordinationRequestsPage() {
                 <CardContent className="space-y-3 text-sm">
                   <p>
                     Tech: <strong>{tech?.name ?? req.technicianId}</strong>
-                    {lead ? (
+                    {clientLabel ? (
                       <>
                         {" "}
-                        · Client: <strong>{lead.clientName}</strong>
+                        · Client: <strong>{clientLabel}</strong>
                       </>
                     ) : null}
                   </p>
@@ -512,28 +521,17 @@ export default function CoordinationRequestsPage() {
             </div>
             <div className="space-y-1">
               <label className="font-medium">Client (optional)</label>
-              <Select
-                value={leadId || "__none"}
-                onValueChange={(v) => setLeadId(v === "__none" ? "" : (v ?? ""))}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {(value) =>
-                      value === "__none" || !value
-                        ? "Client"
-                        : leads.find((lead) => lead.id === value)?.clientName ?? "Client"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">No client</SelectItem>
-                  {leads.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.clientName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* The Accounts client book, searched server-side. */}
+              <ClientPicker
+                value={clientId || null}
+                onChange={(client) => {
+                  setClientId(client?.id ?? "");
+                  setClientName(client?.name ?? "");
+                }}
+              />
+              {/* Booked-out units inherit this link, so the project's Stock
+                  panel can list them. */}
+              <ProjectPicker value={projectId} onChange={setProjectId} />
             </div>
             <div className="space-y-2">
               <label className="font-medium">Stock lines</label>

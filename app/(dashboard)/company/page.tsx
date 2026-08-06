@@ -1,229 +1,411 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { StatCard } from "@/components/stats/stat-card";
-import {
-  AlertBanner,
-  PageHeader,
-  PageShell,
-  Panel,
-} from "@/components/layout/page-shell";
+import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { NetworkOperationsSection } from "@/components/owner/network-operations-section";
 import { buttonVariants } from "@/components/ui/button";
+import { HeroFigure, Meter, StatTile } from "@/components/charts/primitives";
+import { LineChart } from "@/components/charts/line-chart";
+import { DonutChart } from "@/components/charts/donut-chart";
+import { BarChart } from "@/components/charts/bar-chart";
+import { SERIES, STATUS } from "@/components/charts/tokens";
+import { MODULE_LIST } from "@/lib/modules";
+import { getDepartmentManagers, getDepartmentStaff } from "@/lib/permissions";
+import { isActiveLead, isFollowUpOverdue, isInLeadInbox, isLeadVisible } from "@/lib/utils/leads";
 import {
-  getDepartmentManagers,
-  getDepartmentStaff,
-  getSalesStaff,
-  PLACEHOLDER_DEPARTMENTS,
-  getDepartmentLabel,
-} from "@/lib/permissions";
-import { isActiveLead, isInLeadInbox, isLeadVisible } from "@/lib/utils/leads";
-import {
-  Building2,
-  Kanban,
-  Package,
-  Network,
-  Users,
-  Target,
-  Headphones,
-  Wifi,
-  Cable,
-  Wallet,
-  Briefcase,
-  BookUser,
-  ConciergeBell,
-} from "lucide-react";
+  avgDaysToClose,
+  leadsByServiceType,
+  momChange,
+  openPipelineValue,
+  revenueByMonth,
+  winRate,
+} from "@/lib/analytics/metrics";
+import type { Department } from "@/lib/types";
+import { AlertTriangle, Calendar, Lock, Radio, ShieldCheck, Target, TrendingUp, Users } from "lucide-react";
+
+/**
+ * Company overview — the owner's landing page.
+ *
+ * Leads with exactly one hero figure (revenue this month). Everything else is
+ * supporting detail, because a dashboard where six things shout equally has no
+ * headline at all.
+ */
+interface BillingSeries {
+  live: boolean;
+  labels?: string[];
+  invoiced?: number[];
+  collected?: number[];
+}
 
 export default function CompanyPage() {
-  const { isOwner } = useAuth();
-  const router = useRouter();
-  const { users, leads } = useCrmStore();
+  const { isOwner, can, accessToken } = useAuth();
+  const { users, leads, towers, towerOutages, isLoaded, dbError } = useCrmStore();
 
+  // Real billing figures (invoiced + collected). While unavailable, the page
+  // falls back to CRM pipeline numbers — labelled as such, never as revenue.
+  const [billing, setBilling] = useState<BillingSeries | null>(null);
   useEffect(() => {
-    if (!isOwner) router.replace("/dashboard");
-  }, [isOwner, router]);
+    if (!accessToken || !isOwner) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/company/billing", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: "no-store",
+        });
+        const body = (await res.json()) as BillingSeries;
+        if (!cancelled && res.ok) setBilling(body);
+      } catch {
+        /* keep pipeline fallback */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, isOwner]);
 
-  if (!isOwner) return null;
+  const metrics = useMemo(() => {
+    const revenue = revenueByMonth(leads, 6);
+    const activeLeads = leads.filter((l) => isLeadVisible(l) && isActiveLead(l));
+    const thisMonth = revenue.values[revenue.values.length - 1] ?? 0;
 
-  const salesStaff = getSalesStaff(users);
-  const salesManager = getDepartmentManagers(users, "sales")[0];
-  const stockManager = getDepartmentManagers(users, "stock")[0];
-  const supportManager = getDepartmentManagers(users, "support")[0];
-  const activeSalesLeads = leads.filter(
-    (l) => isLeadVisible(l) && isActiveLead(l)
+    return {
+      revenue,
+      thisMonth,
+      revenueChange: momChange(revenue.values),
+      activeLeads,
+      unassigned: activeLeads.filter(isInLeadInbox),
+      overdue: activeLeads.filter(isFollowUpOverdue),
+      pipeline: openPipelineValue(leads),
+      winRate: winRate(leads),
+      daysToClose: avgDaysToClose(leads),
+      serviceMix: leadsByServiceType(leads),
+      activeStaff: users.filter((u) => u.role !== "owner" && u.active !== false),
+    };
+  }, [leads, users]);
+
+  const outages = towerOutages.filter((o) => !o.resolvedAt);
+  const offlineTowers = towers.filter((t) => t.status === "offline");
+
+  /** Headcount per department, from the org structure (not module grants). */
+  const headcount = useMemo(() => {
+    const departments: Department[] = [
+      "sales", "support", "stock", "coordination", "wireless",
+      "financial", "fiber", "general", "accounts", "reception",
+    ];
+    return departments
+      .map((d) => ({
+        label: d.charAt(0).toUpperCase() + d.slice(1),
+        value: getDepartmentStaff(users, d).length + getDepartmentManagers(users, d).length,
+      }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [users]);
+
+  const revenueTarget = useMemo(
+    () => metrics.activeStaff.reduce((s, u) => s + (u.monthlyRevenueTarget ?? 0), 0),
+    [metrics.activeStaff]
   );
-  const unassigned = activeSalesLeads.filter(isInLeadInbox);
 
-  const placeholderMeta: Record<
-    (typeof PLACEHOLDER_DEPARTMENTS)[number],
-    { icon: typeof Wifi; stat: string }
-  > = {
-    fiber: { icon: Cable, stat: "Fiber operations" },
-    general: { icon: Briefcase, stat: "General management" },
-    accounts: { icon: BookUser, stat: "Clients & packages" },
-    reception: { icon: ConciergeBell, stat: "Walk-in clients" },
-  };
+  if (!isOwner) {
+    return (
+      <PageShell>
+        <PageHeader
+          title="Company Overview"
+          description="Company-wide performance across every department"
+        />
+        <Panel title="Owner only">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4 shrink-0" />
+            This page is limited to the company owner.
+          </p>
+        </Panel>
+      </PageShell>
+    );
+  }
 
-  const departments = [
-    {
-      id: "sales",
-      label: "Sales",
-      icon: Kanban,
-      href: "/dashboard",
-      manager: salesManager?.name ?? "Not assigned",
-      staffCount: salesStaff.length,
-      stat: `${activeSalesLeads.length} active leads`,
-    },
-    {
-      id: "support",
-      label: "Support",
-      icon: Headphones,
-      href: "/support",
-      manager: supportManager?.name ?? "Not assigned",
-      staffCount: getDepartmentStaff(users, "support").length,
-      stat: "Tower & outage management",
-    },
-    {
-      id: "stock",
-      label: "Stock",
-      icon: Package,
-      href: "/stock",
-      manager: stockManager?.name ?? "Not assigned",
-      staffCount: getDepartmentStaff(users, "stock").length,
-      stat: "Inventory & QR booking",
-    },
-    {
-      id: "coordination",
-      label: "Coordination",
-      icon: Network,
-      href: "/coordination",
-      manager: getDepartmentManagers(users, "coordination")[0]?.name ?? "Not assigned",
-      staffCount: getDepartmentStaff(users, "coordination").length,
-      stat: "Pick lists & techs",
-    },
-    {
-      id: "wireless",
-      label: "Wireless",
-      icon: Wifi,
-      href: "/wireless",
-      manager: getDepartmentManagers(users, "wireless")[0]?.name ?? "Not assigned",
-      staffCount: getDepartmentStaff(users, "wireless").length,
-      stat: "Network layouts & Ruijie",
-    },
-    {
-      id: "financial",
-      label: "Financial",
-      icon: Wallet,
-      href: "/financial",
-      manager: getDepartmentManagers(users, "financial")[0]?.name ?? "Not assigned",
-      staffCount: getDepartmentStaff(users, "financial").length,
-      stat: "Fuel & financial reporting",
-    },
-    ...PLACEHOLDER_DEPARTMENTS.map((dept) => ({
-      id: dept,
-      label: getDepartmentLabel(dept),
-      icon: placeholderMeta[dept].icon,
-      href: `/${dept}`,
-      manager: getDepartmentManagers(users, dept)[0]?.name ?? "Not assigned",
-      staffCount: getDepartmentStaff(users, dept).length,
-      stat: placeholderMeta[dept].stat,
-    })),
-  ];
+  if (!isLoaded) {
+    return (
+      <PageShell>
+        <PageHeader
+          title="Company Overview"
+          description="Megs Waterberg — every department at a glance"
+        />
+        <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+          <div className="h-40 animate-pulse rounded-lg border border-border bg-muted/40" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-lg border border-border bg-muted/40" />
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-64 animate-pulse rounded-lg border border-border bg-muted/40" />
+          ))}
+        </div>
+      </PageShell>
+    );
+  }
+
+  const alerts = [
+    metrics.unassigned.length > 0
+      ? {
+          tone: "warn" as const,
+          text: `${metrics.unassigned.length} lead${metrics.unassigned.length === 1 ? "" : "s"} unassigned in the inbox`,
+          href: "/inbox",
+        }
+      : null,
+    metrics.overdue.length > 0
+      ? {
+          tone: "warn" as const,
+          text: `${metrics.overdue.length} follow-up${metrics.overdue.length === 1 ? "" : "s"} overdue`,
+          href: "/board",
+        }
+      : null,
+    outages.length > 0
+      ? {
+          tone: "danger" as const,
+          text: `${outages.length} active network outage${outages.length === 1 ? "" : "s"}`,
+          href: "/support/towers",
+        }
+      : null,
+  ].filter(Boolean) as { tone: "warn" | "danger"; text: string; href: string }[];
 
   return (
     <PageShell>
       <PageHeader
         title="Company Overview"
-        description="Megs Waterberg — all departments at a glance"
+        description="Megs Waterberg — every department at a glance"
         actions={
-          <Link
-            href="/staff"
-            className={buttonVariants({ className: "bg-primary text-primary-foreground hover:bg-primary/90" })}
-          >
-            Manage staff
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/scheduler" className={buttonVariants({ variant: "outline" })}>
+              <Calendar className="mr-1.5 h-4 w-4" /> Scheduler
+            </Link>
+            <Link
+              href="/admin"
+              className={buttonVariants({
+                className: "bg-primary text-primary-foreground hover:bg-primary/90",
+              })}
+            >
+              <ShieldCheck className="mr-1.5 h-4 w-4" /> Access control
+            </Link>
+          </div>
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Staff"
-          value={users.filter((u) => u.role !== "owner").length}
-          icon={Users}
-          accent="var(--primary)"
-        />
-        <StatCard
-          title="Sales Active Leads"
-          value={activeSalesLeads.length}
-          icon={Target}
-          accent="var(--primary)"
-        />
-        <StatCard title="Unassigned Leads" value={unassigned.length} icon={Building2} />
-        <StatCard title="Departments" value={departments.length} icon={Building2} />
-      </div>
-
-      {unassigned.length > 0 ? (
-        <AlertBanner tone="warn">
-          <span>
-            {unassigned.length} lead{unassigned.length === 1 ? "" : "s"} waiting in the{" "}
-            <Link href="/inbox" className="font-medium underline">
-              Lead Inbox
-            </Link>
-            .
-          </span>
+      {dbError ? (
+        <AlertBanner tone="danger">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">Could not load company data — {dbError}</span>
         </AlertBanner>
       ) : null}
 
-      <NetworkOperationsSection />
+      {alerts.length > 0 ? (
+        <div className="space-y-2">
+          {alerts.map((a) => (
+            <AlertBanner key={a.text} tone={a.tone}>
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex-1">{a.text}</span>
+              <Link href={a.href} className="shrink-0 font-medium underline">
+                View
+              </Link>
+            </AlertBanner>
+          ))}
+        </div>
+      ) : null}
 
-      <Panel title="Departments" description="Managers, headcount, and shortcuts" padded={false}>
-        <div className="divide-y divide-border">
-          {departments.map((dept) => {
-            const Icon = dept.icon;
-            return (
-              <div
-                key={dept.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-              >
-                <div className="flex min-w-0 items-start gap-3">
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <div className="min-w-0">
-                    <p className="font-medium">{dept.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Manager: {dept.manager} · Staff: {dept.staffCount}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{dept.stat}</p>
-                  </div>
-                </div>
-                <Link
-                  href={dept.href}
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
+      {/* Hero + supporting KPIs. Exactly one hero figure on the page. */}
+      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+        <Panel title="This month">
+          {billing?.live && billing.invoiced ? (
+            <HeroFigure
+              label="Invoiced"
+              value={billing.invoiced[billing.invoiced.length - 1] ?? 0}
+              currency
+              delta={momChange(billing.invoiced)}
+              deltaLabel="vs last month"
+            />
+          ) : (
+            // No billing data yet: show the CRM pipeline, and say so — this is
+            // deals marked won, not money invoiced.
+            <HeroFigure
+              label="Pipeline closed (CRM)"
+              value={metrics.thisMonth}
+              currency
+              delta={metrics.revenueChange}
+              deltaLabel="vs last month"
+            />
+          )}
+          {revenueTarget > 0 ? (
+            <div className="mt-4">
+              <Meter
+                label="Against team target"
+                value={
+                  billing?.live && billing.invoiced
+                    ? billing.invoiced[billing.invoiced.length - 1] ?? 0
+                    : metrics.thisMonth
+                }
+                max={revenueTarget}
+                compactValue
+                // Missing target is the problem, not exceeding it.
+                invert
+              />
+            </div>
+          ) : null}
+        </Panel>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatTile
+            label="Open pipeline"
+            value={metrics.pipeline}
+            currency
+            icon={Target}
+            accent={SERIES[0]}
+            href="/board"
+          />
+          <StatTile
+            label="Active leads"
+            value={metrics.activeLeads.length}
+            icon={TrendingUp}
+            accent={SERIES[2]}
+            href="/board"
+          />
+          <StatTile
+            label="Win rate"
+            value={`${Math.round(metrics.winRate)}%`}
+            icon={Target}
+            accent={SERIES[3]}
+          />
+          <StatTile
+            label="Staff"
+            value={metrics.activeStaff.length}
+            icon={Users}
+            accent={SERIES[6]}
+            href="/staff"
+          />
+          <StatTile
+            label="Avg days to close"
+            value={Math.round(metrics.daysToClose)}
+            icon={TrendingUp}
+            accent={SERIES[1]}
+            higherIsBetter={false}
+          />
+          <StatTile
+            label="Unassigned leads"
+            value={metrics.unassigned.length}
+            icon={AlertTriangle}
+            accent={metrics.unassigned.length > 0 ? STATUS.warning : SERIES[2]}
+            href="/inbox"
+          />
+          <StatTile
+            label="Towers online"
+            value={`${towers.length - offlineTowers.length}/${towers.length}`}
+            icon={Radio}
+            accent={offlineTowers.length > 0 ? STATUS.critical : STATUS.good}
+            href="/support/towers"
+          />
+          <StatTile
+            label="Active outages"
+            value={outages.length}
+            icon={AlertTriangle}
+            accent={outages.length > 0 ? STATUS.critical : SERIES[2]}
+            higherIsBetter={false}
+            href="/support/towers"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {billing?.live && billing.labels && billing.invoiced ? (
+          <LineChart
+            title="Billing"
+            subtitle="Invoiced vs collected, last 6 months"
+            labels={billing.labels}
+            series={[
+              { label: "Invoiced", points: billing.invoiced },
+              ...(billing.collected ? [{ label: "Collected", points: billing.collected }] : []),
+            ]}
+            currency
+            area
+          />
+        ) : (
+          <LineChart
+            title="Pipeline closed (CRM)"
+            subtitle="Deals marked won per month, last 6 months"
+            labels={metrics.revenue.labels}
+            series={[{ label: "Won deals", points: metrics.revenue.values }]}
+            currency
+            area
+          />
+        )}
+        <DonutChart
+          title="Service mix"
+          subtitle="All leads by service type"
+          segments={metrics.serviceMix.map((s, i) => ({ ...s, colorIndex: i }))}
+          centerLabel="leads"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BarChart
+          title="Headcount by department"
+          subtitle="Active staff assigned to each department"
+          data={headcount}
+        />
+
+        <Panel
+          title="Departments"
+          description="Managers, headcount and shortcuts"
+          padded={false}
+          className="overflow-hidden"
+        >
+          <div className="max-h-[340px] divide-y divide-border overflow-auto">
+            {MODULE_LIST.filter((m) => m.group !== "admin").map((mod) => {
+              const Icon = mod.icon;
+              const deptKey = (mod.key === "crm" ? "sales" : mod.key) as Department;
+              const manager = getDepartmentManagers(users, deptKey)[0];
+              const staff = getDepartmentStaff(users, deptKey).length;
+              return (
+                <div
+                  key={mod.key}
+                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
                 >
-                  Open
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      </Panel>
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {mod.label}
+                        {mod.placeholder ? (
+                          <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                            soon
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {manager ? manager.name : "No manager"} · {staff} staff
+                      </p>
+                    </div>
+                  </div>
+                  {can(mod.key, "view") ? (
+                    <Link
+                      href={mod.root}
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                    >
+                      Open
+                    </Link>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
 
-      <Panel title="Quick actions">
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard" className={buttonVariants({ variant: "outline" })}>
-            Sales command center
-          </Link>
-          <Link href="/inbox" className={buttonVariants({ variant: "outline" })}>
-            Lead inbox
-          </Link>
-          <Link href="/board" className={buttonVariants({ variant: "outline" })}>
-            Pipeline board
-          </Link>
-        </div>
-      </Panel>
+      <NetworkOperationsSection />
     </PageShell>
   );
 }

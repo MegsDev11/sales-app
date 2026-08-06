@@ -1,5 +1,15 @@
 import { cn } from "@/lib/utils";
 
+/**
+ * Page container.
+ *
+ * Deliberately keeps `space-y-*` rather than moving to flex+gap: the visual
+ * result is identical but flex would turn every page's children into flex items
+ * in one commit, changing min-height and alignment on anything with an internal
+ * scroll area. It also stays width-unconstrained — adding a default max-width
+ * would silently centre and narrow 50+ pages whose chart grids are sized for
+ * full bleed.
+ */
 export function PageShell({
   children,
   className,
@@ -12,8 +22,10 @@ export function PageShell({
   return (
     <div
       className={cn(
-        "mx-auto w-full space-y-5",
-        dense ? "max-w-none space-y-4 p-3 lg:p-4" : "p-4 lg:p-6",
+        "mx-auto w-full",
+        dense
+          ? "max-w-none space-y-4 p-3 lg:p-4"
+          : "space-y-4 p-4 lg:space-y-5 lg:p-6 xl:p-8",
         className
       )}
     >
@@ -22,36 +34,91 @@ export function PageShell({
   );
 }
 
+/**
+ * Page header.
+ *
+ * The header used to be bare text on the grey field with a hairline under it,
+ * which is why it read as detached from the page. It is now the first — and only
+ * lifted — card in the stack: same radius, border, surface and `px-4` as every
+ * Panel below it, so the h1, the panel titles and the table cells all start on
+ * one uninterrupted left rail. Hierarchy comes from elevation and type size,
+ * never from a second palette.
+ *
+ * Stays a single element so `cn()` overrides and `print:hidden` still land on
+ * the outermost node — the QR label sheets depend on that.
+ *
+ * `eyebrow`, `meta` and `children` are additive, so existing call sites are
+ * unaffected.
+ */
 export function PageHeader({
   title,
   description,
   actions,
+  eyebrow,
+  meta,
+  children,
   className,
 }: {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  /** Small label above the title — module name, or a back-link on detail pages. */
+  eyebrow?: React.ReactNode;
+  /** Inline facts under the description: owner, status pill, last sync… */
+  meta?: React.ReactNode;
+  /** Bottom rail inside the card: tabs, filters, a date range. */
+  children?: React.ReactNode;
   className?: string;
 }) {
   return (
-    <div
+    <section
       className={cn(
-        "flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4",
+        "rounded-lg border border-border bg-surface-elevated shadow-lift print:shadow-none",
         className
       )}
     >
-      <div className="min-w-0 space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground lg:text-2xl">
-          {title}
-        </h1>
-        {description ? (
-          <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4 px-4 py-4 lg:py-5">
+        <div className="min-w-0 flex-1 basis-[20rem]">
+          {eyebrow ? (
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase leading-none tracking-[0.1em] text-muted-foreground">
+              {/* Same mark as the active sidebar rail — ties nav to page. */}
+              <span aria-hidden className="h-3.5 w-[3px] shrink-0 rounded-full bg-primary" />
+              <span className="min-w-0 truncate">{eyebrow}</span>
+            </div>
+          ) : null}
+
+          <h1 className="text-balance text-[1.375rem] font-semibold leading-[1.15] tracking-[-0.02em] text-foreground lg:text-[1.625rem]">
+            {title}
+          </h1>
+
+          {description ? (
+            <p className="mt-1.5 max-w-[68ch] text-pretty text-sm leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          ) : null}
+
+          {meta ? (
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] leading-5 text-muted-foreground">
+              {meta}
+            </div>
+          ) : null}
+        </div>
+
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2 max-lg:w-full lg:justify-end">
+            {actions}
+          </div>
         ) : null}
       </div>
-      {actions ? (
-        <div className="flex flex-wrap items-center gap-2">{actions}</div>
+
+      {children ? (
+        // The page's own grey echoed inside the card — this is what welds the
+        // header to the canvas instead of floating it above.
+        <div className="flex flex-wrap items-center gap-2 rounded-b-lg border-t border-hairline bg-muted/60 px-4 py-2.5">
+          {children}
+        </div>
       ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -73,21 +140,30 @@ export function Panel({
   return (
     <section
       className={cn(
-        "rounded-lg border border-border bg-surface-elevated shadow-sm",
+        "rounded-lg border border-border bg-surface-elevated shadow-panel print:shadow-none",
         className
       )}
     >
       {(title || actions) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        // px-4 is load-bearing: 29 `padded={false}` call sites hand-roll px-4
+        // children to line up with this row. Panel and PageHeader share exactly
+        // px-4, which is what produces the shared left rail.
+        <div className="flex min-h-[3.25rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-hairline px-4 py-2.5">
           <div className="min-w-0">
             {title ? (
-              <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+              <h2 className="text-[13px] font-semibold leading-5 tracking-[-0.005em] text-foreground">
+                {title}
+              </h2>
             ) : null}
             {description ? (
-              <p className="text-xs text-muted-foreground">{description}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                {description}
+              </p>
             ) : null}
           </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+          {actions ? (
+            <div className="flex flex-wrap items-center gap-2">{actions}</div>
+          ) : null}
         </div>
       )}
       <div className={cn(padded && "p-4")}>{children}</div>
@@ -104,15 +180,19 @@ export function AlertBanner({
   tone?: "warn" | "danger" | "info";
   className?: string;
 }) {
+  // Joins the card system rather than being a differently-shaped strip: same
+  // radius, plus a 3px tone rail that rhymes with the sidebar's active bar and
+  // the PageHeader eyebrow tick.
   const tones = {
-    warn: "border-amber-200 bg-amber-50 text-amber-950",
-    danger: "border-red-200 bg-red-50 text-red-900",
-    info: "border-slate-200 bg-slate-50 text-slate-800",
+    warn: "border-amber-200/80 bg-amber-50 text-amber-950 before:bg-amber-500",
+    danger: "border-red-200/80 bg-red-50 text-red-900 before:bg-destructive",
+    info: "border-slate-200 bg-slate-50 text-slate-800 before:bg-slate-400",
   };
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md border px-3 py-2.5 text-sm",
+        "relative flex items-start gap-2.5 overflow-hidden rounded-lg border py-2.5 pl-4 pr-3.5 text-sm leading-relaxed",
+        "before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
         tones[tone],
         className
       )}

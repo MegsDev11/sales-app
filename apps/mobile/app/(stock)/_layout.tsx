@@ -13,6 +13,7 @@ export default function StockLayout() {
       <Tabs.Screen name="book-in" options={{ title: "Book in", tabBarLabel: "Book in" }} />
       <Tabs.Screen name="book-out" options={{ title: "Book out", tabBarLabel: "Book out" }} />
       <Tabs.Screen name="return" options={{ title: "Return", tabBarLabel: "Return" }} />
+      <Tabs.Screen name="ppe" options={{ title: "Issue PPE", tabBarLabel: "PPE" }} />
     </Tabs>
   );
 }

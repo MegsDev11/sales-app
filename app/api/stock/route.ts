@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   requireAuthenticated,
@@ -187,6 +188,9 @@ type StockAction =
       title: string;
       technicianId: string;
       leadId?: string | null;
+      accountsClientId?: string | null;
+      clientName?: string | null;
+      projectId?: string | null;
       notes?: string;
       lines: { productId?: string; sundryId?: string; qtyNeeded: number }[];
     }
@@ -207,6 +211,7 @@ type StockAction =
     }
   | {
       action: "fulfillScan";
+      accountsClientId?: string | null;
       requestId: string;
       qrToken: string;
       serialNumber?: string;
@@ -232,6 +237,11 @@ type StockAction =
   | {
       action: "returnByQr";
       qrToken: string;
+    }
+  | {
+      action: "issuePpe";
+      qrToken: string;
+      technicianId?: string;
     }
   | {
       action: "regenerateClientPin";
@@ -432,11 +442,39 @@ export async function POST(request: Request) {
           title: body.title.trim(),
           technicianId: body.technicianId,
           leadId: body.leadId ?? null,
+          accountsClientId: body.accountsClientId ?? null,
+          clientName: body.clientName ?? null,
           status: "open",
           createdBy: user.id,
           createdAt: now,
           notes: body.notes?.trim() ?? ""};
-        const { error } = await supabase.from("stock_requests").insert(stockRequestToRow(stockRequest));
+
+        // Untyped view: migration 055's columns are ahead of the generated types.
+        const untypedDb = supabase as unknown as SupabaseClient;
+        const row: Record<string, unknown> = {
+          ...stockRequestToRow(stockRequest),
+          // Which project this pick list serves (migration 067) — bookings made
+          // against the request inherit it.
+          project_id: body.projectId || null,
+        };
+        let { error } = await untypedDb.from("stock_requests").insert(row);
+
+        // Migration 067 tolerance: an unapplied project column must not stop
+        // technicians requesting stock.
+        if (error && /project_id/.test(error.message)) {
+          delete row.project_id;
+          ({ error } = await untypedDb.from("stock_requests").insert(row));
+        }
+
+        // Migration 055 adds `accounts_client_id` and `client_name`. Before it is
+        // applied those columns don't exist and the whole insert fails — which would
+        // stop technicians requesting stock at all. Losing the client link is far
+        // less costly than losing the request, so retry without them.
+        if (error && /accounts_client_id|client_name/.test(error.message)) {
+          delete row.accounts_client_id;
+          delete row.client_name;
+          ({ error } = await untypedDb.from("stock_requests").insert(row));
+        }
         if (error) throw error;
 
         if (body.lines.some((line) => !line.productId && !line.sundryId)) {
@@ -627,6 +665,16 @@ export async function POST(request: Request) {
         .update({ quantity, updated_at: now })
         .eq("id", body.sundryId);
       if (error) throw error;
+      // Movement ledger (migration 065). Best-effort: the adjustment itself
+      // stands even while the migration is still unapplied.
+      await (supabase as unknown as SupabaseClient).from("stock_movements").insert({
+        sundry_id: body.sundryId,
+        movement: "adjusted",
+        qty: change,
+        ref_type: "manual_adjust",
+        ref_id: body.sundryId,
+        actor_id: user.id,
+      });
       return NextResponse.json({ ok: true});
     }
 
@@ -942,7 +990,16 @@ export async function POST(request: Request) {
           ? body.leadId.trim()
           : null) || requestRow.lead_id;
 
-      if (!bookingLeadId) {
+      // Stock is now booked out against the Accounts client book. A CRM lead is
+      // still accepted so older pick lists keep working.
+      const bookingClientId =
+        (typeof body.accountsClientId === "string" && body.accountsClientId.trim()
+          ? body.accountsClientId.trim()
+          : null) ||
+        (requestRow as { accounts_client_id?: string | null }).accounts_client_id ||
+        null;
+
+      if (!bookingLeadId && !bookingClientId) {
         return NextResponse.json(
           { error: "Select a client before booking out" },
           { status: 400 }
@@ -950,8 +1007,8 @@ export async function POST(request: Request) {
       }
 
       const bookingId = `sbook-${Date.now()}`;
-      const { error: bookingError } = await supabase.from("stock_bookings").insert(
-        stockBookingToRow({
+      const bookingRow: Record<string, unknown> = {
+        ...stockBookingToRow({
           id: bookingId,
           itemId: itemRow.id,
           technicianId: requestRow.technician_id,
@@ -959,8 +1016,35 @@ export async function POST(request: Request) {
           requestId: requestRow.id,
           bookedOutAt: now,
           bookedOutBy: user.id,
-          notes: ""})
-      );
+          notes: ""}),
+        accounts_client_id: bookingClientId,
+        // The unit inherits the pick list's project (migration 067), so a
+        // project can list every serialised unit on it.
+        project_id: (requestRow as Record<string, unknown>).project_id ?? null,
+      };
+
+      // Untyped view: migrations 055/067 columns are ahead of the types.
+      const untypedBookings = supabase as unknown as SupabaseClient;
+      let { error: bookingError } = await untypedBookings
+        .from("stock_bookings")
+        .insert(bookingRow);
+
+      // Migration 067 tolerance — book the unit out even without the project link.
+      if (bookingError && /project_id/.test(bookingError.message)) {
+        delete bookingRow.project_id;
+        ({ error: bookingError } = await untypedBookings
+          .from("stock_bookings")
+          .insert(bookingRow));
+      }
+
+      // Migration 055 column; without it the insert fails and the unit never leaves
+      // the shelf. Book the stock out and lose the link rather than block the tech.
+      if (bookingError && /accounts_client_id/.test(bookingError.message)) {
+        delete bookingRow.accounts_client_id;
+        ({ error: bookingError } = await untypedBookings
+          .from("stock_bookings")
+          .insert(bookingRow));
+      }
       if (bookingError) throw bookingError;
 
       const { error: itemUpdateError } = await supabase
@@ -1060,6 +1144,96 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         item: itemRow ? stockItemFromRow(itemRow) : null,
+      });
+    }
+
+    /**
+     * Issue PPE by scan (migration 069).
+     *
+     * Deliberately NOT the fulfillScan path: PPE is issued to a person, not
+     * installed at a client, so there is no pick list, no client to pick and
+     * no senior-technician rule — a junior needs a hard hat as much as anyone.
+     * Returning it uses the ordinary return-by-QR flow, unchanged.
+     */
+    if (body.action === "issuePpe") {
+      const qrToken = extractStockQrToken(body.qrToken);
+      if (!qrToken) {
+        return NextResponse.json({ error: "QR token required" }, { status: 400 });
+      }
+      const untypedPpe = supabase as unknown as SupabaseClient;
+
+      const { data: itemRow, error: itemError } = await untypedPpe
+        .from("stock_items")
+        .select("id, product_id, status")
+        .eq("qr_token", qrToken)
+        .maybeSingle();
+      if (itemError) throw itemError;
+      if (!itemRow) return NextResponse.json({ error: "QR not found" }, { status: 404 });
+      if (itemRow.status !== "available") {
+        return NextResponse.json(
+          { error: "This item is already booked out" },
+          { status: 400 }
+        );
+      }
+
+      const { data: product } = await untypedPpe
+        .from("stock_products")
+        .select("id, name, category")
+        .eq("id", itemRow.product_id as string)
+        .maybeSingle();
+      if (product && product.category && product.category !== "ppe") {
+        return NextResponse.json(
+          {
+            error: `${product.name} is not PPE — book it out against a pick list instead`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Issued to whoever is scanning unless a stock controller names someone.
+      const holderId = body.technicianId?.trim() || user.id;
+      const { data: holder } = await supabase
+        .from("team_members")
+        .select("id, name, active")
+        .eq("id", holderId)
+        .maybeSingle();
+      if (!holder || holder.active === false) {
+        return NextResponse.json({ error: "Active staff member not found" }, { status: 404 });
+      }
+
+      const bookingRow: Record<string, unknown> = {
+        ...stockBookingToRow({
+          id: `sbook-${Date.now()}`,
+          itemId: itemRow.id as string,
+          technicianId: holderId,
+          leadId: null,
+          requestId: null,
+          bookedOutAt: now,
+          bookedOutBy: user.id,
+          notes: "PPE issue"}),
+        purpose: "ppe",
+      };
+      let { error: bookingError } = await untypedPpe
+        .from("stock_bookings")
+        .insert(bookingRow);
+      if (bookingError && /purpose/.test(bookingError.message)) {
+        delete bookingRow.purpose;
+        ({ error: bookingError } = await untypedPpe
+          .from("stock_bookings")
+          .insert(bookingRow));
+      }
+      if (bookingError) throw bookingError;
+
+      const { error: statusError } = await supabase
+        .from("stock_items")
+        .update(stockItemUpdatesToRow({ status: "booked_out", updatedAt: now }))
+        .eq("id", itemRow.id as string);
+      if (statusError) throw statusError;
+
+      return NextResponse.json({
+        ok: true,
+        issuedTo: holder.name,
+        productName: product?.name ?? "PPE item",
       });
     }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { RouteGuard } from "@/components/auth/route-guard";
 import { Header } from "@/components/layout/header";
 import { DashboardNav } from "@/components/layout/department-nav";
 import { DbStatusBanner } from "@/components/layout/db-status-banner";
@@ -32,7 +33,9 @@ export default function DashboardLayout({
       <DashboardDataProviders>
         <DepartmentProvider>
           <DbStatusBanner />
-          <DashboardShell>{children}</DashboardShell>
+          <DashboardShell>
+            <RouteGuard>{children}</RouteGuard>
+          </DashboardShell>
         </DepartmentProvider>
       </DashboardDataProviders>
     </AuthGuard>

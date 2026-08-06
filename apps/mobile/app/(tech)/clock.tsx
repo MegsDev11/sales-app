@@ -4,6 +4,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -11,7 +12,7 @@ import {
 import { useFocusEffect, router } from "expo-router";
 import * as Location from "expo-location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { API_PATHS, type TimeEntry } from "@megs/shared";
+import { API_PATHS, type FieldJob, type TimeEntry } from "@megs/shared";
 import { apiFetch } from "../../src/lib/api";
 import {
   formatHoursLabel,
@@ -44,6 +45,10 @@ export default function ClockScreen() {
   const [now, setNow] = useState(() => new Date());
   const [loc, setLoc] = useState<LocGate>({ kind: "unknown" });
   const [checkingLoc, setCheckingLoc] = useState(false);
+  // Open jobs assigned to this tech: clock-in asks which one the shift is for,
+  // so hours can roll up to the job — and through it, the project.
+  const [myJobs, setMyJobs] = useState<FieldJob[]>([]);
+  const [jobPickerOpen, setJobPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +62,15 @@ export default function ClockScreen() {
       setNow(new Date());
     } finally {
       setLoading(false);
+    }
+    try {
+      const jobData = await apiFetch(API_PATHS.mobileTechJobs);
+      const jobs = ((jobData.jobs ?? []) as FieldJob[]).filter(
+        (j) => j.status !== "completed" && j.status !== "cancelled"
+      );
+      setMyJobs(jobs);
+    } catch {
+      setMyJobs([]);
     }
   }, []);
 
@@ -99,6 +113,10 @@ export default function ClockScreen() {
     if (!active) return;
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
+    // `active?.id`, not `active`: every reload hands back a new object for the same
+    // shift, and depending on it would tear down and restart the ticker each time —
+    // resetting the 30s cadence so the clock could stall.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id]);
 
   const todayLabel = useMemo(
@@ -120,11 +138,18 @@ export default function ClockScreen() {
         }
       : FALLBACK_REGION;
 
-  async function clock(action: "clock_in" | "clock_out") {
+  async function clock(action: "clock_in" | "clock_out", jobId?: string | null) {
     if (loc.kind !== "ok") {
       await refreshLocation();
       return;
     }
+    // Clocking in with open jobs on the board: ask which one first. The server
+    // stores time_entries.job_id, which is how hours reach the job's project.
+    if (action === "clock_in" && jobId === undefined && myJobs.length > 0) {
+      setJobPickerOpen(true);
+      return;
+    }
+    setJobPickerOpen(false);
     setBusy(true);
     try {
       await apiFetch(API_PATHS.mobileTechTime, {
@@ -133,6 +158,7 @@ export default function ClockScreen() {
           action,
           lat: loc.lat,
           lng: loc.lng,
+          ...(action === "clock_in" && jobId ? { jobId } : {}),
         }),
       });
       await load();
@@ -175,6 +201,46 @@ export default function ClockScreen() {
             <Text style={styles.hoursValue}>{todayLabel}</Text>
           </View>
         </View>
+
+        {jobPickerOpen ? (
+          <View style={styles.locModalWrap} pointerEvents="box-none">
+            <View style={styles.locModal}>
+              <Text style={styles.locModalText}>What are you clocking in for?</Text>
+              {/* Scrolls rather than truncating — a tech with six open jobs
+                  must still be able to pick the sixth. */}
+              <ScrollView style={styles.jobList} contentContainerStyle={styles.locActions}>
+                {myJobs.map((j) => (
+                  <Pressable
+                    key={j.id}
+                    style={styles.locOutlineBtn}
+                    onPress={() => void clock("clock_in", j.id)}
+                    disabled={busy}
+                  >
+                    <Text style={styles.locOutlineText} numberOfLines={1}>
+                      {j.title}
+                      {j.clientName ? ` · ${j.clientName}` : ""}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <View style={styles.locActions}>
+                <Pressable
+                  style={styles.locOutlineBtn}
+                  onPress={() => void clock("clock_in", null)}
+                  disabled={busy}
+                >
+                  <Text style={styles.locOutlineText}>General work — no job</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.locOutlineBtn}
+                  onPress={() => setJobPickerOpen(false)}
+                >
+                  <Text style={styles.locOutlineText}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         {showLocModal ? (
           <View style={styles.locModalWrap} pointerEvents="box-none">
@@ -369,6 +435,9 @@ const styles = StyleSheet.create({
   },
   locActions: {
     gap: 10,
+  },
+  jobList: {
+    maxHeight: 220,
   },
   locOutlineBtn: {
     borderWidth: 1.5,

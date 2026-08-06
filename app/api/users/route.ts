@@ -1,58 +1,42 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { decryptPortalCode, encryptPortalCode } from "@/lib/portal-auth";
 import type { CreateUserPayload, Department, UserRole } from "@/lib/types";
 import { requireOwner } from "@/lib/supabase/server-auth";
 import { getDefaultTitle } from "@/lib/permissions";
+import { moduleForDepartment } from "@/lib/modules";
+import { errorMessage } from "@/lib/api/route-helpers";
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) return message;
-  }
-  return "Failed to create user";
-}
-
-/** Owner-only: return decrypted staff login passwords. */
+/**
+ * Staff credentials endpoint.
+ *
+ * REMOVED: this used to decrypt and return every staff member's login password in
+ * one response. Passwords were stored with reversible encryption
+ * (login_password_ciphertext), so a single leaked encryption key or one compromised
+ * owner account exposed every staff password — and people reuse passwords.
+ *
+ * Passwords are now write-only: an admin can SET a new one (POST action
+ * "setPassword"), which returns it once so it can be handed over, and it is never
+ * stored in a recoverable form. Migration 044 drops the column.
+ *
+ * This endpoint is kept so the Staff page keeps working; it simply reports that
+ * retrieval is no longer possible.
+ */
 export async function GET(request: Request) {
-  const ownerUser = await requireOwner(request);
-  if (!ownerUser) {
-    return NextResponse.json({ error: "Unauthorized — owner access required" }, { status: 403 });
+  const adminUser = await requireOwner(request);
+  if (!adminUser) {
+    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 403 });
   }
 
-  try {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("team_members")
-      .select("id, login_password_ciphertext")
-      .neq("role", "owner");
-    if (error) {
-      if (/login_password_ciphertext/i.test(error.message)) {
-        return NextResponse.json(
-          {
-            credentials: [],
-            error:
-              "Run supabase/migrations/019_staff_login_password.sql in Supabase to enable stored passwords.",
-          },
-          { status: 200 }
-        );
-      }
-      throw error;
-    }
-
-    const credentials = (data ?? []).map((row) => ({
-      id: row.id as string,
-      loginPassword: decryptPortalCode(row.login_password_ciphertext) ?? null,
-    }));
-
-    return NextResponse.json(
-      { credentials },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
-    );
-  } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
-  }
+  return NextResponse.json(
+    {
+      credentials: [],
+      retrievalDisabled: true,
+      message:
+        "Stored passwords are no longer retrievable. Use 'Set password' to issue a new one — it is shown once and never saved.",
+    },
+    { headers: { "Cache-Control": "no-store, max-age=0" } }
+  );
 }
 
 export async function POST(request: Request) {
@@ -78,7 +62,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const supabase = createSupabaseAdminClient();
+      const supabase = createSupabaseAdminClient() as unknown as SupabaseClient;
       const { data: member, error: findError } = await supabase
         .from("team_members")
         .select("id, auth_user_id, role")
@@ -100,20 +84,8 @@ export async function POST(request: Request) {
       });
       if (authError) throw authError;
 
-      const ciphertext = encryptPortalCode(body.password);
-      const { error: updateError } = await supabase
-        .from("team_members")
-        .update({ login_password_ciphertext: ciphertext })
-        .eq("id", member.id);
-      if (updateError) {
-        if (/login_password_ciphertext/i.test(updateError.message)) {
-          throw new Error(
-            `${updateError.message} — run supabase/migrations/019_staff_login_password.sql in Supabase SQL Editor.`
-          );
-        }
-        throw updateError;
-      }
-
+      // Deliberately NOT stored. Supabase Auth holds the hash; we return the
+      // plaintext once here so the admin can hand it over, then forget it.
       return NextResponse.json({ ok: true, loginPassword: body.password });
     }
 
@@ -134,15 +106,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cannot create owner accounts via API" }, { status: 400 });
     }
 
-    if (createBody.role !== "manager" && createBody.role !== "staff") {
-      return NextResponse.json({ error: "Role must be manager or staff" }, { status: 400 });
+    // This route is already owner-only (requireOwner above), which is exactly
+    // who should be appointing a general or financial manager (migration 070).
+    const CREATABLE: UserRole[] = ["general_manager", "financial_manager", "manager", "staff"];
+    if (!CREATABLE.includes(createBody.role as UserRole)) {
+      return NextResponse.json(
+        { error: "Role must be general manager, financial manager, manager or staff" },
+        { status: 400 }
+      );
     }
 
-    if (!createBody.department) {
+    // A company-wide position does not sit in one department.
+    if (
+      !createBody.department &&
+      createBody.role !== "general_manager" &&
+      createBody.role !== "financial_manager"
+    ) {
       return NextResponse.json({ error: "Department is required" }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = createSupabaseAdminClient() as unknown as SupabaseClient;
     const email = createBody.email.trim().toLowerCase();
     const department = createBody.department as Department;
     const role = createBody.role as UserRole;
@@ -172,23 +155,73 @@ export async function POST(request: Request) {
       active: true,
     };
 
-    let { error: insertError } = await supabase.from("team_members").insert({
-      ...baseRow,
-      login_password_ciphertext: encryptPortalCode(createBody.password),
-    });
-    if (insertError && /login_password_ciphertext/i.test(insertError.message)) {
-      const retry = await supabase.from("team_members").insert(baseRow);
-      insertError = retry.error;
-    }
+    const templateId = (createBody as { templateId?: string | null }).templateId ?? null;
+
+    const { error: insertError } = await supabase
+      .from("team_members")
+      .insert({ ...baseRow, template_id: templateId });
     if (insertError) {
       await supabase.auth.admin.deleteUser(authData.user.id);
       const detail = insertError.message || "";
-      if (/department|check constraint/i.test(detail)) {
+      if (/department|check constraint|foreign key/i.test(detail)) {
         throw new Error(
-          `${detail} — run supabase/migrations/018_new_departments.sql in Supabase SQL Editor, then try again.`
+          `${detail} — run supabase/migrations/040_module_access.sql in Supabase SQL Editor, then try again.`
         );
       }
       throw insertError;
+    }
+
+    // Seed module grants. Without this a new account would land with no access at
+    // all, because access no longer follows from the department column.
+    //
+    // Explicit grants win; otherwise a template; otherwise a sensible default
+    // derived from the department they were created in.
+    const explicitModules = (createBody as {
+      modules?: { moduleKey: string; level: string }[];
+    }).modules;
+
+    const grantRows =
+      explicitModules && explicitModules.length > 0
+        ? explicitModules
+            .filter((m) => m.level !== "none")
+            .map((m) => ({
+              user_id: memberId,
+              module_key: m.moduleKey,
+              level: m.level,
+              granted_by: ownerUser.id,
+            }))
+        : templateId
+          ? []
+          : [
+              {
+                user_id: memberId,
+                module_key: moduleForDepartment(department) ?? "staff",
+                level: role === "manager" ? "manage" : "edit",
+                granted_by: ownerUser.id,
+              },
+              {
+                user_id: memberId,
+                module_key: "staff",
+                level: "view",
+                granted_by: ownerUser.id,
+              },
+            ];
+
+    if (grantRows.length > 0) {
+      const { error: grantError } = await supabase
+        .from("user_module_access")
+        .upsert(grantRows, { onConflict: "user_id,module_key" });
+      // Don't fail account creation over this — surface it so the admin can fix
+      // access in the console rather than being left with a half-created user.
+      if (grantError) {
+        return NextResponse.json({
+          ok: true,
+          id: memberId,
+          email,
+          loginPassword: createBody.password,
+          warning: `Account created, but module access could not be set (${grantError.message}). Grant it in Administration → Access Control.`,
+        });
+      }
     }
 
     return NextResponse.json({

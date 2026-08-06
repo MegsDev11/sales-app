@@ -1,10 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f5f7;
+  /*
+   * The canvas sits one step deeper than the cards on it. At #f4f5f7 the field
+   * was only ~4% off white, so panels read as flat regions rather than as cards.
+   */
+  --background: #f1f2f4;
   --foreground: #0a0a0a;
-  --surface: #f4f5f7;
+  --surface: #f1f2f4;
   --surface-elevated: #ffffff;
+  /* Dividers INSIDE a card, deliberately lighter than the outer --border. */
+  --hairline: #eef0f2;
   --sidebar: #ffffff;
   --sidebar-border: #e8eaed;
   --megs-red: #c83733;
@@ -33,6 +39,7 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
+  --color-hairline: var(--hairline);
   --color-sidebar: var(--sidebar);
   --color-sidebar-border: var(--sidebar-border);
   --color-card: var(--card);
@@ -57,6 +64,18 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /*
+   * Two-rung elevation ladder, blue-black rather than Tailwind's warm neutral
+   * (which goes muddy on a grey field). Panels sit on the canvas; the page
+   * header floats one step above them.
+   *
+   * Named -panel/-lift, not -card/-surface: Tailwind v4 also derives shadow-*
+   * utilities from --color-*, and --color-card already exists, so `shadow-card`
+   * would be ambiguous.
+   */
+  --shadow-panel: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.05);
+  --shadow-lift: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 8px 24px -12px rgb(15 23 42 / 0.16);
 }
 
 body {

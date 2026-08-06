@@ -5,363 +5,286 @@ import { useMemo } from "react";
 import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { StatCard } from "@/components/stats/stat-card";
-import {
-  AlertBanner,
-  PageHeader,
-  PageShell,
-  Panel,
-} from "@/components/layout/page-shell";
+import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
+import { StatTile, Meter } from "@/components/charts/primitives";
+import { StackedBar, BarChart, ColumnChart } from "@/components/charts/bar-chart";
+import { DonutChart } from "@/components/charts/donut-chart";
+import { SERIES, STATUS } from "@/components/charts/tokens";
 import {
   AlertTriangle,
-  ArrowRight,
   Boxes,
-  CheckCircle2,
   ClipboardList,
   Package,
-  PackageCheck,
-  PackageOpen,
   QrCode,
   ScanLine,
-  Wrench,
+  Truck,
 } from "lucide-react";
 
-const dateFormatter = new Intl.DateTimeFormat("en-ZA", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Africa/Johannesburg",
-});
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : dateFormatter.format(date);
-}
-
+/**
+ * Stock overview.
+ *
+ * The reorder signals here are deliberately deterministic — "quantity is at or below
+ * zero", "this product has no units available". No forecasting yet: that needs the
+ * stock_movements ledger from Phase 4, without which consumption rate cannot be
+ * computed honestly.
+ */
 export default function StockOverviewPage() {
   const { allowed, isLoading } = useStockAccess();
-  const {
-    products,
-    items,
-    bookings,
-    requests,
-    sundries,
-    productCounts,
-    isLoaded,
-    error,
-  } = useStockStore();
+  const { products, items, bookings, requests, sundries, isLoaded, error } = useStockStore();
   const { users } = useCrmStore();
 
-  const available = items.filter((i) => i.status === "available").length;
-  const bookedOut = items.filter((i) => i.status === "booked_out").length;
-  const openRequests = requests.filter(
-    (r) => r.status === "open" || r.status === "partial"
-  ).length;
-  const sundryLines = (sundries ?? []).length;
-  const sundriesOut = (sundries ?? []).filter((s) => s.quantity === 0).length;
+  const m = useMemo(() => {
+    const available = items.filter((i) => i.status === "available").length;
+    const bookedOut = items.filter((i) => i.status === "booked_out").length;
+    const retired = items.filter((i) => i.status === "retired").length;
 
-  const technicianNameById = useMemo(
-    () => new Map(users.map((user) => [user.id, user.name])),
-    [users]
-  );
-
-  const productRows = useMemo(() => {
-    if (!isLoaded) return [];
-    return products
+    const byProduct = products
       .map((p) => {
-        const counts = productCounts(p.id);
-        const openNeeded = requests
-          .filter((r) => r.status === "open" || r.status === "partial")
-          .flatMap((r) => r.lines)
-          .filter((l) => l.productId === p.id)
-          .reduce((sum, l) => sum + Math.max(0, l.qtyNeeded - l.qtyFulfilled), 0);
+        const units = items.filter((i) => i.productId === p.id);
         return {
-          product: p,
-          ...counts,
-          openNeeded,
-          short: openNeeded > counts.available,
+          label: p.name,
+          total: units.length,
+          available: units.filter((i) => i.status === "available").length,
+          bookedOut: units.filter((i) => i.status === "booked_out").length,
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [products, requests, productCounts, isLoaded]);
 
-  const lowStockProducts = useMemo(
-    () => productRows.filter((row) => row.short || row.available <= 2).slice(0, 8),
-    [productRows]
-  );
+    // Deterministic low-stock rules. Nothing predictive.
+    const outOfStock = byProduct.filter((p) => p.total > 0 && p.available === 0);
+    const lowSundries = (sundries ?? []).filter((s) => s.quantity <= 0);
 
-  const recentBookings = useMemo(() => {
-    if (!isLoaded) return [];
-    return bookings
-      .filter((booking) => !booking.returnedAt)
-      .map((booking) => {
-        const item = items.find((i) => i.id === booking.itemId);
-        if (!item) return null;
-        const product = products.find((p) => p.id === item.productId);
-        return {
-          booking,
-          item,
-          productName: product?.name ?? "Unit",
-          technicianName:
-            technicianNameById.get(booking.technicianId) ?? "Unknown technician",
-        };
-      })
-      .filter((row): row is NonNullable<typeof row> => row !== null)
-      .sort(
-        (a, b) =>
-          new Date(b.booking.bookedOutAt).getTime() -
-          new Date(a.booking.bookedOutAt).getTime()
-      )
-      .slice(0, 5);
-  }, [bookings, items, products, technicianNameById, isLoaded]);
+    const openRequests = requests.filter((r) => r.status === "open" || r.status === "partial");
+
+    // Book-outs per week for the last 8 weeks.
+    const now = new Date();
+    const weeks = Array.from({ length: 8 }, (_, i) => {
+      const end = new Date(now);
+      end.setDate(now.getDate() - (7 - i) * 7);
+      const start = new Date(end);
+      start.setDate(end.getDate() - 7);
+      return { start, end, label: `${start.getDate()}/${start.getMonth() + 1}` };
+    });
+    const bookOutTrend = weeks.map((w) => ({
+      label: w.label,
+      value: bookings.filter((b) => {
+        const t = new Date(b.bookedOutAt).getTime();
+        return t >= w.start.getTime() && t < w.end.getTime();
+      }).length,
+    }));
+
+    // Who currently holds stock.
+    const heldBy = new Map<string, number>();
+    for (const b of bookings.filter((x) => !x.returnedAt)) {
+      heldBy.set(b.technicianId, (heldBy.get(b.technicianId) ?? 0) + 1);
+    }
+    const holders = Array.from(heldBy.entries())
+      .map(([id, count]) => ({
+        label: users.find((u) => u.id === id)?.name ?? "Unknown",
+        value: count,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    const returnsDue = bookings.filter(
+      (b) => !b.returnedAt && b.returnNeededAt && new Date(b.returnNeededAt) <= now
+    );
+
+    return {
+      available,
+      bookedOut,
+      retired,
+      byProduct,
+      outOfStock,
+      lowSundries,
+      openRequests,
+      bookOutTrend,
+      holders,
+      returnsDue,
+    };
+  }, [products, items, bookings, requests, sundries, users]);
 
   if (isLoading || !allowed) return null;
-
-  const quickLinks = [
-    {
-      href: "/stock/inventory",
-      icon: Package,
-      title: "Inventory",
-      caption: "Products, units & sundries",
-    },
-    {
-      href: "/stock/booked-out",
-      icon: Wrench,
-      title: "Booked out",
-      caption: "Units with technicians & returns",
-    },
-    {
-      href: "/stock/requests",
-      icon: ClipboardList,
-      title: "Requests",
-      caption: "Fulfill coordination pick lists",
-    },
-    {
-      href: "/stock/scan",
-      icon: ScanLine,
-      title: "Scan",
-      caption: "Find stock by QR or serial",
-    },
-    {
-      href: "/stock/client-qrs",
-      icon: QrCode,
-      title: "Client QRs",
-      caption: "Installed units, PINs & visits",
-    },
-    {
-      href: "/stock/qr",
-      icon: QrCode,
-      title: "QR labels",
-      caption: "Print & download QR stickers",
-    },
-  ];
 
   return (
     <PageShell>
       <PageHeader
         title="Stock"
-        description="Inventory, QR tracking, and coordination pick lists"
+        description="Inventory, bookings and pick lists"
         actions={
-          <Link
-            href="/stock/scan"
-            className={buttonVariants({
-              className: "bg-primary text-primary-foreground hover:bg-primary/90",
-            })}
-          >
-            Scan unit
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/stock/scan" className={buttonVariants({ variant: "outline" })}>
+              <ScanLine className="mr-1.5 h-4 w-4" /> Scan
+            </Link>
+            <Link
+              href="/stock/inventory"
+              className={buttonVariants({
+                className: "bg-primary text-primary-foreground hover:bg-primary/90",
+              })}
+            >
+              <Package className="mr-1.5 h-4 w-4" /> Inventory
+            </Link>
+          </div>
         }
       />
 
       {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 
+      {m.outOfStock.length > 0 || m.lowSundries.length > 0 ? (
+        <AlertBanner tone="warn">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {m.outOfStock.length > 0
+              ? `${m.outOfStock.length} product${m.outOfStock.length === 1 ? " has" : "s have"} no units available`
+              : ""}
+            {m.outOfStock.length > 0 && m.lowSundries.length > 0 ? " · " : ""}
+            {m.lowSundries.length > 0
+              ? `${m.lowSundries.length} sundr${m.lowSundries.length === 1 ? "y is" : "ies are"} at zero`
+              : ""}
+          </span>
+          <Link href="/stock/inventory" className="shrink-0 font-medium underline">
+            Inventory
+          </Link>
+        </AlertBanner>
+      ) : null}
+
+      {m.returnsDue.length > 0 ? (
+        <AlertBanner tone="warn">
+          <Truck className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {m.returnsDue.length} item{m.returnsDue.length === 1 ? "" : "s"} past the return date.
+          </span>
+          <Link href="/stock/booked-out" className="shrink-0 font-medium underline">
+            Booked out
+          </Link>
+        </AlertBanner>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Available units"
+          value={m.available}
+          icon={Package}
+          accent={SERIES[2]}
+          href="/stock/inventory"
+        />
+        <StatTile
+          label="Booked out"
+          value={m.bookedOut}
+          icon={Truck}
+          accent={SERIES[1]}
+          href="/stock/booked-out"
+        />
+        <StatTile
+          label="Open pick lists"
+          value={m.openRequests.length}
+          icon={ClipboardList}
+          accent={m.openRequests.length > 0 ? STATUS.warning : SERIES[2]}
+          href="/stock/requests"
+        />
+        <StatTile
+          label="Products tracked"
+          value={products.length}
+          icon={Boxes}
+          accent={SERIES[0]}
+          href="/stock/inventory"
+        />
+        <StatTile
+          label="Out of stock"
+          value={m.outOfStock.length}
+          icon={AlertTriangle}
+          accent={m.outOfStock.length > 0 ? STATUS.critical : SERIES[2]}
+          higherIsBetter={false}
+        />
+        <StatTile
+          label="Sundry lines"
+          value={(sundries ?? []).length}
+          icon={Boxes}
+          accent={SERIES[6]}
+        />
+        <StatTile
+          label="Returns overdue"
+          value={m.returnsDue.length}
+          icon={Truck}
+          accent={m.returnsDue.length > 0 ? STATUS.critical : SERIES[2]}
+          higherIsBetter={false}
+          href="/stock/booked-out"
+        />
+        <StatTile
+          label="QR labels"
+          value={items.length}
+          icon={QrCode}
+          accent={SERIES[4]}
+          href="/stock/qr"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <StackedBar
+          title="Where the stock is"
+          subtitle="Every tracked unit by current status"
+          segments={[
+            { label: "Available", value: m.available, colorIndex: 2 },
+            { label: "Booked out", value: m.bookedOut, colorIndex: 1 },
+            { label: "Retired", value: m.retired, color: "#94a3b8" },
+          ]}
+        />
+        <ColumnChart
+          title="Book-out activity"
+          subtitle="Units booked out per week"
+          data={m.bookOutTrend}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <BarChart
+          title="Units by product"
+          subtitle="Total tracked units, largest first"
+          data={m.byProduct.map((p) => ({
+            label: p.label,
+            value: p.total,
+            href: "/stock/inventory",
+          }))}
+        />
+        {m.holders.length > 0 ? (
+          <BarChart
+            title="Stock held by technician"
+            subtitle="Units currently booked out and not returned"
+            data={m.holders}
+          />
+        ) : (
+          <DonutChart
+            title="Stock held by technician"
+            subtitle="Units currently booked out"
+            segments={[]}
+          />
+        )}
+      </div>
+
+      {m.byProduct.length > 0 ? (
+        <Panel
+          title="Availability by product"
+          description="Available units against the total tracked for each product"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {m.byProduct.slice(0, 9).map((p) => (
+              <Meter
+                key={p.label}
+                label={p.label}
+                value={p.available}
+                max={p.total}
+                // Low availability is the problem, so the severity scale is flipped:
+                // under half available warns, under a quarter is critical.
+                invert
+              />
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
       {!isLoaded ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              title="Available units"
-              value={available}
-              subtitle="In the office, ready to book out"
-              icon={PackageCheck}
-              accent="#059669"
-            />
-            <StatCard
-              title="Booked out"
-              value={bookedOut}
-              subtitle="With technicians or installed"
-              icon={PackageOpen}
-              accent="#D97706"
-            />
-            <StatCard
-              title="Open requests"
-              value={openRequests}
-              subtitle="Pick lists awaiting fulfilment"
-              icon={ClipboardList}
-              accent="var(--primary)"
-            />
-            <StatCard
-              title="Sundry lines"
-              value={sundryLines}
-              subtitle={
-                sundriesOut > 0
-                  ? `${sundriesOut} out of stock`
-                  : "Consumables tracked by quantity"
-              }
-              icon={Boxes}
-              accent="#0284C7"
-            />
-          </div>
-
-          {lowStockProducts.length > 0 ? (
-            <AlertBanner tone="warn">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div>
-                  <p className="font-medium">Low stock attention</p>
-                  <p className="text-xs">
-                    Products that are short for open pick lists or running low in the office.
-                  </p>
-                </div>
-                {lowStockProducts.map((row) => (
-                  <div
-                    key={row.product.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200/80 bg-white/70 px-2.5 py-1.5 text-xs"
-                  >
-                    <span className="font-medium">{row.product.name}</span>
-                    <span
-                      className={
-                        row.short || row.available === 0
-                          ? "font-semibold text-red-700"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      Available {row.available}
-                      {row.openNeeded > 0 ? ` · Needed on open lists ${row.openNeeded}` : ""}
-                    </span>
-                  </div>
-                ))}
-                <Link
-                  href="/stock/inventory"
-                  className="inline-flex items-center gap-1 font-medium text-primary underline"
-                >
-                  Open inventory
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            </AlertBanner>
-          ) : null}
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title="Stock levels by product" description="Availability across every product line">
-              {productRows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No products yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {productRows.map((row) => {
-                    const pct =
-                      row.total > 0 ? Math.round((row.available / row.total) * 100) : 0;
-                    return (
-                      <div key={row.product.id} className="space-y-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm font-medium">{row.product.name}</span>
-                          <span className="flex gap-3 text-xs">
-                            <span className="text-emerald-600">{row.available} available</span>
-                            <span className="text-amber-600">{row.bookedOut} out</span>
-                            <span className="text-muted-foreground">{row.total} total</span>
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className={`h-full rounded-full ${
-                              row.available === 0
-                                ? "bg-red-400"
-                                : row.short
-                                  ? "bg-amber-400"
-                                  : "bg-emerald-500"
-                            }`}
-                            style={{ width: `${Math.max(pct, row.total > 0 ? 4 : 0)}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Panel>
-
-            <Panel
-              title="Recently booked out"
-              description="Latest units that left the office"
-              padded={false}
-            >
-              <div className="divide-y divide-border">
-                {recentBookings.length === 0 ? (
-                  <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    Nothing is booked out right now.
-                  </p>
-                ) : (
-                  <>
-                    {recentBookings.map(({ booking, item, productName, technicianName }) => (
-                      <div
-                        key={booking.id}
-                        className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm"
-                      >
-                        <div>
-                          <p className="font-medium">
-                            {productName}
-                            {item.serialNumber ? (
-                              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                SN {item.serialNumber}
-                              </span>
-                            ) : null}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {technicianName}
-                            {item.clientName ? ` · ${item.clientName}` : ""}
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(booking.bookedOutAt)}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="px-4 py-2.5">
-                      <Link
-                        href="/stock/booked-out"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-primary underline"
-                      >
-                        View all booked-out stock
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
-                  </>
-                )}
-              </div>
-            </Panel>
-          </div>
-        </>
-      )}
-
-      <Panel title="Shortcuts" padded={false}>
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3">
-          {quickLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="flex items-center gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-muted/40 sm:border-r"
-            >
-              <link.icon className="h-4 w-4 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-medium">{link.title}</p>
-                <p className="text-xs text-muted-foreground">{link.caption}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </Panel>
+        <p className="text-xs text-muted-foreground">Loading stock…</p>
+      ) : null}
     </PageShell>
   );
 }

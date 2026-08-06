@@ -5,6 +5,7 @@ import { API_PATHS } from "@megs/shared";
 import { apiFetch } from "../../src/lib/api";
 import { colors } from "../../src/theme";
 import { Loading, Screen } from "../../src/ui";
+import { RouterIcon, WifiIcon } from "../../src/ui/icons";
 import {
   NetworkLayoutDiagram,
   type LayoutCanvasDoc,
@@ -12,9 +13,9 @@ import {
 } from "../../src/ui/network-layout-diagram";
 
 function statusTone(status: string) {
-  if (status === "online") return { bg: "#DCFCE7", fg: "#166534" };
-  if (status === "offline") return { bg: "#FEE2E2", fg: "#991B1B" };
-  return { bg: "#FEF3C7", fg: "#92400E" };
+  if (status === "online") return { bg: "#DCFCE7", fg: "#166534", dot: colors.online };
+  if (status === "offline") return { bg: "#FEE2E2", fg: "#991B1B", dot: colors.offline };
+  return { bg: "#FEF3C7", fg: "#92400E", dot: colors.unknown };
 }
 
 export default function ClientNetwork() {
@@ -54,9 +55,14 @@ export default function ClientNetwork() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <View>
-          <Text style={styles.heading}>Network</Text>
-          <Text style={styles.subheading}>Your site layout and device status</Text>
+        <View style={styles.header}>
+          <View style={styles.headerIcon}>
+            <WifiIcon size={20} color={colors.brand} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heading}>Network</Text>
+            <Text style={styles.subheading}>Your site layout and device status</Text>
+          </View>
         </View>
 
         {error ? (
@@ -72,15 +78,19 @@ export default function ClientNetwork() {
               <Text style={styles.summaryLabel}>Devices</Text>
             </View>
             <View style={styles.summaryTile}>
-              <Text style={[styles.summaryValue, { color: colors.online }]}>
-                {onlineCount}
-              </Text>
+              <View style={styles.summaryValueRow}>
+                <View style={[styles.dot, { backgroundColor: colors.online }]} />
+                <Text style={[styles.summaryValue, { color: colors.online }]}>{onlineCount}</Text>
+              </View>
               <Text style={styles.summaryLabel}>Online</Text>
             </View>
             <View style={styles.summaryTile}>
-              <Text style={[styles.summaryValue, { color: colors.offline }]}>
-                {devices.length - onlineCount}
-              </Text>
+              <View style={styles.summaryValueRow}>
+                <View style={[styles.dot, { backgroundColor: colors.offline }]} />
+                <Text style={[styles.summaryValue, { color: colors.offline }]}>
+                  {devices.length - onlineCount}
+                </Text>
+              </View>
               <Text style={styles.summaryLabel}>Other</Text>
             </View>
           </View>
@@ -111,7 +121,10 @@ export default function ClientNetwork() {
 
         {devices.length > 0 ? (
           <>
-            <Text style={styles.sectionLabel}>Devices</Text>
+            <View style={styles.sectionLabelRow}>
+              <RouterIcon size={15} color={colors.mutedDark} />
+              <Text style={styles.sectionLabel}>Devices</Text>
+            </View>
             <View style={styles.panel}>
               {devices.map((d, i) => {
                 const tone = statusTone(d.status);
@@ -123,6 +136,7 @@ export default function ClientNetwork() {
                       i < devices.length - 1 && styles.deviceRowBorder,
                     ]}
                   >
+                    <View style={[styles.dot, { backgroundColor: tone.dot }]} />
                     <Text style={styles.deviceName} numberOfLines={1}>
                       {d.label || d.nodeId}
                     </Text>
@@ -154,15 +168,28 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     gap: 14,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   heading: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: colors.text,
     letterSpacing: -0.4,
   },
   subheading: {
-    marginTop: 2,
-    fontSize: 14,
+    marginTop: 1,
+    fontSize: 13,
     color: colors.mutedDark,
   },
   errorBanner: {
@@ -188,7 +215,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 2,
+    gap: 4,
+  },
+  summaryValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   summaryValue: {
     fontSize: 22,
@@ -202,8 +239,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
-  sectionLabel: {
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginTop: 6,
+  },
+  sectionLabel: {
     fontSize: 13,
     fontWeight: "700",
     color: colors.mutedDark,
@@ -231,8 +273,7 @@ const styles = StyleSheet.create({
   deviceRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
     paddingVertical: 12,
   },
   deviceRowBorder: {

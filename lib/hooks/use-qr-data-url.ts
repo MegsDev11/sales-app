@@ -40,3 +40,9 @@ export function vehiclePublicUrl(qrToken: string) {
   if (typeof window === "undefined") return `/v/${qrToken}`;
   return `${window.location.origin}/v/${qrToken}`;
 }
+
+/** The client-level card (migration 069): one QR for the whole account. */
+export function clientPortalUrl(qrToken: string) {
+  if (typeof window === "undefined") return `/c/${qrToken}`;
+  return `${window.location.origin}/c/${qrToken}`;
+}

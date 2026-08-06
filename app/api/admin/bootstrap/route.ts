@@ -1,3 +1,4 @@
+import { blockInProduction } from "@/lib/dev-guard";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { userToRow } from "@/lib/supabase/mappers";
@@ -7,6 +8,9 @@ import { userToRow } from "@/lib/supabase/mappers";
  * Set OWNER_EMAIL and OWNER_PASSWORD in .env.local, call POST once, then remove password from env.
  */
 export async function POST() {
+  const blocked = blockInProduction();
+  if (blocked) return blocked;
+
   const email = (
     process.env.OWNER_EMAIL ?? process.env.ADMIN_EMAIL
   )?.trim().toLowerCase();

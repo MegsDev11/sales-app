@@ -1,9 +1,13 @@
+import { blockInProduction } from "@/lib/dev-guard";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { NextResponse } from "next/server";
 import pg from "pg";
 
 export async function POST() {
+  const blocked = blockInProduction();
+  if (blocked) return blocked;
+
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     return NextResponse.json(

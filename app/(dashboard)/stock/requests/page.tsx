@@ -4,9 +4,10 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useStockRequestsAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
+import { ClientPicker } from "@/components/clients/client-picker";
+import { ProjectPicker } from "@/components/projects/project-picker";
 import { canAccessStock, canAccessCoordination, getFieldTechnicians } from "@/lib/permissions";
 import { extractStockQrToken } from "@/lib/stock-qr-token";
 import { BarcodeScanner } from "@/components/stock/barcode-scanner";
@@ -30,8 +31,7 @@ import {
 } from "@/components/ui/select";
 
 export default function StockRequestsPage() {
-  const { allowed, isLoading, currentUser } = useStockRequestsAccess();
-  const { accessToken } = useAuth();
+  const { accessToken, currentUser } = useAuth();
   const {
     products,
     sundries,
@@ -48,13 +48,28 @@ export default function StockRequestsPage() {
   } = useStockStore();
   const { users, getVisibleLeads } = useCrmStore();
 
+  /**
+   * Coordination raises pick lists; only Stock fulfils them.
+   *
+   * This page used a `useStockRequestsAccess` hook whose rule was "stock OR
+   * coordination". That rule never actually applied: RouteGuard resolves /stock/*
+   * to the stock module and requires stock/view, so a coordination user with no
+   * stock grant is turned away in the layout before this renders. The nav agrees
+   * with the guard — navItemsFor() narrows the stock sidebar to this page and
+   * Projects for users with READ-ONLY stock — so the working assumption is that
+   * coordination staff hold stock/view. The hook is gone because it could not fire;
+   * if a coordination-only user should genuinely reach this page, the fix belongs in
+   * the route guard, not in a second check here that the guard pre-empts.
+   */
   const canCreate = canAccessCoordination(currentUser) || canAccessStock(currentUser);
   const canFulfill = canAccessStock(currentUser);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [techId, setTechId] = useState("");
-  const [leadId, setLeadId] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<{ productId: string; qtyNeeded: number }[]>([
     { productId: "", qtyNeeded: 1 },
@@ -65,7 +80,7 @@ export default function StockRequestsPage() {
   const [fulfillProductId, setFulfillProductId] = useState<string | null>(null);
   const [scanToken, setScanToken] = useState("");
   const [allocSerial, setAllocSerial] = useState("");
-  const [allocLeadId, setAllocLeadId] = useState("");
+  const [allocClientId, setAllocClientId] = useState("");
   const [allocClientName, setAllocClientName] = useState("");
   const [allocClientAddress, setAllocClientAddress] = useState("");
   const [allocPppoe, setAllocPppoe] = useState("");
@@ -75,13 +90,8 @@ export default function StockRequestsPage() {
 
   const techs = useMemo(() => getFieldTechnicians(users), [users]);
   const leads = getVisibleLeads().filter((l) => !l.deleted);
-  const clients = useMemo(
-    () =>
-      [...leads]
-        .filter((l) => l.clientName.trim())
-        .sort((a, b) => a.clientName.localeCompare(b.clientName)),
-    [leads]
-  );
+  // No local client list any more — ClientPicker searches the Accounts book on the
+  // server. `leads` is still read below to label older, lead-linked requests.
 
   const fulfillRequest = fulfillId
     ? requests.find((r) => r.id === fulfillId) ?? null
@@ -107,69 +117,29 @@ export default function StockRequestsPage() {
     return line ? ("ok" as const) : ("no_line" as const);
   }, [scannedItem, fulfillRequest, fulfillProductId]);
 
-  // Prefill detail fields when a unit is matched.
+  // Prefill detail fields from the scanned unit itself.
+  //
+  // This used to guess a CRM lead by name-matching the unit's stored client. That
+  // matching is gone: clients now come from the Accounts book, which is searched on
+  // the server rather than held in the browser, and a silent fuzzy match is the wrong
+  // way to decide whose equipment this is. The unit's own recorded details are shown,
+  // and the client is chosen explicitly in the picker below.
   useEffect(() => {
     if (!scannedItem) return;
     setAllocSerial(scannedItem.serialNumber ?? "");
-    const requestLead = fulfillRequest?.leadId
-      ? clients.find((l) => l.id === fulfillRequest.leadId)
-      : undefined;
-    const matchedLead =
-      requestLead ||
-      clients.find(
-        (l) =>
-          scannedItem.clientName &&
-          l.clientName.trim().toLowerCase() ===
-            scannedItem.clientName.trim().toLowerCase()
-      );
-    if (matchedLead) {
-      setAllocLeadId(matchedLead.id);
-      setAllocClientName(matchedLead.clientName);
-      setAllocClientAddress(
-        matchedLead.address?.trim() || scannedItem.clientAddress || ""
-      );
-      setAllocPppoe(matchedLead.clientPppoe?.trim() || scannedItem.clientPppoe || "");
-      setAllocWifiName(matchedLead.wifiName?.trim() || scannedItem.wifiName || "");
-      setAllocWifiPassword(
-        matchedLead.wifiPassword?.trim() || scannedItem.wifiPassword || ""
-      );
-    } else {
-      setAllocLeadId("");
-      setAllocClientName(scannedItem.clientName || requestLead?.clientName || "");
-      setAllocClientAddress(scannedItem.clientAddress ?? "");
-      setAllocPppoe(scannedItem.clientPppoe ?? "");
-      setAllocWifiName(scannedItem.wifiName ?? "");
-      setAllocWifiPassword(scannedItem.wifiPassword ?? "");
-    }
+    setAllocClientId(fulfillRequest?.accountsClientId ?? "");
+    setAllocClientName(fulfillRequest?.clientName || scannedItem.clientName || "");
+    setAllocClientAddress(scannedItem.clientAddress ?? "");
+    setAllocPppoe(scannedItem.clientPppoe ?? "");
+    setAllocWifiName(scannedItem.wifiName ?? "");
+    setAllocWifiPassword(scannedItem.wifiPassword ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scannedItem?.id, fulfillRequest?.leadId]);
-
-  if (isLoading || !allowed) return null;
-
-  function applyLead(leadIdValue: string) {
-    if (!leadIdValue || leadIdValue === "__none") {
-      setAllocLeadId("");
-      setAllocClientName("");
-      setAllocClientAddress("");
-      setAllocPppoe("");
-      setAllocWifiName("");
-      setAllocWifiPassword("");
-      return;
-    }
-    const lead = clients.find((c) => c.id === leadIdValue);
-    setAllocLeadId(leadIdValue);
-    if (!lead) return;
-    setAllocClientName(lead.clientName);
-    setAllocClientAddress(lead.address?.trim() || "");
-    setAllocPppoe(lead.clientPppoe?.trim() || "");
-    setAllocWifiName(lead.wifiName?.trim() || "");
-    setAllocWifiPassword(lead.wifiPassword?.trim() || "");
-  }
+  }, [scannedItem?.id, fulfillRequest?.accountsClientId]);
 
   function resetAllocation() {
     setScanToken("");
     setAllocSerial("");
-    setAllocLeadId("");
+    setAllocClientId("");
     setAllocClientName("");
     setAllocClientAddress("");
     setAllocPppoe("");
@@ -189,14 +159,18 @@ export default function StockRequestsPage() {
       await createRequest({
         title: title.trim(),
         technicianId: techId,
-        leadId: leadId || null,
+        accountsClientId: clientId || null,
+        clientName: clientName || null,
+        projectId: projectId || null,
         notes,
         lines: lines.filter((l) => l.productId),
       });
       setCreateOpen(false);
       setTitle("");
       setTechId("");
-      setLeadId("");
+      setClientId("");
+      setClientName("");
+      setProjectId("");
       setNotes("");
       setLines([{ productId: products[0]?.id ?? "", qtyNeeded: 1 }]);
     } catch (e) {
@@ -225,7 +199,7 @@ export default function StockRequestsPage() {
       setAllocMsg("Scanned unit does not match this line's product");
       return;
     }
-    if (!allocLeadId) {
+    if (!allocClientId) {
       setAllocMsg("Select a client before booking out");
       return;
     }
@@ -234,7 +208,7 @@ export default function StockRequestsPage() {
     try {
       await fulfillScan(fulfillId, extractStockQrToken(scanToken), {
         serialNumber: allocSerial,
-        leadId: allocLeadId,
+        accountsClientId: allocClientId,
         clientName: allocClientName,
         clientAddress: allocClientAddress,
         clientPppoe: allocPppoe,
@@ -364,17 +338,12 @@ export default function StockRequestsPage() {
                                   resetAllocation();
                                   setFulfillProductId(line.productId);
                                   setFulfillId(req.id);
-                                  if (req.leadId) {
-                                    // Prefill after reset — apply on next tick once dialog opens
-                                    const lead = clients.find((c) => c.id === req.leadId);
-                                    if (lead) {
-                                      setAllocLeadId(lead.id);
-                                      setAllocClientName(lead.clientName);
-                                      setAllocClientAddress(lead.address?.trim() || "");
-                                      setAllocPppoe(lead.clientPppoe?.trim() || "");
-                                      setAllocWifiName(lead.wifiName?.trim() || "");
-                                      setAllocWifiPassword(lead.wifiPassword?.trim() || "");
-                                    }
+                                  // Carry the request's own client into the dialog.
+                                  // The picker resolves the id to a name itself, so
+                                  // there is nothing to look up here.
+                                  if (req.accountsClientId) {
+                                    setAllocClientId(req.accountsClientId);
+                                    setAllocClientName(req.clientName ?? "");
                                   }
                                 }}
                               >
@@ -467,28 +436,17 @@ export default function StockRequestsPage() {
             </div>
             <div className="space-y-1">
               <label className="font-medium">Client (optional)</label>
-              <Select
-                value={leadId || "__none"}
-                onValueChange={(v) => setLeadId(v === "__none" ? "" : (v ?? ""))}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {(value) =>
-                      value === "__none" || !value
-                        ? "Client"
-                        : leads.find((lead) => lead.id === value)?.clientName ?? "Client"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">No client</SelectItem>
-                  {leads.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.clientName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* The Accounts client book, searched server-side. */}
+              <ClientPicker
+                value={clientId || null}
+                onChange={(client) => {
+                  setClientId(client?.id ?? "");
+                  setClientName(client?.name ?? "");
+                }}
+              />
+              {/* Booked-out units inherit this link, so the project's Stock
+                  panel can list them. */}
+              <ProjectPicker value={projectId} onChange={setProjectId} />
             </div>
             <div className="space-y-2">
               <label className="font-medium">Lines</label>
@@ -682,36 +640,19 @@ export default function StockRequestsPage() {
                 <label className="font-medium">
                   Client name <span className="text-red-600">*</span>
                 </label>
-                <Select
-                  value={allocLeadId || "__none"}
-                  onValueChange={(v) => {
-                    if (typeof v !== "string") return;
-                    applyLead(v);
+                {/* The Accounts client book. WiFi name and password are not kept
+                    there, so those two fields stay as typed rather than being
+                    cleared by a selection. */}
+                <ClientPicker
+                  value={allocClientId || null}
+                  placeholder="Select client"
+                  onChange={(client) => {
+                    setAllocClientId(client?.id ?? "");
+                    setAllocClientName(client?.name ?? "");
+                    setAllocClientAddress(client?.address?.trim() ?? "");
+                    setAllocPppoe(client?.pppoeUsername?.trim() ?? "");
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select client">
-                      {(value) => {
-                        if (!value || value === "__none") {
-                          return "Select client";
-                        }
-                        return (
-                          clients.find((c) => c.id === value)?.clientName ||
-                          "Select client"
-                        );
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">Select client</SelectItem>
-                    {clients.map((l) => (
-                      <SelectItem key={l.id} value={l.id} label={l.clientName}>
-                        {l.clientName}
-                        {l.address ? ` — ${l.address}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
               <div className="space-y-1">
                 <label className="font-medium">Client address</label>
@@ -760,7 +701,7 @@ export default function StockRequestsPage() {
               disabled={
                 busy ||
                 !scanToken.trim() ||
-                !allocLeadId ||
+                !allocClientId ||
                 scannedLineStatus === "wrong_product" ||
                 scannedLineStatus === "unavailable" ||
                 scannedLineStatus === "no_line"

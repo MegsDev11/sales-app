@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, router } from "expo-router";
 import {
   API_PATHS,
@@ -18,10 +19,37 @@ import { useAuth } from "../../src/auth";
 import { colors } from "../../src/theme";
 import { Loading, Screen } from "../../src/ui";
 import { SpeedTestPanel } from "../../src/ui/speed-test-panel";
+import {
+  BoostIcon,
+  ChevronRightIcon,
+  LifeBuoyIcon,
+  LogOutIcon,
+  RouterIcon,
+  WifiIcon,
+} from "../../src/ui/icons";
 
 function firstName(full: string) {
   const part = full.trim().split(/\s+/)[0];
   return part || "there";
+}
+
+function initial(full: string) {
+  return (full.trim().charAt(0) || "?").toUpperCase();
+}
+
+function SectionLabel({
+  icon,
+  children,
+}: {
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionLabelRow}>
+      {icon}
+      <Text style={styles.sectionLabel}>{children}</Text>
+    </View>
+  );
 }
 
 function CredRow({
@@ -42,6 +70,33 @@ function CredRow({
     </View>
   );
 }
+
+const ACTIONS = [
+  {
+    key: "support",
+    label: "Support",
+    href: "/(client)/messages" as const,
+    bg: "#FEE2E2",
+    fg: colors.brand,
+    Icon: LifeBuoyIcon,
+  },
+  {
+    key: "network",
+    label: "Network",
+    href: "/(client)/network" as const,
+    bg: "#DBEAFE",
+    fg: colors.accentDeep,
+    Icon: WifiIcon,
+  },
+  {
+    key: "upgrade",
+    label: "Upgrade",
+    href: "/(client)/messages" as const,
+    bg: "#DCFCE7",
+    fg: colors.online,
+    Icon: BoostIcon,
+  },
+];
 
 export default function ClientHome() {
   const { me, signOut } = useAuth();
@@ -93,6 +148,9 @@ export default function ClientHome() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topBar}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initial(displayName)}</Text>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>Hello, {firstName(displayName)}</Text>
             <Text style={styles.subGreeting} numberOfLines={1}>
@@ -105,8 +163,11 @@ export default function ClientHome() {
               router.replace("/(auth)/login");
             }}
             hitSlop={8}
+            style={styles.signOutBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
           >
-            <Text style={styles.signOutLink}>Sign out</Text>
+            <LogOutIcon size={18} color={colors.mutedDark} />
           </Pressable>
         </View>
 
@@ -117,10 +178,19 @@ export default function ClientHome() {
         ) : null}
 
         {/* Active plan — ISP dashboards lead with service status */}
-        <View style={styles.planHero}>
+        <LinearGradient
+          colors={["#242A38", "#161A24"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.planHero}
+        >
+          <View style={styles.planMotif} pointerEvents="none">
+            <WifiIcon size={130} color="rgba(255,255,255,0.05)" strokeWidth={2.4} />
+          </View>
           <View style={styles.planHeroTop}>
             <Text style={styles.planStatus}>Your plan</Text>
             <View style={styles.liveDot}>
+              <View style={styles.liveDotPip} />
               <Text style={styles.liveDotText}>Active</Text>
             </View>
           </View>
@@ -139,43 +209,26 @@ export default function ClientHome() {
               <Text style={styles.typeChipText}>{serviceType}</Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Quick actions */}
         <View style={styles.actionsRow}>
-          <Pressable
-            style={styles.actionTile}
-            onPress={() => router.push("/(client)/messages")}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: "#FEE2E2" }]}>
-              <Text style={[styles.actionIconGlyph, { color: colors.brand }]}>S</Text>
-            </View>
-            <Text style={styles.actionLabel}>Support</Text>
-          </Pressable>
-          <Pressable
-            style={styles.actionTile}
-            onPress={() => router.push("/(client)/network")}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: "#DBEAFE" }]}>
-              <Text style={[styles.actionIconGlyph, { color: colors.accentDeep }]}>N</Text>
-            </View>
-            <Text style={styles.actionLabel}>Network</Text>
-          </Pressable>
-          <Pressable
-            style={styles.actionTile}
-            onPress={() => router.push("/(client)/messages")}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: "#DCFCE7" }]}>
-              <Text style={[styles.actionIconGlyph, { color: colors.online }]}>U</Text>
-            </View>
-            <Text style={styles.actionLabel}>Upgrade</Text>
-          </Pressable>
+          {ACTIONS.map(({ key, label, href, bg, fg, Icon }) => (
+            <Pressable key={key} style={styles.actionTile} onPress={() => router.push(href)}>
+              <View style={[styles.actionIcon, { backgroundColor: bg }]}>
+                <Icon size={20} color={fg} />
+              </View>
+              <Text style={styles.actionLabel}>{label}</Text>
+            </Pressable>
+          ))}
         </View>
 
         <SpeedTestPanel installation={primaryInstall} />
 
         {/* Connection credentials */}
-        <Text style={styles.sectionLabel}>Connection details</Text>
+        <SectionLabel icon={<RouterIcon size={15} color={colors.mutedDark} />}>
+          Connection details
+        </SectionLabel>
         {primaryInstall ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader}>
@@ -220,7 +273,9 @@ export default function ClientHome() {
         {/* Upgrades — compact list, not a wall of cards */}
         {upgrades.length > 0 ? (
           <>
-            <Text style={styles.sectionLabel}>Faster plans</Text>
+            <SectionLabel icon={<BoostIcon size={15} color={colors.mutedDark} />}>
+              Faster plans
+            </SectionLabel>
             <View style={styles.panel}>
               <Text style={styles.panelBody}>
                 Compare options below. Chat with support to switch plans.
@@ -249,6 +304,7 @@ export default function ClientHome() {
                       style={styles.upgradeCta}
                     >
                       <Text style={styles.upgradeCtaText}>Ask</Text>
+                      <ChevronRightIcon size={13} color="#fff" />
                     </Pressable>
                   </View>
                 </View>
@@ -275,26 +331,43 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
     marginBottom: 4,
   },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.brand,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+  },
   greeting: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
     color: colors.text,
     letterSpacing: -0.4,
   },
   subGreeting: {
-    marginTop: 2,
-    fontSize: 14,
+    marginTop: 1,
+    fontSize: 13,
     color: colors.mutedDark,
   },
-  signOutLink: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.mutedDark,
+  signOutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   errorBanner: {
     backgroundColor: "#FEF2F2",
@@ -308,10 +381,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   planHero: {
-    backgroundColor: "#1A1F2C",
     borderRadius: 20,
     padding: 22,
     gap: 6,
+    overflow: "hidden",
+  },
+  planMotif: {
+    position: "absolute",
+    top: -18,
+    right: -14,
   },
   planHeroTop: {
     flexDirection: "row",
@@ -334,6 +412,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
+  },
+  liveDotPip: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#4ADE80",
   },
   liveDotText: {
     fontSize: 11,
@@ -395,23 +479,24 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-  },
-  actionIconGlyph: {
-    fontSize: 14,
-    fontWeight: "800",
   },
   actionLabel: {
     fontSize: 12,
     fontWeight: "700",
     color: colors.text,
   },
-  sectionLabel: {
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginTop: 6,
+  },
+  sectionLabel: {
     fontSize: 13,
     fontWeight: "700",
     color: colors.mutedDark,
@@ -510,8 +595,12 @@ const styles = StyleSheet.create({
   },
   upgradeCta: {
     marginTop: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
     backgroundColor: colors.brand,
-    paddingHorizontal: 14,
+    paddingLeft: 12,
+    paddingRight: 8,
     paddingVertical: 6,
     borderRadius: 8,
   },

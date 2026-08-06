@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuthenticated } from "@/lib/supabase/server-auth";
 import { makeId, migrationHint } from "@/lib/mobile/field-mappers";
@@ -22,6 +23,11 @@ export async function POST(request: Request) {
   const litres = Number(body.litres);
   const price = Number(body.price);
   const location = String(body.location ?? "").trim();
+  // Optional: a fill without a reading is still a fill worth recording.
+  const odometerKm =
+    body.odometerKm == null || !Number.isFinite(Number(body.odometerKm))
+      ? null
+      : Math.round(Number(body.odometerKm));
 
   if (!vehicleId) {
     return NextResponse.json({ error: "vehicleId required" }, { status: 400 });
@@ -51,20 +57,26 @@ export async function POST(request: Request) {
     }
 
     const id = makeId("fuel");
-    const { data, error } = await supabase
-      .from("fuel_entries")
-      .insert({
-        id,
-        vehicle_id: vehicleId,
-        technician_id: user.id,
-        litres,
-        location,
-        price,
-        recorded_at: now,
-        created_at: now,
-      })
-      .select("*")
-      .single();
+    const row: Record<string, unknown> = {
+      id,
+      vehicle_id: vehicleId,
+      technician_id: user.id,
+      litres,
+      location,
+      price,
+      recorded_at: now,
+      created_at: now,
+      odometer_km: odometerKm,
+    };
+    const untyped = supabase as unknown as SupabaseClient;
+    let { data, error } = await untyped.from("fuel_entries").insert(row).select("*").single();
+
+    // Migration 069 tolerance: log the fill even if the odometer column is
+    // not there yet — a lost reading beats a lost fuel entry.
+    if (error && /odometer_km/.test(error.message)) {
+      delete row.odometer_km;
+      ({ data, error } = await untyped.from("fuel_entries").insert(row).select("*").single());
+    }
     if (error) throw new Error(migrationHint(error.message, "032_vehicles_fuel.sql"));
 
     return NextResponse.json({
