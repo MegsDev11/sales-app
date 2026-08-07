@@ -122,9 +122,9 @@ Consequences: one leaked `SUPABASE_SERVICE_ROLE_KEY` or encryption secret expose
 
 **F3. No server-side route protection**
 
-`middleware.ts` handles CORS only. Every dashboard page protects itself with a client-side `useEffect(() => { if (!allowed) router.replace('/') })` — see `app/(dashboard)/financial/page.tsx:17-20` and `app/(dashboard)/company/page.tsx:46-48`. The page's JavaScript, its data-fetching hooks, and the sensitive content all execute before the redirect fires.
+`proxy.ts` handles CORS only. Every dashboard page protects itself with a client-side `useEffect(() => { if (!allowed) router.replace('/') })` — see `app/(dashboard)/financial/page.tsx:17-20` and `app/(dashboard)/company/page.tsx:46-48`. The page's JavaScript, its data-fetching hooks, and the sensitive content all execute before the redirect fires.
 
-*Fix:* Phase 0/1. Supabase SSR session in middleware, module check per route prefix, redirect server-side before render.
+*Fix:* Phase 0/1. Supabase SSR session in proxy.ts, module check per route prefix, redirect server-side before render.
 
 ### 🟠 HIGH
 
@@ -404,7 +404,7 @@ export async function requireAccess(
 
 **`components/layout/department-nav.tsx`** drops from 510 lines to roughly 120 — it maps `visibleModules(user)` instead of branching per department.
 
-**`middleware.ts`** gains real route protection: read the Supabase session, match `pathname` against `MODULES[].pathPrefixes`, redirect if the level is insufficient.
+**`proxy.ts`** gains real route protection: read the Supabase session, match `pathname` against `MODULES[].pathPrefixes`, redirect if the level is insufficient.
 
 ### 3.6 Migration path from `department`
 
@@ -802,7 +802,7 @@ Each phase is independently shippable. Estimates assume focused work.
 ### Phase 0 — Stop the bleeding · 2–3 days
 - [ ] **Do first, today:** drop every `"Allow anon read …"` policy (F1a) and the blanket `team_members` write policy (F1b). This is a ~20-line migration and it closes the public data leak on its own.
 - [ ] Consider whether `wifi_password` / `client_pppoe` need to be stored at all, or encrypted like the PINs already are
-- [ ] Server-side route protection in `middleware.ts` (Supabase SSR session)
+- [ ] Server-side route protection in `proxy.ts` (Supabase SSR session)
 - [ ] Delete `login_password_ciphertext` + the `GET /api/users` credential dump; replace with "reset password" (shown once, never stored)
 - [ ] `audit_log` table + triggers on sensitive tables
 - [ ] Gate `/api/seed`, `/api/clear-data`, `/api/migrate`, `/api/admin/bootstrap` behind non-production

@@ -179,7 +179,7 @@ and passed the route guard, then landed on an empty page.
 **Route protection is client-side.** `components/auth/route-guard.tsx` gates rendering
 in the dashboard layout — better than the old per-page `useEffect` (which let the page
 mount and fetch before redirecting), but it is still a UX guard. The real boundary is
-RLS, which is now tested. True server-side blocking in `middleware.ts` needs the
+RLS, which is now tested. True server-side blocking in `proxy.ts` needs the
 Supabase session in a cookie rather than `localStorage`, i.e. adopting `@supabase/ssr`.
 That changes the auth client and login flow, so it was not bundled here.
 

@@ -5,6 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { SUPPLIER_CATEGORIES, categoryLabel, type Supplier } from "@/lib/procurement/constants";
 import { Loader2 } from "lucide-react";
 
@@ -96,23 +98,18 @@ export function SupplierFormDialog({
               </label>
               <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Category
-              </label>
-              <select
+            <Field label="Category" htmlFor="supplier-category">
+              <SelectField
+                id="supplier-category"
+                className="w-full"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                <option value="">Uncategorised</option>
-                {SUPPLIER_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {categoryLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </div>
+                onValueChange={setCategory}
+                options={[
+                  { value: "", label: "Uncategorised" },
+                  ...SUPPLIER_CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) })),
+                ]}
+              />
+            </Field>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />

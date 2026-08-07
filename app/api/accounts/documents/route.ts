@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
+import { adminClient, errorMessage, withHint } from "@/lib/api/route-helpers";
 import {
   buildInvoiceDocument,
   buildStatementDocument,
@@ -31,29 +30,8 @@ import {
 
 export const runtime = "nodejs";
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
 const MIGRATION_HINT =
   "run supabase/migrations/052…054 in Supabase (payment method, invoicing, transactions).";
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function withHint(message: string): string {
-  return /relation .* does not exist|column .* does not exist|schema cache|could not find/i.test(
-    message
-  )
-    ? `${message} — ${MIGRATION_HINT}`
-    : message;
-}
 
 function pdfResponse(bytes: Uint8Array, filename: string) {
   // `inline` so the browser previews it; the UI adds `download` when saving.
@@ -77,7 +55,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
 
-  const db = admin();
+  const db = adminClient();
 
   try {
     const client = await loadClient(db, clientId);
@@ -108,6 +86,6 @@ export async function GET(request: Request) {
     const message = errorMessage(e);
     // "no monthly price" is the caller's problem to fix, not a server fault.
     const status = /has no monthly price/.test(message) ? 400 : 500;
-    return NextResponse.json({ error: withHint(message) }, { status });
+    return NextResponse.json({ error: withHint(message, MIGRATION_HINT) }, { status });
   }
 }

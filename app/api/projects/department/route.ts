@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
 import { can } from "@/lib/access";
 import { isModuleKey, MODULES } from "@/lib/modules";
 import type { ModuleKey } from "@/lib/types";
+import { adminClient, errorMessage } from "@/lib/api/route-helpers";
 
 /**
  * Projects for one department.
@@ -32,19 +31,6 @@ import type { ModuleKey } from "@/lib/types";
  * rule to any direct client query.
  */
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
 const MIGRATION_HINT = "run supabase/migrations/046_projects.sql in Supabase.";
 
 export async function GET(request: Request) {
@@ -65,7 +51,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
 
     const { data: links, error: linkError } = await supabase
       .from("project_departments")

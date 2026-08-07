@@ -4,17 +4,13 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useState } from "react";
 import Link from "next/link";
-import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function WirelessLayoutsPage() {
-  const { allowed, isLoading } = useWirelessAccess();
   const { layouts, clients, loading, error, postJson } = useWirelessData();
   const [busy, setBusy] = useState(false);
-
-  if (isLoading || !allowed) return null;
 
   async function createBlank() {
     setBusy(true);

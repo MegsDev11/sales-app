@@ -2,7 +2,6 @@
 
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
-import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { LayoutCanvas } from "@/components/wireless/layout-canvas";
 import { DeviceStatusBadge } from "@/components/wireless/device-status-badge";
@@ -16,7 +15,6 @@ export default function WirelessClientProfilePage({
   params: Promise<{ leadId: string }>;
 }) {
   const { leadId } = use(params);
-  const { allowed, isLoading } = useWirelessAccess();
   const { clients, layouts, submissions, loading, error, postJson, syncRuijie } =
     useWirelessData();
   const [busy, setBusy] = useState(false);
@@ -29,8 +27,6 @@ export default function WirelessClientProfilePage({
   const published =
     clientLayouts.find((l) => l.status === "published") ?? clientLayouts[0] ?? null;
   const clientSubs = submissions.filter((s) => s.leadId === leadId);
-
-  if (isLoading || !allowed) return null;
 
   async function createLayout() {
     setBusy(true);

@@ -92,7 +92,7 @@ export function TowerSiteEditDialog({
 
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Site name</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Site name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -102,7 +102,7 @@ export function TowerSiteEditDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">Voltage</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Voltage</label>
               <Input
                 value={voltage}
                 onChange={(e) => setVoltage(e.target.value)}
@@ -110,7 +110,7 @@ export function TowerSiteEditDialog({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Throughput (Mbps)</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Throughput (Mbps)</label>
               <Input
                 type="number"
                 min={0}
@@ -193,7 +193,7 @@ export function TowerSiteEditDialog({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">Maintenance needed</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Maintenance needed</label>
             <Textarea
               value={maintenanceNotes}
               onChange={(e) => setMaintenanceNotes(e.target.value)}
@@ -203,7 +203,7 @@ export function TowerSiteEditDialog({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">Upgrade plan</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Upgrade plan</label>
             <Textarea
               value={upgradePlan}
               onChange={(e) => setUpgradePlan(e.target.value)}

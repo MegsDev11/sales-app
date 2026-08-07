@@ -308,7 +308,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-foreground">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
       {children}
       {hint ? (
         <span className="mt-1 block text-[11px] leading-tight text-muted-foreground">{hint}</span>

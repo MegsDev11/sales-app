@@ -4,14 +4,12 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 
 export default function WirelessClientsPage() {
-  const { allowed, isLoading } = useWirelessAccess();
   const { clients, loading, error } = useWirelessData();
   const [q, setQ] = useState("");
   const [onlyWithLayout, setOnlyWithLayout] = useState(false);
@@ -28,8 +26,6 @@ export default function WirelessClientsPage() {
       );
     });
   }, [clients, q, onlyWithLayout]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

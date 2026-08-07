@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import { StatCard } from "@/components/stats/stat-card";
 import {
   AlertBanner,
@@ -14,10 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { AlertTriangle, Radio, Users, Wifi } from "lucide-react";
 
 export default function SupportOverviewPage() {
-  const { allowed, isLoading } = useSupportAccess();
   const { towers, getActiveOutages, leads, isLoaded, dbError } = useCrmStore();
-
-  if (isLoading || !allowed) return null;
 
   if (!isLoaded) {
     return (

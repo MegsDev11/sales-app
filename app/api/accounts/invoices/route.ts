@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
 import { can } from "@/lib/access";
 import {
@@ -22,6 +21,7 @@ import { money } from "@/lib/accounts/pdf-layout";
 import { shortDate } from "@/lib/accounts/pdf-layout";
 import { isBillable, type BillingStatus, type PaymentMethod } from "@/lib/accounts/constants";
 import { mailerStatus, sendClientMail, verifyMailer } from "@/lib/accounts/mailer";
+import { adminClient, errorMessage, newId, withHint } from "@/lib/api/route-helpers";
 
 /**
  * Issuing and sending client invoices.
@@ -48,33 +48,8 @@ import { mailerStatus, sendClientMail, verifyMailer } from "@/lib/accounts/maile
 
 export const runtime = "nodejs";
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
 const MIGRATION_HINT =
   "run supabase/migrations/052…054 in Supabase (payment method, invoicing, transactions).";
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function withHint(message: string): string {
-  return /relation .* does not exist|column .* does not exist|schema cache|could not find/i.test(
-    message
-  )
-    ? `${message} — ${MIGRATION_HINT}`
-    : message;
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 const num = (value: unknown, fallback = 0): number => {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -329,7 +304,7 @@ export async function GET(request: Request) {
   const user = await requireAccess(request, "accounts", "view");
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-  const db = admin();
+  const db = adminClient();
   try {
     const template = await loadTemplate(db);
     const { data: recent } = await db
@@ -349,7 +324,7 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
   } catch (e) {
-    return NextResponse.json({ error: withHint(errorMessage(e)) }, { status: 500 });
+    return NextResponse.json({ error: withHint(errorMessage(e), MIGRATION_HINT) }, { status: 500 });
   }
 }
 
@@ -361,7 +336,7 @@ export async function POST(request: Request) {
   const user = await requireAccess(request, "accounts", "edit");
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-  const db = admin();
+  const db = adminClient();
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
@@ -504,6 +479,6 @@ export async function POST(request: Request) {
     const status = /has no monthly price|not a billable account|no email address/.test(message)
       ? 400
       : 500;
-    return NextResponse.json({ error: withHint(message) }, { status });
+    return NextResponse.json({ error: withHint(message, MIGRATION_HINT) }, { status });
   }
 }

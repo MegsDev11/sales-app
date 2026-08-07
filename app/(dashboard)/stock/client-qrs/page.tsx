@@ -3,7 +3,6 @@
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useMemo, useState } from "react";
-import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import type { StockItem } from "@/lib/types";
@@ -27,9 +26,8 @@ function isClientUnit(item: StockItem) {
 }
 
 export default function ClientQrsPage() {
-  const { allowed, isLoading } = useStockAccess();
   const { products, items, isLoaded, error, createItem, regenerateClientPin } = useStockStore();
-  const { getVisibleLeads, leads } = useCrmStore();
+  const { getVisibleLeads } = useCrmStore();
 
   const [query, setQuery] = useState("");
   const [filterProduct, setFilterProduct] = useState("all");
@@ -60,7 +58,9 @@ export default function ClientQrsPage() {
         .filter((l) => !l.deleted && l.clientName.trim())
         .slice()
         .sort((a, b) => a.clientName.localeCompare(b.clientName)),
-    [getVisibleLeads, leads]
+    // getVisibleLeads is rebuilt whenever the lead slice changes, so listing
+    // `leads` as well only re-ran this for the same input.
+    [getVisibleLeads]
   );
 
   const editingLive = editing ? items.find((i) => i.id === editing.id) ?? editing : null;
@@ -91,8 +91,6 @@ export default function ClientQrsPage() {
       return hay.includes(q);
     });
   }, [items, query, filterProduct, productMap]);
-
-  if (isLoading || !allowed) return null;
 
   async function handleCreate() {
     if (!productId) {

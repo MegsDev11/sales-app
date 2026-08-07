@@ -2,7 +2,6 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { PageShell, Panel } from "@/components/layout/page-shell";
 import { LayoutCanvas } from "@/components/wireless/layout-canvas";
@@ -35,7 +34,6 @@ export default function WirelessLayoutEditorPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { allowed, isLoading } = useWirelessAccess();
   const { layouts, clients, loading, error, postJson, syncRuijie } = useWirelessData();
   const layout = layouts.find((l) => l.id === id);
 
@@ -123,8 +121,6 @@ export default function WirelessLayoutEditorPage({
       null
     );
   }, [assets, canvas.backdrop]);
-
-  if (isLoading || !allowed) return null;
 
   async function save(status?: "draft" | "published") {
     setBusy(true);

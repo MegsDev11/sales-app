@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
 import { can } from "@/lib/access";
 import { parseClientExport } from "@/lib/accounts/parse-clients";
+import { adminClient, fail, newId } from "@/lib/api/route-helpers";
 import {
   round2,
   VAT_DIVISOR,
@@ -32,10 +32,6 @@ import {
 // Spreadsheet parsing needs the Node runtime, not edge.
 export const runtime = "nodejs";
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
 const MIGRATION_HINT = "run supabase/migrations/051_accounts_clients.sql in Supabase.";
 
 /** The export is ~700KB; this only stops a stray huge file reaching the parser. */
@@ -45,30 +41,6 @@ const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const UPSERT_CHUNK = 500;
 
 const noStore = { headers: { "Cache-Control": "no-store, max-age=0" } };
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-/** Turn a missing-table error into the instruction that fixes it. */
-function withHint(message: string): string {
-  return /relation .* does not exist|schema cache|could not find the table/i.test(message)
-    ? `${message} — ${MIGRATION_HINT}`
-    : message;
-}
-
-function fail(error: unknown, status = 500) {
-  return NextResponse.json({ error: withHint(errorMessage(error)) }, { status });
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 interface ClientRow {
   id: string;
@@ -195,7 +167,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const url = new URL(request.url);
-  const db = admin();
+  const db = adminClient();
 
   try {
     if (url.searchParams.get("facets") === "1") {
@@ -258,7 +230,7 @@ export async function GET(request: Request) {
       noStore
     );
   } catch (e) {
-    return fail(e);
+    return fail(e, 500, MIGRATION_HINT);
   }
 }
 
@@ -300,7 +272,7 @@ async function handleImport(request: Request, userId: string) {
     });
   }
 
-  const db = admin();
+  const db = adminClient();
 
   // Which names already exist decides created-vs-updated, and keeps a re-import
   // updating in place instead of duplicating the book. Fetched in one pass rather
@@ -437,7 +409,7 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
-    const db = admin();
+    const db = adminClient();
 
     if (action === "update") {
       const id = String(body.id ?? "");
@@ -504,6 +476,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   } catch (e) {
-    return fail(e);
+    return fail(e, 500, MIGRATION_HINT);
   }
 }

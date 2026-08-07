@@ -5,6 +5,7 @@ import { requireWirelessAccess } from "@/lib/supabase/server-auth";
 import { ensureWirelessBucket } from "@/lib/wireless/create-submission";
 import { makeId } from "@/lib/mobile/field-mappers";
 import { networkAssetFromRow, type NetworkLayoutAssetRow } from "@/lib/wireless/mappers";
+import { adminClient, errorMessage } from "@/lib/api/route-helpers";
 
 /**
  * Photos and backdrops attached to a layout.
@@ -18,18 +19,9 @@ import { networkAssetFromRow, type NetworkLayoutAssetRow } from "@/lib/wireless/
  * Database types yet, so this route talks to an untyped view of the admin client.
  * RLS still applies; the wireless guard above is what returns a clean 403.
  */
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
 const BUCKET = "wireless-assets";
 const MAX_BYTES = 12 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return "Request failed";
-}
 
 /**
  * `node_id` and `sort_order` are what this route is built on, and both arrive in
@@ -71,7 +63,7 @@ export async function GET(request: Request) {
   if (!layoutId) return NextResponse.json({ error: "layoutId required" }, { status: 400 });
 
   try {
-    return NextResponse.json({ assets: await listAssets(admin(), layoutId) });
+    return NextResponse.json({ assets: await listAssets(adminClient(), layoutId) });
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
@@ -82,7 +74,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const contentType = request.headers.get("content-type") ?? "";
-  const supabase = admin();
+  const supabase = adminClient();
 
   try {
     // ---- Upload -------------------------------------------------------------

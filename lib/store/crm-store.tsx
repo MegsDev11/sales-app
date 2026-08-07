@@ -134,10 +134,21 @@ export function CrmStoreProvider({ children }: { children: React.ReactNode }) {
   const [dbError, setDbError] = useState<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accessTokenRef = useRef(accessToken);
-  accessTokenRef.current = accessToken;
   const pendingLeadPatches = useRef(new Map<string, Partial<Lead>>());
   const includeRef = useRef({ includeLeads, includeTowers });
-  includeRef.current = { includeLeads, includeTowers };
+
+  /**
+   * Latest token and flags, for the refresh paths that fire from a timer or a
+   * realtime event and must not be pinned to the render that registered them.
+   *
+   * These were assigned during render, which a discarded render would leave
+   * applied. This effect is declared before the loaders below, and effects run in
+   * declaration order, so the refs are current before anything reads them.
+   */
+  useEffect(() => {
+    accessTokenRef.current = accessToken;
+    includeRef.current = { includeLeads, includeTowers };
+  }, [accessToken, includeLeads, includeTowers]);
 
   const refreshFromSupabase = useCallback(async () => {
     const { includeLeads: leads, includeTowers: towers } = includeRef.current;

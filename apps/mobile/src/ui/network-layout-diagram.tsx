@@ -36,8 +36,11 @@ export function NetworkLayoutDiagram({
   devices: LayoutDeviceRow[];
   width: number;
 }) {
-  const nodes = canvas.nodes ?? [];
-  const edges = canvas.edges ?? [];
+  // `canvas.nodes ?? []` built a brand-new array on every render whenever the
+  // layout had no nodes yet, so the bounds memo below re-ran every time — for a
+  // list it had already measured. Pinning the fallback keeps the identity stable.
+  const nodes = useMemo(() => canvas.nodes ?? [], [canvas.nodes]);
+  const edges = useMemo(() => canvas.edges ?? [], [canvas.edges]);
   const statusByNode = useMemo(() => {
     const map = new Map<string, string>();
     for (const d of devices) map.set(d.nodeId, d.status);

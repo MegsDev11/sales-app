@@ -10,14 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { TEAM_OPTIONS } from "@/components/coordination/technician-create-form";
+import { SelectField } from "@/components/ui/select-field";
+import { SENIORITY_OPTIONS, TEAM_OPTIONS } from "@/components/coordination/technician-create-form";
 
 export function TechnicianEditDialog({
   editing,
@@ -77,41 +71,29 @@ export function TechnicianEditDialog({
           </div>
           <div className="space-y-1">
             <label className="font-medium">Team / title</label>
-            <Select value={editTitle} onValueChange={(v) => v && onEditTitleChange(v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TEAM_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-                {!TEAM_OPTIONS.some((o) => o.value === editTitle) && editTitle ? (
-                  <SelectItem value={editTitle}>{editTitle}</SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
+            {/* A title outside the two presets (an older, hand-typed one) is kept
+                visible by SelectField itself, which is what the extra SelectItem
+                here used to do by hand. */}
+            <SelectField
+              className="w-full"
+              aria-label="Team / title"
+              value={editTitle}
+              onValueChange={onEditTitleChange}
+              options={TEAM_OPTIONS}
+            />
             <p className="text-xs text-muted-foreground">
               Wireless and fiber technicians are grouped separately on this page.
             </p>
           </div>
           <div className="space-y-1">
             <label className="font-medium">Seniority</label>
-            <Select
+            <SelectField
+              className="w-full"
+              aria-label="Seniority"
               value={editTechnicianLevel}
-              onValueChange={(value) =>
-                value && onEditTechnicianLevelChange(value as "junior" | "senior")
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="junior">Junior technician</SelectItem>
-                <SelectItem value="senior">Senior technician</SelectItem>
-              </SelectContent>
-            </Select>
+              onValueChange={(v) => onEditTechnicianLevelChange(v as "junior" | "senior")}
+              options={SENIORITY_OPTIONS}
+            />
           </div>
           <div className="space-y-1">
             <label className="font-medium">Phone number</label>

@@ -131,6 +131,11 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
         assignedToId: isAdmin ? null : currentUser?.id ?? null,
       });
     }
+    // `lead?.id`, not `lead`: the store hands back a new lead object on every
+    // refresh, and depending on the object would refill the form — discarding
+    // whatever the user had typed — each time anything in the CRM changed. The
+    // form is seeded when a DIFFERENT lead is opened, which is what the id tracks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lead?.id, isAdmin, currentUser?.id, towers, towerSites]);
 
   const salesReps = getSalesStaff(users);
@@ -215,23 +220,23 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-foreground">Client Name *</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Client Name *</label>
               <Input value={form.clientName} onChange={(e) => set("clientName", e.target.value)} required />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Company</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Company</label>
               <Input value={form.company ?? ""} onChange={(e) => set("company", e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Phone *</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Phone *</label>
               <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} required />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Email</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
               <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Package</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Package</label>
               <Select onValueChange={(v) => { if (typeof v === "string") handlePackageChange(v); }}>
                 <SelectTrigger className="mt-1 w-full">
                   <SelectValue placeholder="Select package">
@@ -254,7 +259,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Deal Value (R)</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Deal Value (R)</label>
               <Input
                 type="number"
                 value={form.dealValue ?? ""}
@@ -262,7 +267,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Discount (R)</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Discount (R)</label>
               <Input
                 type="number"
                 value={form.discount ?? 0}
@@ -270,7 +275,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Priority</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Priority</label>
               <Select
                 value={form.priority}
                 onValueChange={(v) => {
@@ -292,7 +297,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Lead Source</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Lead Source</label>
               <Select
                 value={form.leadSource}
                 onValueChange={(v) => {
@@ -323,7 +328,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Coverage area</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Coverage area</label>
               <Select
                 value={form.towerId ?? "unassigned"}
                 onValueChange={(v) => {
@@ -351,7 +356,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Tower</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Tower</label>
               <Select
                 value={form.towerSiteId ?? "unassigned"}
                 onValueChange={(v) => {
@@ -381,7 +386,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </Select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Coverage</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Coverage</label>
               <Select
                 value={form.coverageStatus}
                 onValueChange={(v) => {
@@ -410,7 +415,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
             </div>
             {isAdmin && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Assign To</label>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Assign To</label>
                 <Select
                   value={form.assignedToId ?? "unassigned"}
                   onValueChange={(v) => {
@@ -440,11 +445,11 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               </div>
             )}
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-foreground">Address</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Address</label>
               <Input value={form.address ?? ""} onChange={(e) => set("address", e.target.value)} />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-foreground">Client PPPoE</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Client PPPoE</label>
               <Input
                 value={form.clientPppoe ?? ""}
                 onChange={(e) => set("clientPppoe", e.target.value)}
@@ -454,7 +459,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Wi‑Fi name</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Wi‑Fi name</label>
               <Input
                 value={form.wifiName ?? ""}
                 onChange={(e) => set("wifiName", e.target.value)}
@@ -462,7 +467,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Wi‑Fi password</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Wi‑Fi password</label>
               <Input
                 value={form.wifiPassword ?? ""}
                 onChange={(e) => set("wifiPassword", e.target.value)}
@@ -470,7 +475,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-foreground">Notes</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
               <Textarea
                 value={form.notes ?? ""}
                 onChange={(e) => set("notes", e.target.value)}

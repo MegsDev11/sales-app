@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAnyAccess } from "@/lib/supabase/server-auth";
+import { adminClient, isMissingSchemaError } from "@/lib/api/route-helpers";
 
 /**
  * Client directory lookup, shared by every department that attaches a client to
@@ -25,10 +25,6 @@ import { requireAnyAccess } from "@/lib/supabase/server-auth";
  */
 
 export const runtime = "nodejs";
-
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
 
 const MIGRATION_HINT =
   "run supabase/migrations/051 and 055 in Supabase (client book, client directory).";
@@ -63,12 +59,6 @@ const BASE_COLUMNS =
   "id, name, contact_name, email, tel, mobile, pppoe_username, billing_status, lead_id";
 const VIEW_COLUMNS = `${BASE_COLUMNS}, address`;
 
-function isMissingSchema(message: string): boolean {
-  return /relation .* does not exist|column .* does not exist|schema cache|could not find/i.test(
-    message
-  );
-}
-
 function toDirectory(row: Record<string, unknown>): DirectoryClient {
   return {
     id: String(row.id),
@@ -97,7 +87,7 @@ export async function GET(request: Request) {
   // itself can ask for everything.
   const activeOnly = url.searchParams.get("all") !== "1";
 
-  const db = admin();
+  const db = adminClient();
 
   /** Run against the view, falling back to the base table before 055 is applied. */
   const run = async (
@@ -115,7 +105,7 @@ export async function GET(request: Request) {
       return await attempt("client_directory", VIEW_COLUMNS);
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
-      if (!isMissingSchema(message)) throw e;
+      if (!isMissingSchemaError(message)) throw e;
       return attempt("accounts_clients", BASE_COLUMNS);
     }
   };

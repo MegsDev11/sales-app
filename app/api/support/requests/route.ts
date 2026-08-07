@@ -5,7 +5,7 @@ import {
   clientSupportRequestFromRow,
   clientSupportRequestToRow,
 } from "@/lib/supabase/mappers";
-import type { ClientSupportRequest, ClientSupportRequestStatus } from "@/lib/types";
+import type { ClientSupportRequestStatus } from "@/lib/types";
 
 export async function GET(request: Request) {
   const user = await requireSupportAccess(request);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
+import { adminClient, errorMessage, newId } from "@/lib/api/route-helpers";
 
 /**
  * Technician documents API — qualifications, certificates, licences, ID copies.
@@ -20,23 +20,6 @@ const BUCKET = "technician-docs";
 const MIGRATION_HINT = "run supabase/migrations/048_technician_documents.sql in Supabase.";
 const SIGNED_URL_TTL = 60 * 60; // 1 hour
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 async function ensureBucket(supabase: SupabaseClient) {
   const { data: buckets } = await supabase.storage.listBuckets();
   if (buckets?.some((b) => b.id === BUCKET || b.name === BUCKET)) return;
@@ -48,7 +31,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const url = new URL(request.url);
     const technicianId = url.searchParams.get("technicianId");
 
@@ -101,7 +84,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const contentType = request.headers.get("content-type") ?? "";
 
     // ---- multipart: add a document (optionally with a file) -----------------

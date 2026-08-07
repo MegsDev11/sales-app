@@ -4,7 +4,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import type { StockItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -17,12 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Printer, QrCode } from "lucide-react";
+import { Printer, QrCode } from "lucide-react";
 import { EditUnitDialog, QrPreviewCard } from "@/components/stock/qr-unit-cards";
 import { PendingLabelCard } from "@/components/stock/pending-label-card";
 
 export default function StockQrPage() {
-  const { allowed, isLoading } = useStockAccess();
   const { products, items, qrLabels, createItem, createQrLabelBatch, isLoaded, error } =
     useStockStore();
 
@@ -90,8 +88,6 @@ export default function StockQrPage() {
       return hay.includes(q);
     });
   }, [items, query, filterProduct, productMap]);
-
-  if (isLoading || !allowed) return null;
 
   async function handleCreateStock() {
     if (!stockProductId) {

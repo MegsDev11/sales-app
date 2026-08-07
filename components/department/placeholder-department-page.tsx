@@ -1,6 +1,5 @@
 "use client";
 
-import { usePlaceholderDepartmentAccess } from "@/lib/hooks/use-placeholder-department-access";
 import { getDepartmentLabel, type PlaceholderDepartment } from "@/lib/permissions";
 import { PageHeader, PageShell, Panel } from "@/components/layout/page-shell";
 
@@ -11,10 +10,7 @@ export function PlaceholderDepartmentPage({
   department: PlaceholderDepartment;
   description: string;
 }) {
-  const { allowed, isLoading } = usePlaceholderDepartmentAccess(department);
   const label = getDepartmentLabel(department);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

@@ -3,18 +3,18 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectField } from "@/components/ui/select-field";
 import { UserPlus } from "lucide-react";
 
 export const TEAM_OPTIONS = [
   { value: "Wireless technician", label: "Wireless technician" },
   { value: "Fiber technician", label: "Fiber technician" },
+];
+
+/** Written out once; the create form, the create dialog and the edit dialog share it. */
+export const SENIORITY_OPTIONS = [
+  { value: "junior", label: "Junior technician" },
+  { value: "senior", label: "Senior technician" },
 ];
 
 export function TechnicianCreateForm({
@@ -70,32 +70,20 @@ export function TechnicianCreateForm({
           onChange={(e) => onNameChange(e.target.value)}
           placeholder="Full name"
         />
-        <Select value={title} onValueChange={(v) => v && onTitleChange(v)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TEAM_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
+        <SelectField
+          className="w-full"
+          aria-label="Team"
+          value={title}
+          onValueChange={onTitleChange}
+          options={TEAM_OPTIONS}
+        />
+        <SelectField
+          className="w-full"
+          aria-label="Seniority"
           value={technicianLevel}
-          onValueChange={(value) =>
-            value && onTechnicianLevelChange(value as "junior" | "senior")
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="junior">Junior technician</SelectItem>
-            <SelectItem value="senior">Senior technician</SelectItem>
-          </SelectContent>
-        </Select>
+          onValueChange={(v) => onTechnicianLevelChange(v as "junior" | "senior")}
+          options={SENIORITY_OPTIONS}
+        />
         <Input value={phone} onChange={(e) => onPhoneChange(e.target.value)} placeholder="Phone number" />
         <Input
           type="email"

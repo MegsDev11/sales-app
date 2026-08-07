@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { StatCard } from "@/components/stats/stat-card";
-import { STAGES, STAGE_LABELS } from "@/lib/constants";
+import { STAGES } from "@/lib/constants";
 import { daysToClose } from "@/lib/utils/time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LOST_REASON_LABELS } from "@/lib/constants";

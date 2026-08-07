@@ -9,14 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { TEAM_OPTIONS } from "@/components/coordination/technician-create-form";
+import { SelectField } from "@/components/ui/select-field";
+import { SENIORITY_OPTIONS, TEAM_OPTIONS } from "@/components/coordination/technician-create-form";
 
 /**
  * Create a technician. Same controlled props as the old inline form, moved into a
@@ -80,33 +74,23 @@ export function TechnicianCreateDialog({
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Team</label>
-            <Select value={title} onValueChange={(v) => v && onTitleChange(v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TEAM_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SelectField
+              className="w-full"
+              aria-label="Team"
+              value={title}
+              onValueChange={onTitleChange}
+              options={TEAM_OPTIONS}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Seniority</label>
-            <Select
+            <SelectField
+              className="w-full"
+              aria-label="Seniority"
               value={technicianLevel}
-              onValueChange={(value) => value && onTechnicianLevelChange(value as "junior" | "senior")}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="junior">Junior technician</SelectItem>
-                <SelectItem value="senior">Senior technician</SelectItem>
-              </SelectContent>
-            </Select>
+              onValueChange={(v) => onTechnicianLevelChange(v as "junior" | "senior")}
+              options={SENIORITY_OPTIONS}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Phone number</label>

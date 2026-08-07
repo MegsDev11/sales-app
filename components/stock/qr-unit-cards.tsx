@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { stockItemPublicUrl, useQrDataUrl } from "@/lib/hooks/use-qr-data-url";
 import { useStockStore } from "@/lib/store/stock-store";
-import { useCrmStore } from "@/lib/store/crm-store";
+import { ClientPicker } from "@/components/clients/client-picker";
 import type { StockItem, StockItemVisit, StockProduct } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,13 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Download, History, KeyRound, Pencil, Trash2 } from "lucide-react";
 
 export function EditUnitDialog({
@@ -36,11 +29,10 @@ export function EditUnitDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { updateItem, deleteItem } = useStockStore();
-  const { getVisibleLeads, leads } = useCrmStore();
   const [brand, setBrand] = useState("");
   const [deviceName, setDeviceName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
-  const [leadId, setLeadId] = useState("");
+  const [clientId, setClientId] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [clientPppoe, setClientPppoe] = useState("");
@@ -48,15 +40,6 @@ export function EditUnitDialog({
   const [wifiPassword, setWifiPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-
-  const clients = useMemo(
-    () =>
-      getVisibleLeads()
-        .filter((l) => !l.deleted && l.clientName.trim())
-        .slice()
-        .sort((a, b) => a.clientName.localeCompare(b.clientName)),
-    [getVisibleLeads, leads]
-  );
 
   useEffect(() => {
     if (item) {
@@ -68,13 +51,13 @@ export function EditUnitDialog({
       setClientPppoe(item.clientPppoe ?? "");
       setWifiName(item.wifiName ?? "");
       setWifiPassword(item.wifiPassword ?? "");
-      const match = clients.find(
-        (l) => l.clientName.trim().toLowerCase() === (item.clientName ?? "").trim().toLowerCase()
-      );
-      setLeadId(match?.id ?? "");
+      // No name-matching against CRM leads any more: the client book is searched
+      // on the server, and guessing whose unit this is from a fuzzy name match is
+      // exactly the kind of silent wrong answer this replaces.
+      setClientId("");
       setMsg("");
     }
-  }, [item, clients]);
+  }, [item]);
 
   if (!item) return null;
 
@@ -137,53 +120,19 @@ export function EditUnitDialog({
           </div>
           <div className="space-y-1">
             <label className="font-medium">Client name</label>
-            <Select
-              value={leadId || "__none"}
-              onValueChange={(v) => {
-                if (typeof v !== "string") return;
-                if (v === "__none") {
-                  setLeadId("");
-                  setClientName("");
-                  setClientAddress("");
-                  setClientPppoe("");
-                  setWifiName("");
-                  setWifiPassword("");
-                  return;
-                }
-                const lead = clients.find((c) => c.id === v);
-                setLeadId(v);
-                if (!lead) return;
-                setClientName(lead.clientName);
-                setClientAddress(lead.address?.trim() || "");
-                setClientPppoe(lead.clientPppoe?.trim() || "");
-                setWifiName(lead.wifiName?.trim() || "");
-                setWifiPassword(lead.wifiPassword?.trim() || "");
+            {/* The Accounts client book, searched server-side. WiFi details are
+                not held there, so those fields keep whatever was already recorded
+                on the unit. */}
+            <ClientPicker
+              value={clientId || null}
+              placeholder="Select client"
+              onChange={(client) => {
+                setClientId(client?.id ?? "");
+                setClientName(client?.name ?? "");
+                setClientAddress(client?.address?.trim() ?? "");
+                setClientPppoe(client?.pppoeUsername?.trim() ?? "");
               }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select client">
-                  {(value) => {
-                    if (!value || value === "__none") {
-                      return clientName || "Select client";
-                    }
-                    return (
-                      clients.find((c) => c.id === value)?.clientName ||
-                      clientName ||
-                      "Select client"
-                    );
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-                <SelectContent>
-                <SelectItem value="__none">Select client</SelectItem>
-                {clients.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.clientName}
-                    {l.address ? ` — ${l.address}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
           <div className="space-y-1">
             <label className="font-medium">Client address</label>

@@ -7,6 +7,7 @@ import { AdminTabs } from "@/components/admin/admin-tabs";
 import { StaffAccountDialog } from "@/components/admin/staff-account-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/select-field";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ACCESS_LABELS, ACCESS_LEVELS } from "@/lib/access";
+import { ACCESS_LABELS, ACCESS_LEVEL_OPTIONS } from "@/lib/access";
 import { MODULE_LIST } from "@/lib/modules";
 import type { AccessLevel, ModuleKey } from "@/lib/types";
 import {
@@ -418,19 +419,15 @@ export default function AdminAccessPage() {
           >
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">Template:</span>
-              <select
-                value={selected.template_id ?? ""}
-                onChange={(e) => void applyTemplate(e.target.value || null)}
-                className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+              <SelectField
                 aria-label="Role template"
-              >
-                <option value="">No template</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+                value={selected.template_id ?? ""}
+                onValueChange={(v) => void applyTemplate(v || null)}
+                options={[
+                  { value: "", label: "No template" },
+                  ...templates.map((t) => ({ value: t.id, label: t.name })),
+                ]}
+              />
               <span className="text-xs text-muted-foreground">
                 A template sets a baseline; direct ticks below override it.
               </span>
@@ -501,21 +498,13 @@ export default function AdminAccessPage() {
                                   from template: {ACCESS_LABELS[inherited]}
                                 </span>
                               ) : null}
-                              <select
+                              <SelectField
                                 value={level}
-                                onChange={(e) =>
-                                  setLevel(mod.key, e.target.value as AccessLevel)
-                                }
-                                className="h-8 rounded-md border border-border bg-background px-2 text-sm disabled:opacity-40"
+                                onValueChange={(v) => setLevel(mod.key, v as AccessLevel)}
+                                options={ACCESS_LEVEL_OPTIONS}
                                 disabled={!isOn}
                                 aria-label={`${mod.label} access level`}
-                              >
-                                {ACCESS_LEVELS.filter((l) => l !== "none").map((l) => (
-                                  <option key={l} value={l}>
-                                    {ACCESS_LABELS[l]}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             </div>
                           </div>
                         );

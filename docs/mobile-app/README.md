@@ -12,7 +12,7 @@ Expo React Native app in `apps/mobile`, sharing the same Supabase project as the
 2. From repo root: `npm install`
 3. Copy `apps/mobile/.env.example` → `apps/mobile/.env` and set:
    - `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same as web)
-   - `EXPO_PUBLIC_API_BASE_URL` → your Next.js origin (e.g. `http://localhost:3000` or LAN IP for a physical device)
+   - `EXPO_PUBLIC_API_BASE_URL` → your Next.js origin (e.g. `http://localhost:3000`). On a physical device in dev the host is replaced with the machine Metro is serving from, so only the port matters.
 4. Start web: `npm run dev`
 5. Start mobile: `npm run mobile` (or `cd apps/mobile && npx expo start`)
 

@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useStaffStore } from "@/lib/store/staff-store";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { SelectField } from "@/components/ui/select-field";
 import { MODULE_LIST } from "@/lib/modules";
 import { SERIES, STATUS } from "@/components/charts/tokens";
 import { EventDialog, type CalendarEvent, type EventAttendee } from "@/components/scheduler/event-dialog";
@@ -213,18 +214,18 @@ export default function SchedulerPage() {
           Today
         </Button>
 
-        <select
+        <SelectField
+          aria-label="Filter by department"
           value={moduleFilter}
-          onChange={(e) => setModuleFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-        >
-          <option value="all">All departments</option>
-          {MODULE_LIST.filter((m) => can(m.key, "view")).map((m) => (
-            <option key={m.key} value={m.key}>
-              {m.label}
-            </option>
-          ))}
-        </select>
+          onValueChange={setModuleFilter}
+          options={[
+            { value: "all", label: "All departments" },
+            ...MODULE_LIST.filter((m) => can(m.key, "view")).map((m) => ({
+              value: m.key,
+              label: m.label,
+            })),
+          ]}
+        />
 
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

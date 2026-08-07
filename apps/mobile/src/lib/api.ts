@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
@@ -31,8 +32,9 @@ const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 declare global {
-  // Avoid duplicate GoTrue clients under Fast Refresh / Metro double-eval
-  // eslint-disable-next-line no-var
+  // Avoid duplicate GoTrue clients under Fast Refresh / Metro double-eval.
+  // `var` is required here: `let`/`const` in a global declaration do not attach to
+  // globalThis, so the cache would not survive a reload.
   var __megsSupabase: SupabaseClient | undefined;
 }
 
@@ -51,13 +53,42 @@ function createSupabase() {
 export const supabase: SupabaseClient =
   globalThis.__megsSupabase ?? (globalThis.__megsSupabase = createSupabase());
 
+const DEFAULT_API_PORT = "3000";
+
+function isLanHost(host: string) {
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}
+
+/** Host serving this bundle, e.g. "192.168.0.198". Only set by the Expo CLI in dev. */
+function getMetroHost() {
+  const hostUri = Constants.expoConfig?.hostUri ?? "";
+  return hostUri.split("/")[0].split(":")[0];
+}
+
 export function getApiBaseUrl() {
   const configured = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
   // Browser Expo web cannot call a LAN IP reliably; use localhost for the Next API.
   if (Platform.OS === "web") {
     return "http://localhost:3000";
   }
-  return configured || "http://localhost:3000";
+
+  const [, scheme = "http", host = "", port = DEFAULT_API_PORT] =
+    /^(https?):\/\/([^:/]+)(?::(\d+))?$/.exec(configured) ?? [];
+
+  // A LAN address in .env goes stale whenever DHCP hands the dev machine a new IP,
+  // so trust the host Metro is actually serving this bundle from.
+  const metroHost = getMetroHost();
+  if (metroHost && (!host || isLanHost(host))) {
+    return `${scheme}://${metroHost}:${port}`;
+  }
+
+  return configured || `http://localhost:${DEFAULT_API_PORT}`;
 }
 
 export async function apiFetch(

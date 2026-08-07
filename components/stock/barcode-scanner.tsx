@@ -36,8 +36,13 @@ export function BarcodeScanner({
   const [error, setError] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+  // Kept in a ref so the decode loop below always calls the latest handler without
+  // restarting the camera every time the parent re-renders. Written in an effect,
+  // not during render: a render React discards must not leave the ref updated.
   const onResultRef = useRef(onResult);
-  onResultRef.current = onResult;
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
 
   useEffect(() => {
     if (!active) return;
@@ -110,7 +115,7 @@ export function BarcodeScanner({
       ) : (
         <div className="space-y-2">
           <div className="relative overflow-hidden rounded-lg border bg-black">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            {/* A live camera feed with nothing to caption. */}
             <video ref={videoRef} className="h-48 w-full object-cover" autoPlay playsInline muted />
             <Button
               type="button"

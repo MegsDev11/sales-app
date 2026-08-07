@@ -67,6 +67,8 @@ export default function TechHome() {
     if (!active) return;
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
+    // Keyed on the shift id, not the object — see the same ticker in clock.tsx.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id]);
 
   const week = useMemo(() => buildWeeklyHours(entries, now), [entries, now]);

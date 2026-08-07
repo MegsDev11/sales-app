@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { filterLeadsForUser, isLeadVisible } from "@/lib/utils/leads";
 import { formatFollowUpDate } from "@/lib/utils/leads";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { MapPin } from "lucide-react";

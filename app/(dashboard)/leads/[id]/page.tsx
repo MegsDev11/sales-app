@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { ArrowLeft, Phone, Mail, CheckSquare, MapPin, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Phone, Mail, Pencil, Trash2 } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useAuth } from "@/lib/auth-context";
 import { canAccessSalesAdmin, getSalesStaff } from "@/lib/permissions";

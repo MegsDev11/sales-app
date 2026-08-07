@@ -171,7 +171,7 @@ export const MERGE_FIELDS: { token: string; blurb: string }[] = [
  * is obviously a typo in the template and gets fixed in seconds.
  */
 export function renderTemplate(body: string, ctx: TemplateContext): string {
-  const values: Record<string, string> = {
+  return renderTokens(body, {
     client_name: ctx.clientName,
     contact_name: ctx.contactName || ctx.clientName,
     accounts_owner: ctx.accountsOwner,
@@ -181,8 +181,16 @@ export function renderTemplate(body: string, ctx: TemplateContext): string {
     period: ctx.period,
     debit_order_day: ctx.debitOrderDay,
     due_date: ctx.dueDate,
-  };
+  });
+}
 
+/**
+ * Fill `{{token}}` placeholders from an arbitrary field map.
+ *
+ * Shared by the invoice letter and the dunning letters so there is one substitution
+ * rule in the codebase rather than two that drift.
+ */
+export function renderTokens(body: string, values: Record<string, string>): string {
   return body.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (whole, token: string) => {
     const value = values[token.toLowerCase()];
     return value === undefined ? whole : value;

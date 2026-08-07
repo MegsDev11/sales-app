@@ -21,6 +21,7 @@ import {
   navItemClass,
 } from "@/components/layout/page-shell";
 import { isNavActive, type NavItem } from "@/lib/nav/department-nav";
+import { useSections } from "@/lib/nav/sections-context";
 
 /**
  * Registry-driven navigation.
@@ -85,7 +86,7 @@ function NavLinks({
             <Icon className="h-4 w-4 shrink-0" />
             <span className="flex-1">{item.label}</span>
             {badgeHref && item.href === badgeHref && badgeCount && badgeCount > 0 ? (
-              <span className={navBadgeClass(active)}>{badgeCount}</span>
+              <span className={navBadgeClass()}>{badgeCount}</span>
             ) : null}
           </Link>
         );
@@ -165,6 +166,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
   const router = useRouter();
   const { activeSection, setActiveSection } = useOwnerSection();
   const { currentUser, isOwner } = useAuth();
+  const { overrides } = useSections();
   const { leads } = useCrmStore();
   const unassignedCount = can(currentUser, "crm", "manage")
     ? leads.filter(isInLeadInbox).length
@@ -225,7 +227,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
     const { isDepartment = true } = opts;
     const Icon = mod.icon;
     const isActive = activeKey === mod.key;
-    const allPages = isActive ? navItemsFor(currentUser, mod.key) : [];
+    const allPages = isActive ? navItemsFor(currentUser, mod.key, overrides) : [];
     // A single page that IS the module root (Administration, Staff Performance,
     // the placeholders) would just repeat the button's own label underneath it.
     const pages =
@@ -321,7 +323,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
         <>
           <NavSectionLabel className="mt-3">{activeModule.label}</NavSectionLabel>
           <NavLinks
-            items={navItemsFor(currentUser, activeModule.key)}
+            items={navItemsFor(currentUser, activeModule.key, overrides)}
             root={activeModule.root}
             badgeHref="/inbox"
             badgeCount={activeModule.key === "crm" ? unassignedCount : 0}
@@ -336,6 +338,7 @@ function MultiModuleSidebar({ modules }: { modules: ModuleDef[] }) {
 /** Sidebar for a single-module user — no switcher, straight to the pages. */
 function SingleModuleSidebar({ module }: { module: ModuleDef }) {
   const { currentUser } = useAuth();
+  const { overrides } = useSections();
   const { leads } = useCrmStore();
   const unassignedCount = can(currentUser, "crm", "manage")
     ? leads.filter(isInLeadInbox).length
@@ -345,7 +348,7 @@ function SingleModuleSidebar({ module }: { module: ModuleDef }) {
     <SidebarShell>
       <NavSectionLabel>{module.label}</NavSectionLabel>
       <NavLinks
-        items={navItemsFor(currentUser, module.key)}
+        items={navItemsFor(currentUser, module.key, overrides)}
         root={module.root}
         badgeHref="/inbox"
         badgeCount={module.key === "crm" ? unassignedCount : 0}
@@ -357,6 +360,7 @@ function SingleModuleSidebar({ module }: { module: ModuleDef }) {
 function MobileNav({ modules }: { modules: ModuleDef[] }) {
   const pathname = usePathname();
   const { currentUser } = useAuth();
+  const { overrides } = useSections();
 
   const pathModule = moduleForPath(pathname);
   const activeModule =
@@ -368,7 +372,7 @@ function MobileNav({ modules }: { modules: ModuleDef[] }) {
     return (
       <MobileNavShell>
         <MobileLinks
-          items={navItemsFor(currentUser, activeModule.key).slice(0, 5)}
+          items={navItemsFor(currentUser, activeModule.key, overrides).slice(0, 5)}
           root={activeModule.root}
         />
       </MobileNavShell>

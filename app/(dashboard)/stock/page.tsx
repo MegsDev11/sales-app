@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
@@ -30,7 +29,6 @@ import {
  * computed honestly.
  */
 export default function StockOverviewPage() {
-  const { allowed, isLoading } = useStockAccess();
   const { products, items, bookings, requests, sundries, isLoaded, error } = useStockStore();
   const { users } = useCrmStore();
 
@@ -103,8 +101,6 @@ export default function StockOverviewPage() {
       returnsDue,
     };
   }, [products, items, bookings, requests, sundries, users]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

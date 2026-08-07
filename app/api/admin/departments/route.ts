@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
+import { adminClient, errorMessage } from "@/lib/api/route-helpers";
 
 /**
  * Administration → Departments.
@@ -15,19 +14,6 @@ import { requireAccess } from "@/lib/supabase/server-auth";
  *
  * Guarded by the admin module at `manage`.
  */
-
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
 
 const MIGRATION_HINT = "run supabase/migrations/040_module_access.sql in Supabase.";
 
@@ -51,7 +37,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const [departments, members] = await Promise.all([
       supabase.from("departments").select("*").order("sort_order"),
       supabase.from("team_members").select("id, name, department, role, active").order("name"),
@@ -101,7 +87,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as Body;
-    const supabase = admin();
+    const supabase = adminClient();
 
     switch (body.action) {
       case "create": {

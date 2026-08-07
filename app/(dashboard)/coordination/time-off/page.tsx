@@ -4,19 +4,12 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import type { TimeOffRequest, TimeOffStatus } from "@megs/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectField } from "@/components/ui/select-field";
 
 const LEAVE_LABELS: Record<string, string> = {
   family: "Family",
@@ -32,7 +25,6 @@ function statusTone(status: TimeOffStatus) {
 }
 
 export default function CoordinationTimeOffPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const [status, setStatus] = useState<"all" | TimeOffStatus>("pending");
   const [requests, setRequests] = useState<TimeOffRequest[]>([]);
@@ -92,8 +84,6 @@ export default function CoordinationTimeOffPage() {
     }
   }
 
-  if (isLoading || !allowed) return null;
-
   return (
     <PageShell>
       <PageHeader
@@ -101,20 +91,18 @@ export default function CoordinationTimeOffPage() {
         description="Approve or decline technician leave requests from MEGS Field"
         actions={
           <div className="w-44">
-            <Select
+            <SelectField
+              className="w-full"
+              aria-label="Filter by status"
               value={status}
-              onValueChange={(v) => v && setStatus(v as typeof status)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="declined">Declined</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
+              onValueChange={(v) => setStatus(v as typeof status)}
+              options={[
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "declined", label: "Declined" },
+                { value: "all", label: "All" },
+              ]}
+            />
           </div>
         }
       />

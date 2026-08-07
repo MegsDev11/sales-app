@@ -4,7 +4,6 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle, ExternalLink, Phone, Send } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import { isOwner } from "@/lib/permissions";
 import { SERVICE_LABELS, STAGE_LABELS } from "@/lib/constants";
 import type { LeadStage, ServiceType } from "@/lib/types";
@@ -70,7 +69,6 @@ export default function SupportMessageThreadPage({
   params: Promise<{ threadId: string }>;
 }) {
   const { threadId } = use(params);
-  const { allowed, isLoading } = useSupportAccess();
   const { accessToken, currentUser, isOwner: ownerFlag } = useAuth();
   const [thread, setThread] = useState<SupportThread | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -231,8 +229,6 @@ export default function SupportMessageThreadPage({
       setJobBusy(false);
     }
   }
-
-  if (isLoading || !allowed) return null;
 
   const isClosed = thread?.status === "closed";
   const isPending = thread?.status === "pending";

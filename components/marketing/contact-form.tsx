@@ -5,13 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectField } from "@/components/ui/select-field";
 import { CheckCircle, Loader2, Mail, MapPin, Phone } from "lucide-react";
 
 const fieldClass =
@@ -139,21 +133,17 @@ export function ContactForm() {
                 </div>
                 <div className="space-y-2">
                   <span className="text-sm font-medium text-slate-200">How should we contact you?</span>
-                  <Select
+                  <SelectField
+                    className={fieldClass}
+                    aria-label="How should we contact you?"
                     value={contactPref}
-                    onValueChange={(v) => {
-                      if (typeof v === "string") setContactPref(v);
-                    }}
-                  >
-                    <SelectTrigger className={fieldClass}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="phone">Phone</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    onValueChange={setContactPref}
+                    options={[
+                      { value: "phone", label: "Phone" },
+                      { value: "email", label: "Email" },
+                      { value: "whatsapp", label: "WhatsApp" },
+                    ]}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="message" className="text-sm font-medium text-slate-200">

@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import MapView, { Circle, PROVIDER_DEFAULT } from "react-native-maps";
 
 type Region = {

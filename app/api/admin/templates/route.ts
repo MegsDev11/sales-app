@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
 import { isAccessLevel } from "@/lib/access";
 import { isModuleKey } from "@/lib/modules";
 import type { AccessLevel } from "@/lib/types";
+import { adminClient, errorMessage, newId } from "@/lib/api/route-helpers";
 
 /**
  * Administration → Role Templates.
@@ -19,23 +18,6 @@ import type { AccessLevel } from "@/lib/types";
  * Guarded by the admin module at `manage`, matching /api/admin/access.
  */
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function newId(): string {
-  return `tpl_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-}
-
 const MIGRATION_HINT =
   "run supabase/migrations/040_module_access.sql and 041_backfill_module_access.sql in Supabase.";
 
@@ -49,7 +31,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const [templates, templateModules, members, modules] = await Promise.all([
       supabase.from("access_templates").select("*").order("name"),
       supabase.from("access_template_modules").select("template_id, module_key, level"),
@@ -99,14 +81,14 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as Body;
-    const supabase = admin();
+    const supabase = adminClient();
 
     switch (body.action) {
       case "create": {
         if (!body.name?.trim()) {
           return NextResponse.json({ error: "Give the template a name" }, { status: 400 });
         }
-        const id = newId();
+        const id = newId("tpl");
         const { error } = await supabase.from("access_templates").insert({
           id,
           name: body.name.trim(),

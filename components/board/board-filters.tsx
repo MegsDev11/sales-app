@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SORT_LABELS } from "@/lib/constants";
-import type { CoverageStatus, LeadStage, Priority, ServiceType, SortField } from "@/lib/types";
+import type { CoverageStatus, Priority, ServiceType, SortField } from "@/lib/types";
 
 export interface BoardFilterState {
   search: string;

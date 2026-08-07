@@ -7,6 +7,8 @@ import { AdminTabs } from "@/components/admin/admin-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { Briefcase, Loader2, Plus, Trash2, Users } from "lucide-react";
 
 interface DepartmentRow {
@@ -149,38 +151,43 @@ export default function AdminDepartmentsPage() {
       {addOpen ? (
         <Panel title="New department">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Name</label>
-              <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="e.g. Human Resources" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Key (optional)</label>
+            <Field label="Name" htmlFor="new-dept-name">
               <Input
+                id="new-dept-name"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g. Human Resources"
+              />
+            </Field>
+            <Field label="Key (optional)" htmlFor="new-dept-key">
+              <Input
+                id="new-dept-key"
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
                 placeholder="auto from name"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Manager</label>
-              <select
-                value={newManager}
-                onChange={(e) => setNewManager(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+            </Field>
+            <Field label="Manager" htmlFor="new-dept-manager">
+              <SelectField
+                id="new-dept-manager"
+                className="w-full"
                 aria-label="Department manager"
-              >
-                <option value="">No manager</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Sort order</label>
-              <Input type="number" value={newSort} onChange={(e) => setNewSort(e.target.value)} />
-            </div>
+                value={newManager}
+                onValueChange={setNewManager}
+                options={[
+                  { value: "", label: "No manager" },
+                  ...staff.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+              />
+            </Field>
+            <Field label="Sort order" htmlFor="new-dept-sort">
+              <Input
+                id="new-dept-sort"
+                type="number"
+                value={newSort}
+                onChange={(e) => setNewSort(e.target.value)}
+              />
+            </Field>
           </div>
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setAddOpen(false)} disabled={busy}>
@@ -234,20 +241,17 @@ export default function AdminDepartmentsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2">
-                      <select
-                        value={d.manager_id ?? ""}
-                        onChange={(e) => void updateDept(d.key, { managerId: e.target.value || null })}
-                        disabled={busy}
-                        className="h-8 max-w-[180px] rounded-md border border-border bg-background px-2 text-sm"
+                      <SelectField
+                        className="max-w-[180px]"
                         aria-label={`Manager for ${d.label}`}
-                      >
-                        <option value="">No manager</option>
-                        {staff.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
+                        value={d.manager_id ?? ""}
+                        onValueChange={(v) => void updateDept(d.key, { managerId: v || null })}
+                        disabled={busy}
+                        options={[
+                          { value: "", label: "No manager" },
+                          ...staff.map((s) => ({ value: s.id, label: s.name })),
+                        ]}
+                      />
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <span className="inline-flex items-center gap-1 text-muted-foreground">

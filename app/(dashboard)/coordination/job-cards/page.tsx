@@ -3,7 +3,6 @@
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import {
   jobKindLabel,
   type CoordinationJobCardRow,
@@ -30,8 +29,9 @@ function PhotoRow({ label, items }: { label: string; items: JobCardMediaItem[] }
       <div className="flex flex-wrap gap-2">
         {items.map((item) =>
           item.dataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <a key={item.id} href={item.dataUrl} target="_blank" rel="noreferrer">
+              {/* A data: URL, which next/image cannot take without a custom loader. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.dataUrl}
                 alt={label}
@@ -57,7 +57,6 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 export default function CoordinationJobCardsPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const [cards, setCards] = useState<CoordinationJobCardRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -92,8 +91,6 @@ export default function CoordinationJobCardsPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

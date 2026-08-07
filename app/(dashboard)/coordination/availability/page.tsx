@@ -4,14 +4,12 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Boxes, Package, RefreshCw } from "lucide-react";
 
 export default function CoordinationAvailabilityPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { products, sundries, productCounts, isLoaded, error, refresh } = useStockStore();
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -27,8 +25,6 @@ export default function CoordinationAvailabilityPage() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!allowed) return;
-
     void refreshAvailability();
     const interval = window.setInterval(() => void refreshAvailability(), 60_000);
     const refreshOnFocus = () => void refreshAvailability();
@@ -38,9 +34,7 @@ export default function CoordinationAvailabilityPage() {
       window.clearInterval(interval);
       window.removeEventListener("focus", refreshOnFocus);
     };
-  }, [allowed, refreshAvailability]);
-
-  if (isLoading || !allowed) return null;
+  }, [refreshAvailability]);
 
   return (
     <PageShell>

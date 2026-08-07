@@ -12,13 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectField } from "@/components/ui/select-field";
 import { FileText, Loader2, Paperclip, Plus, Trash2, Upload } from "lucide-react";
 
 export const DOC_CATEGORIES = [
@@ -229,18 +223,13 @@ export function TechnicianDocsDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Type</label>
-                <Select value={category} onValueChange={(v) => v && setCategory(v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DOC_CATEGORIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectField
+                  className="w-full"
+                  aria-label="Document type"
+                  value={category}
+                  onValueChange={setCategory}
+                  options={DOC_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">

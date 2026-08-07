@@ -5,6 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { MODULE_LIST } from "@/lib/modules";
 import type { User } from "@/lib/types";
 import { Check, Loader2, Trash2 } from "lucide-react";
@@ -297,39 +299,27 @@ export function EventDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Type
-                </label>
-                <select
+              <Field label="Type" htmlFor="event-kind">
+                <SelectField
+                  id="event-kind"
+                  className="w-full"
                   value={kind}
-                  onChange={(e) => setKind(e.target.value)}
-                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-                >
-                  {KINDS.map((k) => (
-                    <option key={k.value} value={k.value}>
-                      {k.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Department
-                </label>
-                <select
+                  onValueChange={setKind}
+                  options={KINDS.map((k) => ({ value: k.value, label: k.label }))}
+                />
+              </Field>
+              <Field label="Department" htmlFor="event-module">
+                <SelectField
+                  id="event-module"
+                  className="w-full"
                   value={moduleKey}
-                  onChange={(e) => setModuleKey(e.target.value)}
-                  className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-                >
-                  <option value="">None</option>
-                  {MODULE_LIST.map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  onValueChange={setModuleKey}
+                  options={[
+                    { value: "", label: "None" },
+                    ...MODULE_LIST.map((m) => ({ value: m.key, label: m.label })),
+                  ]}
+                />
+              </Field>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -365,25 +355,19 @@ export function EventDialog({
               All day
             </label>
 
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Who can see this
-              </label>
-              <select
+            <Field
+              label="Who can see this"
+              htmlFor="event-visibility"
+              hint={VISIBILITY.find((v) => v.value === visibility)?.hint}
+            >
+              <SelectField
+                id="event-visibility"
+                className="w-full"
                 value={visibility}
-                onChange={(e) => setVisibility(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                {VISIBILITY.map((v) => (
-                  <option key={v.value} value={v.value}>
-                    {v.label}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {VISIBILITY.find((v) => v.value === visibility)?.hint}
-              </p>
-            </div>
+                onValueChange={setVisibility}
+                options={VISIBILITY.map((v) => ({ value: v.value, label: v.label }))}
+              />
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <div>

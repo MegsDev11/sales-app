@@ -6,6 +6,7 @@ import { can } from "@/lib/access";
 import { isModuleKey } from "@/lib/modules";
 import { canSeeProject, type ProjectAuthRow } from "@/lib/projects/visibility";
 import type { User } from "@/lib/types";
+import { errorMessage, newId } from "@/lib/api/route-helpers";
 
 /**
  * Scheduler API.
@@ -17,19 +18,6 @@ import type { User } from "@/lib/types";
  * via can_see_event() (so it is right even if this route is bypassed). The filtering
  * below deliberately mirrors migration 045 — if you change one, change both.
  */
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
-function newId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 /** Mirror of can_see_event() in SQL. */
 function visibleTo(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChartFrame, ChartTooltip, EmptyChart } from "@/components/charts/chart-frame";
 import {
   CHROME,
@@ -45,7 +45,6 @@ export function LineChart({
   area?: boolean;
   action?: React.ReactNode;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
 
   const width = 640;
@@ -96,7 +95,7 @@ export function LineChart({
       {!hasData ? (
         <EmptyChart message="Not enough data yet" />
       ) : (
-        <div ref={wrapRef} className="relative w-full">
+        <div className="relative w-full">
           <svg
             viewBox={`0 0 ${width} ${height}`}
             className="w-full"
@@ -112,8 +111,8 @@ export function LineChart({
               const clamped = Math.max(0, Math.min(labels.length - 1, idx));
               setHover({
                 index: clamped,
-                x: (xAt(clamped) / scale) + 0,
-                y: (yAt(Math.max(...series.map((s) => s.points[clamped] ?? 0))) / scale),
+                x: xAt(clamped) / scale,
+                y: yAt(Math.max(...series.map((s) => s.points[clamped] ?? 0))) / scale,
               });
             }}
           >
@@ -256,10 +255,16 @@ export function LineChart({
             />
           </svg>
 
+          {/* hover.x/y are already CSS pixels relative to this wrapper — the mouse
+              handler divides by `scale` when it records them. The old x divided by
+              the viewBox width and multiplied by the measured width again, which
+              only landed correctly when the chart happened to be rendered at
+              exactly `width` px; at half that the tooltip sat a quarter of the way
+              across. It also read a ref during render. */}
           {hover ? (
             <ChartTooltip
-              x={(hover.x / width) * (wrapRef.current?.clientWidth ?? width)}
-              y={(hover.y / height) * height}
+              x={hover.x}
+              y={hover.y}
               title={labels[hover.index]}
               rows={series.map((s, si) => ({
                 label: s.label,

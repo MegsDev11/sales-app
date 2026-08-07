@@ -44,3 +44,6 @@ next-env.d.ts
 # local tooling / supabase CLI cache
 supabase/.temp/
 **/.claude/
+
+.vercel
+.env*

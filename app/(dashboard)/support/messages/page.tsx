@@ -5,14 +5,12 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import type { SupportThread } from "@megs/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 
 export default function SupportMessagesPage() {
-  const { allowed, isLoading } = useSupportAccess();
   const { accessToken } = useAuth();
   const [threads, setThreads] = useState<SupportThread[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +44,6 @@ export default function SupportMessagesPage() {
       return (b.lastMessageAt ?? b.createdAt).localeCompare(a.lastMessageAt ?? a.createdAt);
     });
   }, [threads]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

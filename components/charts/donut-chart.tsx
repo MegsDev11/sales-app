@@ -73,7 +73,22 @@ export function DonutChart({
     color: s.color ?? seriesColor(s.colorIndex ?? i),
   }));
 
-  let offset = 0;
+  /**
+   * Each arc starts where the previous one ended. That running total used to be a
+   * `let` incremented from inside the `.map()` that builds the JSX — so the arcs'
+   * positions depended on render order and on the render not being replayed.
+   * Working it out up front makes each arc a value, not a side effect.
+   */
+  const arcs = shown.reduce<{ slice: DonutSegment; frac: number; offset: number }[]>(
+    (acc, slice) => {
+      const frac = slice.value / total;
+      const previous = acc[acc.length - 1];
+      const offset = previous ? previous.offset + previous.frac * circumference : 0;
+      acc.push({ slice, frac, offset });
+      return acc;
+    },
+    []
+  );
 
   return (
     <ChartFrame
@@ -96,12 +111,11 @@ export function DonutChart({
             className="shrink-0"
           >
             <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-              {shown.map((s, i) => {
+              {arcs.map(({ slice: s, frac, offset }, i) => {
                 if (s.value <= 0) return null;
-                const frac = s.value / total;
                 const len = Math.max(frac * circumference - gap, 0.5);
                 const dash = `${len} ${circumference - len}`;
-                const el = (
+                return (
                   <circle
                     key={s.label}
                     cx={size / 2}
@@ -118,8 +132,6 @@ export function DonutChart({
                     onMouseLeave={() => setHover(null)}
                   />
                 );
-                offset += frac * circumference;
-                return el;
               })}
             </g>
             <text

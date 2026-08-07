@@ -195,12 +195,12 @@ function SendInvoiceForm({
             </div>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-foreground">Subject</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">Subject</span>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!!sent} />
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-foreground">Message</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">Message</span>
               <Textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}

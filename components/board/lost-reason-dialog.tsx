@@ -10,13 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectField } from "@/components/ui/select-field";
 import { useState } from "react";
 
 interface LostReasonDialogProps {
@@ -34,14 +28,16 @@ export function LostReasonDialog({ open, onConfirm, onCancel }: LostReasonDialog
         <DialogHeader>
           <DialogTitle>Why was this deal lost?</DialogTitle>
         </DialogHeader>
-        <Select value={reason} onValueChange={(v) => { if (typeof v === "string") setReason(v as LostReason); }}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {Object.entries(LOST_REASON_LABELS).map(([k, label]) => (
-              <SelectItem key={k} value={k}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SelectField
+          className="w-full"
+          aria-label="Reason the deal was lost"
+          value={reason}
+          onValueChange={(v) => setReason(v as LostReason)}
+          options={Object.entries(LOST_REASON_LABELS).map(([value, label]) => ({
+            value,
+            label,
+          }))}
+        />
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
           <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onConfirm(reason)}>

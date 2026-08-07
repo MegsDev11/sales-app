@@ -1,0 +1,52 @@
+# Controls what the Vercel CLI uploads when you run `vercel --prod`.
+# Deploys now come from this working directory, not from a git commit,
+# so anything not listed here WILL be uploaded — including uncommitted files.
+# Keep this in sync with .gitignore.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — secrets live in Vercel project settings, never upload these
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local tooling / supabase CLI cache
+supabase/.temp/
+**/.claude/
+
+# git history — no reason to ship it to the build
+.git

@@ -6,8 +6,8 @@ import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/p
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { ACCESS_LABELS, ACCESS_LEVELS } from "@/lib/access";
+import { SelectField } from "@/components/ui/select-field";
+import { ACCESS_LEVEL_OPTIONS } from "@/lib/access";
 import { MODULE_LIST } from "@/lib/modules";
 import type { AccessLevel, ModuleKey } from "@/lib/types";
 import { Check, Loader2, Plus, Trash2, Users } from "lucide-react";
@@ -315,19 +315,13 @@ export default function AdminTemplatesPage() {
                                   </span>
                                 </span>
                               </label>
-                              <select
+                              <SelectField
                                 value={level}
-                                onChange={(e) => setLevel(mod.key, e.target.value as AccessLevel)}
-                                className="h-8 rounded-md border border-border bg-background px-2 text-sm disabled:opacity-40"
+                                onValueChange={(v) => setLevel(mod.key, v as AccessLevel)}
+                                options={ACCESS_LEVEL_OPTIONS}
                                 disabled={!isOn}
                                 aria-label={`${mod.label} access level`}
-                              >
-                                {ACCESS_LEVELS.filter((l) => l !== "none").map((l) => (
-                                  <option key={l} value={l}>
-                                    {ACCESS_LABELS[l]}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             </div>
                           );
                         })}

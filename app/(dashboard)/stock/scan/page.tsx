@@ -4,7 +4,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { extractStockQrToken } from "@/lib/stock-qr-token";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
@@ -22,7 +21,6 @@ type SessionEntry = {
 };
 
 export default function StockScanPage() {
-  const { allowed, isLoading } = useStockAccess();
   const {
     products,
     items,
@@ -104,8 +102,6 @@ export default function StockScanPage() {
         });
     });
   }, [lookupRaw, items, productMap]);
-
-  if (isLoading || !allowed) return null;
 
   function pushLog(kind: SessionEntry["kind"], label: string) {
     setSessionLog((prev) => [

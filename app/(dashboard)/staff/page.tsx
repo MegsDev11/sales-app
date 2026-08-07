@@ -6,6 +6,9 @@ import { useAuth } from "@/lib/auth-context";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/select-field";
+import { getDepartmentLabel } from "@/lib/permissions";
+import type { Department } from "@/lib/types";
 import { StatTile } from "@/components/charts/primitives";
 import { BarChart } from "@/components/charts/bar-chart";
 import { SERIES, compact } from "@/components/charts/tokens";
@@ -298,19 +301,18 @@ export default function StaffPerformancePage() {
             className="pl-8"
           />
         </div>
-        <select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card px-2 text-sm capitalize"
+        <SelectField
           aria-label="Filter by department"
-        >
-          <option value="all">All departments</option>
-          {departments.map((d) => (
-            <option key={d} value={d} className="capitalize">
-              {d}
-            </option>
-          ))}
-        </select>
+          value={department}
+          onValueChange={setDepartment}
+          options={[
+            { value: "all", label: "All departments" },
+            ...departments.map((d) => ({
+              value: d,
+              label: getDepartmentLabel(d as Department),
+            })),
+          ]}
+        />
         <Button
           variant={includeInactive ? "default" : "outline"}
           onClick={() => setIncludeInactive((v) => !v)}

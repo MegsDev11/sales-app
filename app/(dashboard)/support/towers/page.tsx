@@ -5,7 +5,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import { canAccessCoordination, canAccessSupport, isOwner } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,7 +114,6 @@ function areaAccent(areaId: string) {
 }
 
 export default function SupportTowersPage() {
-  const { allowed, isLoading } = useSupportAccess();
   const { currentUser, accessToken, isOwner: ownerFlag } = useAuth();
   const {
     towers,
@@ -171,8 +169,6 @@ export default function SupportTowersPage() {
     }
     return map;
   }, [towerSites]);
-
-  if (isLoading || !allowed) return null;
 
   const activeOutages = getActiveOutages();
 
@@ -767,15 +763,15 @@ export default function SupportTowersPage() {
               name only). The private site is set offline.
             </p>
             <div>
-              <label className="mb-1 block text-sm font-medium">Public headline</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Public headline</label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Customer message</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Customer message</label>
               <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 Affected areas (comma-separated)
               </label>
               <Input
@@ -818,7 +814,7 @@ export default function SupportTowersPage() {
             </DialogTitle>
           </DialogHeader>
           <div>
-            <label className="mb-1 block text-sm font-medium">Tower site name</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Tower site name</label>
             <Input
               value={newSiteName}
               onChange={(e) => setNewSiteName(e.target.value)}
@@ -864,7 +860,7 @@ export default function SupportTowersPage() {
               Coverage areas appear on the public landing page (name + status only).
             </p>
             <div>
-              <label className="mb-1 block text-sm font-medium">Town / area name</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Town / area name</label>
               <Input
                 value={areaName}
                 onChange={(e) => setAreaName(e.target.value)}

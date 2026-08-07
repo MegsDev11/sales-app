@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAccess } from "@/lib/supabase/server-auth";
+import { adminClient, errorMessage } from "@/lib/api/route-helpers";
 
 /**
  * Staff performance API.
@@ -18,19 +17,6 @@ import { requireAccess } from "@/lib/supabase/server-auth";
  * range-filtered — "how much is on your plate right now" is not a windowed number.
  */
 
-function admin(): SupabaseClient {
-  return createSupabaseAdminClient() as unknown as SupabaseClient;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    const m = (error as { message?: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return "Request failed";
-}
-
 const ACTIVE_JOB_STATUSES = new Set(["scheduled", "en_route", "on_site"]);
 const CLOSED_LEAD_STAGES = new Set(["closed_won", "closed_lost"]);
 
@@ -44,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = admin();
+    const supabase = adminClient();
     const url = new URL(request.url);
     const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days")) || 30));
     const since = new Date(Date.now() - days * 86400000);

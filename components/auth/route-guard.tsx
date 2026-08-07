@@ -7,9 +7,9 @@ import { canAccessPath, homeRoute } from "@/lib/access";
 import { moduleForPath } from "@/lib/modules";
 
 /**
- * One route guard for every dashboard page.
+ * THE route guard for every dashboard page.
  *
- * Replaces the per-page pattern that was copy-pasted across the app:
+ * It replaces the per-page pattern that used to be copy-pasted across the app:
  *
  *   const allowed = canAccessFinancial(currentUser) || isOwner(currentUser);
  *   useEffect(() => { if (!allowed) router.replace("/") }, [...]);
@@ -20,10 +20,19 @@ import { moduleForPath } from "@/lib/modules";
  * Here it sits in the layout and gates rendering of children entirely, so a page the
  * user cannot see never mounts.
  *
+ * That replacement is now complete. Thirty-one pages were still running a second
+ * copy of this check — six `use*Access` hooks plus two inline versions — every one
+ * of them testing exactly what `canAccessPath` tests for the same path. Because
+ * this guard runs first, their `!allowed` branch could never be reached, and their
+ * `isLoading` was always false by the time the page mounted: dead code that read
+ * like a security boundary. They are gone, and this is the only gate. A new page
+ * needs nothing; a page needing something STRICTER than its module's `minLevel`
+ * should say so in the page, and say what it is adding.
+ *
  * This is a UX guard, not the security boundary. The security boundary is RLS
  * (migration 042) plus the API guards — both of which hold even if this is bypassed.
  *
- * FOLLOW-UP: true server-side protection in middleware.ts needs the Supabase session
+ * FOLLOW-UP: true server-side protection in proxy.ts needs the Supabase session
  * in a cookie rather than localStorage, i.e. adopting @supabase/ssr. Worth doing, but
  * it changes the auth client and login flow, so it is deliberately not bundled here.
  */

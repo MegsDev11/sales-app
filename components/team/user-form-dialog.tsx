@@ -14,13 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
+import { useDepartments } from "@/lib/hooks/use-departments";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
@@ -63,6 +59,12 @@ interface UserFormDialogProps {
 export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps) {
   const { updateUser, addUser } = useCrmStore();
   const { accessToken, canCreateAccounts } = useAuth();
+  // Creating an account already needs admin/manage, which is what the departments
+  // endpoint asks for — so anyone who can see this picker can populate it.
+  const { departments: departmentOptions } = useDepartments(
+    accessToken,
+    open && !user && canCreateAccounts
+  );
   const [form, setForm] = useState<UserFormData>(defaultForm());
   const [password, setPassword] = useState("");
   const [initialsManual, setInitialsManual] = useState(false);
@@ -156,7 +158,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Full Name *</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Full Name *</label>
               <Input
                 value={form.name}
                 onChange={(e) => set("name", e.target.value)}
@@ -165,7 +167,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 Email {user ? "" : "*"}
               </label>
               <Input
@@ -182,43 +184,33 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
             </div>
             {!user && (
               <>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-foreground">Department *</label>
-                  <Select
+                <Field label="Department *" htmlFor="team-department">
+                  <SelectField
+                    id="team-department"
+                    className="w-full"
                     value={form.department ?? "sales"}
                     onValueChange={(v) => set("department", v as Department)}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="support">Support</SelectItem>
-                      <SelectItem value="stock">Stock</SelectItem>
-                      <SelectItem value="coordination">Coordination</SelectItem>
-                      <SelectItem value="wireless">Wireless</SelectItem>
-                      <SelectItem value="fiber">Fiber</SelectItem>
-                      <SelectItem value="financial">Financial</SelectItem>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="accounts">Accounts</SelectItem>
-                      <SelectItem value="reception">Reception</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-foreground">Role *</label>
-                  <Select
+                    options={departmentOptions.map((d) => ({
+                      value: d.key,
+                      label: d.label,
+                    }))}
+                  />
+                </Field>
+                <Field label="Role *" htmlFor="team-role">
+                  <SelectField
+                    id="team-role"
+                    className="w-full"
                     value={form.role}
                     onValueChange={(v) => set("role", v as UserRole)}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manager">Department Manager</SelectItem>
-                      <SelectItem value="staff">Staff Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-foreground">Initial Password *</label>
+                    options={[
+                      { value: "manager", label: "Department Manager" },
+                      { value: "staff", label: "Staff Member" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Initial Password *" htmlFor="team-password">
                   <Input
+                    id="team-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -226,11 +218,11 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
                     required
                     minLength={8}
                   />
-                </div>
+                </Field>
               </>
             )}
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Job Title</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Job Title</label>
               <Input
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
@@ -238,7 +230,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-foreground">Avatar Initials</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Avatar Initials</label>
               <Input
                 value={form.avatarInitials}
                 onChange={(e) => {
@@ -250,7 +242,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
               />
             </div>
             <div>
-              <label className="mb-2 block text-xs font-medium text-foreground">Color Code</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Color Code</label>
               <div className="flex flex-wrap gap-2">
                 {REP_COLORS.map((color) => (
                   <button
@@ -270,7 +262,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
             {isSalesDept && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-foreground">Monthly Revenue Target (R)</label>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Monthly Revenue Target (R)</label>
                   <Input
                     type="number"
                     min={0}
@@ -279,7 +271,7 @@ export function UserFormDialog({ open, onOpenChange, user }: UserFormDialogProps
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-foreground">Monthly Deals Target</label>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Monthly Deals Target</label>
                   <Input
                     type="number"
                     min={0}

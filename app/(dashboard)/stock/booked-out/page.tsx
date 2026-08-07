@@ -3,7 +3,6 @@
 import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useMemo, useState } from "react";
-import { useStockAccess } from "@/lib/hooks/use-stock-access";
 import { useStockStore } from "@/lib/store/stock-store";
 import { useCrmStore } from "@/lib/store/crm-store";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ function formatDate(value: string) {
 }
 
 export default function BookedOutStockPage() {
-  const { allowed, isLoading } = useStockAccess();
   const { products, items, bookings, requests, returnItem, isLoaded, error } = useStockStore();
   const { users, getVisibleLeads } = useCrmStore();
   const [query, setQuery] = useState("");
@@ -80,8 +78,6 @@ export default function BookedOutStockPage() {
   }, [bookings, items, products, users, leads, requests, query]);
 
   const returnNeededCount = activeBookings.filter((e) => e.booking.returnNeededAt).length;
-
-  if (isLoading || !allowed) return null;
 
   async function handleReturn(itemId: string, label: string) {
     if (!window.confirm(`Book ${label} back into available inventory?`)) return;

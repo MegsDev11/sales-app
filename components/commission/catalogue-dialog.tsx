@@ -161,8 +161,11 @@ export function CatalogueDialog({
             </AlertBanner>
           ) : null}
 
+          {/* overflow-x-auto, not overflow-hidden: five columns do not fit a narrow
+              dialog, and hidden simply cut the last one — the delete button — off
+              with no way to reach it. */}
           {imports.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border border-hairline">
+            <div className="overflow-x-auto rounded-lg border border-hairline">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-hairline bg-muted/40 text-left text-[11px] uppercase tracking-[0.06em] text-muted-foreground">

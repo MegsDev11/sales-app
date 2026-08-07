@@ -62,6 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     void refreshMe();
+    // The token, not the whole session: Supabase emits a fresh session object on
+    // every auth event, and refetching the profile on each one would put the app
+    // in a request loop for a user who has not changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.access_token, refreshMe]);
 
   const value = useMemo<AuthState>(

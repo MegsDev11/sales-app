@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { StatCard } from "@/components/stats/stat-card";
 import {
@@ -14,10 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { AlertTriangle, Inbox, Map, Router, Wifi } from "lucide-react";
 
 export default function WirelessOverviewPage() {
-  const { allowed, isLoading } = useWirelessAccess();
   const { overview, submissions, layouts, loading, error, syncRuijie } = useWirelessData();
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

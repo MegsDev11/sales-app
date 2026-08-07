@@ -5,6 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
+import { SelectField } from "@/components/ui/select-field";
 import { fmtMoney, type SupplierWithStats } from "@/lib/procurement/constants";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
@@ -94,28 +96,20 @@ export function PoFormDialog({
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Supplier
-              </label>
-              <select
+            <Field
+              label="Supplier"
+              htmlFor="po-supplier"
+              hint={activeSuppliers.length === 0 ? "Add a supplier first." : undefined}
+            >
+              <SelectField
+                id="po-supplier"
+                className="w-full"
+                placeholder="Select a supplier…"
                 value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                <option value="">Select a supplier…</option>
-                {activeSuppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              {activeSuppliers.length === 0 ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Add a supplier first.
-                </p>
-              ) : null}
-            </div>
+                onValueChange={setSupplierId}
+                options={activeSuppliers.map((s) => ({ value: s.id, label: s.name }))}
+              />
+            </Field>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 Expected delivery

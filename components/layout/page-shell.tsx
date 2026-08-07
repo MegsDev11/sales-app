@@ -253,9 +253,13 @@ export function mobileNavItemClass(active: boolean) {
   );
 }
 
-export function navBadgeClass(active: boolean) {
-  return cn(
-    "rounded-full px-1.5 text-[10px] font-bold",
-    active ? "bg-primary text-primary-foreground" : "bg-primary text-primary-foreground"
-  );
+/**
+ * The count badge is deliberately the same whether its row is active or not — it
+ * reports a number of things waiting, which does not change because you happen to
+ * be standing on that page. It used to take an `active` flag and return the same
+ * classes down both branches, which read as an unfinished decision rather than a
+ * made one.
+ */
+export function navBadgeClass() {
+  return "rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground";
 }

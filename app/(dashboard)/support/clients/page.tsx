@@ -5,7 +5,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useCrmStore } from "@/lib/store/crm-store";
-import { useSupportAccess } from "@/lib/hooks/use-support-access";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,7 +17,6 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 
 export default function SupportClientsPage() {
-  const { allowed, isLoading } = useSupportAccess();
   const { towers, assignLeadTower, getVisibleLeads } = useCrmStore();
   const [search, setSearch] = useState("");
   const [towerFilter, setTowerFilter] = useState("all");
@@ -40,8 +38,6 @@ export default function SupportClientsPage() {
       return matchesSearch && matchesTower;
     });
   }, [visibleLeads, search, towerFilter]);
-
-  if (isLoading || !allowed) return null;
 
   return (
     <PageShell>

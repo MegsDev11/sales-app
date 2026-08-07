@@ -26,7 +26,14 @@ function isAllowedOrigin(origin: string | null): origin is string {
   }
 }
 
-export function middleware(request: NextRequest) {
+/**
+ * CORS for the mobile app.
+ *
+ * Named `proxy`, in proxy.ts: Next 16 deprecated the `middleware` file convention
+ * and renamed it to `proxy` — the old name still ran but printed a deprecation on
+ * every build.
+ */
+export function proxy(request: NextRequest) {
   const origin = request.headers.get("origin");
   const isApi = request.nextUrl.pathname.startsWith("/api/");
 

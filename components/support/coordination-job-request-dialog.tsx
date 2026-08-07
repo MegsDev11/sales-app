@@ -77,11 +77,11 @@ export function CoordinationJobRequestDialog({
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{description}</p>
           <div>
-            <label className="mb-1 block text-sm font-medium">Job title</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Job title</label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Client name</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Client name</label>
             <Input
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
@@ -89,7 +89,7 @@ export function CoordinationJobRequestDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Site address</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Site address</label>
             <Input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -97,7 +97,7 @@ export function CoordinationJobRequestDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Work to be done</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Work to be done</label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

@@ -4,7 +4,6 @@ import { PageHeader, PageShell, Panel } from "@/components/layout/page-shell";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useCoordinationAccess } from "@/lib/hooks/use-coordination-access";
 import type { User } from "@/lib/types";
 import {
   TEAM_OPTIONS,
@@ -102,7 +101,6 @@ function Secret({
 }
 
 export default function CoordinationTechniciansPage() {
-  const { allowed, isLoading } = useCoordinationAccess();
   const { accessToken } = useAuth();
   const [techs, setTechs] = useState<User[]>([]);
   const [name, setName] = useState("");
@@ -217,8 +215,6 @@ export default function CoordinationTechniciansPage() {
       })),
     [filteredActive]
   );
-
-  if (isLoading || !allowed) return null;
 
   async function postAction(body: Record<string, unknown>) {
     if (!accessToken) throw new Error("Not signed in");

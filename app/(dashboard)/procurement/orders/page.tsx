@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { PageHeader, PageShell, Panel, AlertBanner } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/select-field";
 import { useProcurement } from "@/lib/procurement/use-procurement";
 import { PO_STATUSES, fmtMoney, poStatusMeta } from "@/lib/procurement/constants";
 import { PoFormDialog } from "@/components/procurement/po-form-dialog";
@@ -68,18 +69,15 @@ export default function OrdersPage() {
             className="pl-8"
           />
         </div>
-        <select
+        <SelectField
+          aria-label="Filter by status"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-        >
-          <option value="all">Any status</option>
-          {PO_STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          onValueChange={setStatusFilter}
+          options={[
+            { value: "all", label: "Any status" },
+            ...PO_STATUSES.map((s) => ({ value: s.value, label: s.label })),
+          ]}
+        />
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
       </div>
 

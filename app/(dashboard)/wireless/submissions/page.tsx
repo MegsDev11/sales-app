@@ -4,7 +4,6 @@ import { PageHeader, PageShell } from "@/components/layout/page-shell";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useWirelessAccess } from "@/lib/hooks/use-wireless-access";
 import { useWirelessData } from "@/lib/hooks/use-wireless-data";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,6 @@ import {
 } from "@/components/ui/select";
 
 export default function WirelessSubmissionsPage() {
-  const { allowed, isLoading } = useWirelessAccess();
   const { submissions, clients, loading, error, postForm, postJson } = useWirelessData();
   const [leadId, setLeadId] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -32,8 +30,6 @@ export default function WirelessSubmissionsPage() {
     () => [...clients].sort((a, b) => a.clientName.localeCompare(b.clientName)),
     [clients]
   );
-
-  if (isLoading || !allowed) return null;
 
   async function upload() {
     setBusy(true);
@@ -225,8 +221,9 @@ export default function WirelessSubmissionsPage() {
               <div className="flex flex-wrap gap-2">
                 {(s.assets ?? []).map((a) =>
                   a.publicUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <a key={a.id} href={a.publicUrl} target="_blank" rel="noreferrer">
+                      {/* Supabase storage URL — thumbnail only, no remotePatterns entry. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={a.publicUrl}
                         alt={a.caption || a.kind}
